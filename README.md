@@ -9,6 +9,8 @@
 - [Product vision and boundaries](docs/PRODUCT.md)
 - [MVP scope and acceptance](docs/MVP.md)
 - [Canonical user flows](docs/USER_FLOWS.md)
+- [Competitor patterns we intentionally adopt](docs/COMPETITIVE_ANALYSIS.md)
+- [Codex implementation context](docs/CODEX_GUIDE.md)
 - [Technical architecture](docs/ARCHITECTURE.md)
 - [Data model and migration rules](docs/DATA_MODEL.md)
 - [Tasks and local notifications](docs/NOTIFICATIONS.md)
