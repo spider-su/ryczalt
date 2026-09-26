@@ -1,0 +1,15 @@
+/.idea/
+/node_modules/
+/dist/
+/.expo/
+
+.expo/
+*:Zone.Identifier
+
+.expo/
+*:Zone.Identifier
+.playwright-mcp/
+/android/
+
+# Generated live API smoke-test output; never commit credentials or live data.
+/scripts/tmp/

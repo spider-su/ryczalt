@@ -1,0 +1,29 @@
+name: Mobile store submission
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Store platform to submit
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx eas-cli submit --profile production --platform "${{ inputs.platform }}" --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
