@@ -31,7 +31,8 @@ export function moneyToGrosz(amount: string): number {
 export function formatPln(grosz: number): string {
   const sign = grosz < 0 ? "-" : "";
   const absolute = Math.abs(grosz);
-  return `${sign}${Math.floor(absolute / 100).toLocaleString("pl-PL")},${String(absolute % 100).padStart(2, "0")} zł`;
+  const whole = new Intl.NumberFormat("pl-PL", { useGrouping: "always", maximumFractionDigits: 0 }).format(Math.floor(absolute / 100));
+  return `${sign}${whole},${String(absolute % 100).padStart(2, "0")} zł`;
 }
 
 export function taxOnRevenue(

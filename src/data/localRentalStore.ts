@@ -2,18 +2,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type {
   BillPayment,
+  CustomReminder,
   IncomeEntry,
   Property,
+  PropertyLink,
   RecurringBill,
   RentalDocument,
   TaxPayment,
+  TaskState,
 } from "../model/rental";
 import {
   RentalValidationError,
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
 
-export const RENTAL_DOCUMENT_SCHEMA_VERSION = 2;
+export const RENTAL_DOCUMENT_SCHEMA_VERSION = 3;
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
@@ -37,12 +40,15 @@ export const emptyDocument = (
   taxPayments: [],
   recurringBills: [],
   billPayments: [],
+  propertyLinks: [],
+  customReminders: [],
+  taskStates: [],
   settings: {
     taxYear,
     settlementMode: "monthly",
     jointSpouseThreshold: false,
     quarterlyEligible: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true },
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true },
   },
 });
 
@@ -73,7 +79,7 @@ export async function saveRentalDocument(
 function validateRentalDocument(data: unknown): RentalDocument {
   if (!isRecord(data))
     throw corrupted("Local rental document must be a JSON object.");
-  if (data.schemaVersion !== 1 && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
+  if (data.schemaVersion !== 1 && data.schemaVersion !== 2 && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
     throw new RentalStoreError(
       "UNSUPPORTED_VERSION",
       "Local rental document schema version is not supported.",
@@ -118,6 +124,9 @@ function validateRentalDocument(data: unknown): RentalDocument {
   );
   const recurringBills = data.recurringBills === undefined ? [] : validateArray(data.recurringBills, validateRecurringBill, "recurringBills");
   const billPayments = data.billPayments === undefined ? [] : validateArray(data.billPayments, validateBillPayment, "billPayments");
+  const propertyLinks = data.propertyLinks === undefined ? [] : validateArray(data.propertyLinks, validatePropertyLink, "propertyLinks");
+  const customReminders = data.customReminders === undefined ? [] : validateArray(data.customReminders, validateCustomReminder, "customReminders");
+  const taskStates = data.taskStates === undefined ? [] : validateArray(data.taskStates, validateTaskState, "taskStates");
 
   try {
     return validateRentalDocumentShape({
@@ -127,6 +136,9 @@ function validateRentalDocument(data: unknown): RentalDocument {
       taxPayments,
       recurringBills,
       billPayments,
+      propertyLinks,
+      customReminders,
+      taskStates,
       settings: {
         taxYear, settlementMode, jointSpouseThreshold, quarterlyEligible, reminderCategories,
         ...(optionalString(settings.taxRecipientName) ? { taxRecipientName: settings.taxRecipientName } : {}),
@@ -153,6 +165,7 @@ function validateProperty(value: unknown): Property {
     ...(optionalDecimal(value.defaultMonthlyRent, "defaultMonthlyRent")
       ? { defaultMonthlyRent: value.defaultMonthlyRent }
       : {}),
+    ...(value.rentSchedule === undefined ? {} : { rentSchedule: validateArray(value.rentSchedule, validateRentRate, "rentSchedule") }),
     ...(optionalString(value.tenantName)
       ? { tenantName: value.tenantName }
       : {}),
@@ -178,6 +191,26 @@ function validateProperty(value: unknown): Property {
   };
 }
 
+function validateRentRate(value: unknown): { effectiveFrom: string; amount: string } {
+  if (!isRecord(value) || !isNonEmptyString(value.effectiveFrom) || !isDecimalString(value.amount)) throw corrupted("Rent rate entry is invalid.");
+  return { effectiveFrom: value.effectiveFrom, amount: value.amount };
+}
+
+function validatePropertyLink(value: unknown): PropertyLink {
+  if (!isRecord(value) || !isStableId(value.id) || !isStableId(value.propertyId) || !isNonEmptyString(value.label) || !isNonEmptyString(value.url)) throw corrupted("Property link entry is invalid.");
+  return { id: value.id, propertyId: value.propertyId, label: value.label, url: value.url, ...(optionalString(value.category) ? { category: value.category as PropertyLink["category"] } : {}) };
+}
+
+function validateCustomReminder(value: unknown): CustomReminder {
+  if (!isRecord(value) || !isStableId(value.id) || !isNonEmptyString(value.title) || !isNonEmptyString(value.dueDate)) throw corrupted("Custom reminder entry is invalid.");
+  return { id: value.id, title: value.title, dueDate: value.dueDate, ...(optionalString(value.propertyId) ? { propertyId: value.propertyId } : {}), ...(optionalString(value.note) ? { note: value.note } : {}) };
+}
+
+function validateTaskState(value: unknown): TaskState {
+  if (!isRecord(value) || !isNonEmptyString(value.taskId)) throw corrupted("Task state entry is invalid.");
+  return { taskId: value.taskId, ...(optionalString(value.snoozedUntil) ? { snoozedUntil: value.snoozedUntil } : {}), ...(optionalString(value.dismissedAt) ? { dismissedAt: value.dismissedAt } : {}), ...(optionalString(value.completedAt) ? { completedAt: value.completedAt } : {}) };
+}
+
 function validateRecurringBill(value: unknown): RecurringBill {
   if (!isRecord(value) || !isStableId(value.id) || !isStableId(value.propertyId) || !isNonEmptyString(value.name) || typeof value.reminderEnabled !== "boolean")
     throw corrupted("Recurring bill entry is invalid.");
@@ -199,9 +232,9 @@ function validateBillPayment(value: unknown): BillPayment {
 }
 
 function validateReminderCategories(value: unknown): RentalDocument["settings"]["reminderCategories"] {
-  if (value === undefined) return { rent: true, agreements: true, tax: true, bills: true };
+  if (value === undefined) return { rent: true, agreements: true, tax: true, bills: true, custom: true };
   if (!isRecord(value)) throw corrupted("Notification settings are invalid.");
-  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills };
+  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills, custom: value.custom ?? true };
   if (Object.values(categories).some((enabled) => typeof enabled !== "boolean")) throw corrupted("Notification settings are invalid.");
   return categories as RentalDocument["settings"]["reminderCategories"];
 }

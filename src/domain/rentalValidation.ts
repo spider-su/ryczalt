@@ -124,7 +124,7 @@ export function validateIncomeValues(
 export function validateRentalDocumentShape(
   document: RentalDocument,
 ): RentalDocument {
-  if (document.schemaVersion !== 2)
+  if (document.schemaVersion !== 3)
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
@@ -150,6 +150,11 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Agreement reminder preferences are invalid.");
     if (property.administratorPortalUrl && !isValidHttpsUrl(property.administratorPortalUrl))
       throw new RentalValidationError("Administrator portal must use a valid HTTPS URL.");
+    const rentRateMonths = new Set<string>();
+    for (const rate of property.rentSchedule ?? []) {
+      if (!isRentalMonth(rate.effectiveFrom) || !isPositiveMoney(rate.amount) || rentRateMonths.has(rate.effectiveFrom)) throw new RentalValidationError("Rent schedule is invalid.");
+      rentRateMonths.add(rate.effectiveFrom);
+    }
   }
   const incomeIds = new Set<string>();
   for (const entry of document.incomeEntries) {
@@ -192,6 +197,21 @@ export function validateRentalDocumentShape(
     billPaymentIds.add(payment.id);
     if (!billIds.has(payment.billId) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
       throw new RentalValidationError("Bill payment is invalid.");
+  }
+  const linkIds = new Set<string>();
+  for (const link of document.propertyLinks) {
+    if (linkIds.has(link.id) || !propertyIds.has(link.propertyId) || !link.label.trim() || !isValidHttpsUrl(link.url) || ![undefined, "ADMINISTRATION", "UTILITY", "TAX", "OTHER"].includes(link.category)) throw new RentalValidationError("Property link is invalid.");
+    linkIds.add(link.id);
+  }
+  const customIds = new Set<string>();
+  for (const reminder of document.customReminders) {
+    if (customIds.has(reminder.id) || !reminder.title.trim() || !isValidCalendarDate(reminder.dueDate) || (reminder.propertyId && !propertyIds.has(reminder.propertyId))) throw new RentalValidationError("Custom reminder is invalid.");
+    customIds.add(reminder.id);
+  }
+  const stateIds = new Set<string>();
+  for (const state of document.taskStates) {
+    if (!state.taskId.trim() || stateIds.has(state.taskId) || [state.snoozedUntil, state.dismissedAt, state.completedAt].some((value) => value !== undefined && (typeof value !== "string" || Number.isNaN(new Date(value).getTime())))) throw new RentalValidationError("Task state is invalid.");
+    stateIds.add(state.taskId);
   }
   if (document.settings.taxMicroAccount && !isValidPolishBankAccount(document.settings.taxMicroAccount))
     throw new RentalValidationError("Tax micro-account is invalid.");

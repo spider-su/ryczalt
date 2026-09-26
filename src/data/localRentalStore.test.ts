@@ -20,7 +20,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 const storage = vi.mocked(AsyncStorage);
 
 const validDocument: RentalDocument = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   properties: [
     {
       id: "property-1",
@@ -48,7 +48,10 @@ const validDocument: RentalDocument = {
   ],
   recurringBills: [],
   billPayments: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true } },
+  propertyLinks: [],
+  customReminders: [],
+  taskStates: [],
+  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
 };
 
 describe("localRentalStore", () => {
@@ -74,8 +77,19 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).resolves.toMatchObject({
       incomeEntries: validDocument.incomeEntries,
       taxPayments: validDocument.taxPayments,
-      schemaVersion: 2,
-      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true } },
+      schemaVersion: 3,
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+    });
+  });
+
+  it("migrates schema 2 while preserving reminder settings and all recorded history", async () => {
+    const schema2 = { ...validDocument, schemaVersion: 2, propertyLinks: undefined, customReminders: undefined, taskStates: undefined,
+      settings: { ...validDocument.settings, reminderCategories: { rent: false, agreements: true, tax: true, bills: false } } };
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(schema2));
+    await expect(loadRentalDocument()).resolves.toMatchObject({
+      schemaVersion: 3, incomeEntries: validDocument.incomeEntries, taxPayments: validDocument.taxPayments,
+      properties: validDocument.properties, propertyLinks: [], customReminders: [], taskStates: [],
+      settings: { reminderCategories: { rent: false, agreements: true, tax: true, bills: false, custom: true } },
     });
   });
 
@@ -89,7 +103,7 @@ describe("localRentalStore", () => {
 
   it("rejects unsupported schema versions", async () => {
     storage.getItem.mockResolvedValueOnce(
-      JSON.stringify({ ...validDocument, schemaVersion: 3 }),
+      JSON.stringify({ ...validDocument, schemaVersion: 4 }),
     );
 
     await expect(loadRentalDocument()).rejects.toMatchObject({

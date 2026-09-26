@@ -4,6 +4,7 @@ export type Property = {
   name: string;
   address?: string;
   defaultMonthlyRent?: string;
+  rentSchedule?: RentRate[];
   tenantName?: string;
   tenantPhone?: string;
   tenantEmail?: string;
@@ -18,6 +19,31 @@ export type Property = {
   administratorPhone?: string;
   administratorEmail?: string;
   notes?: string;
+};
+
+export type RentRate = { effectiveFrom: string; amount: string };
+
+export type PropertyLink = {
+  id: string;
+  propertyId: string;
+  label: string;
+  url: string;
+  category?: "ADMINISTRATION" | "UTILITY" | "TAX" | "OTHER";
+};
+
+export type CustomReminder = {
+  id: string;
+  title: string;
+  propertyId?: string;
+  dueDate: string;
+  note?: string;
+};
+
+export type TaskState = {
+  taskId: string;
+  snoozedUntil?: string;
+  dismissedAt?: string;
+  completedAt?: string;
 };
 
 export type RecurringBill = {
@@ -60,12 +86,15 @@ export type TaxPayment = {
 };
 
 export type RentalDocument = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   properties: Property[];
   incomeEntries: IncomeEntry[];
   taxPayments: TaxPayment[];
   recurringBills: RecurringBill[];
   billPayments: BillPayment[];
+  propertyLinks: PropertyLink[];
+  customReminders: CustomReminder[];
+  taskStates: TaskState[];
   settings: {
     taxYear: number;
     settlementMode: "monthly" | "quarterly";
@@ -76,6 +105,7 @@ export type RentalDocument = {
       agreements: boolean;
       tax: boolean;
       bills: boolean;
+      custom: boolean;
     };
     taxRecipientName?: string;
     taxMicroAccount?: string;
