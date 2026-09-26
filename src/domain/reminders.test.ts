@@ -32,7 +32,7 @@ describe("task reminders and payment details", () => {
     const plan = taskNotificationPlan(doc, now);
     const rent = plan.find((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-01");
     expect(rent?.fireAt).toEqual(new Date(2026, 1, 1, 9));
-    const agreement = plan.find((item) => item.key === "RENTAL_AGREEMENT_END:p1:2026-12-31");
+    const agreement = taskNotificationPlan(doc, new Date(2026, 9, 1, 8)).find((item) => item.key === "RENTAL_AGREEMENT_END:p1:2026-12-31:30");
     expect(agreement?.fireAt).toEqual(new Date(2026, 11, 1, 9));
     const cancel = vi.fn(async () => undefined);
     const schedule = vi.fn(async () => undefined);

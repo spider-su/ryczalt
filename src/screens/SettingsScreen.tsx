@@ -12,13 +12,13 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { createId, useRentalData } from "../data/RentalDataProvider";
-import type { BillPayment, Property, RecurringBill, RentalDocument } from "../model/rental";
+import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
+import type { BillPayment, Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
-import { buildReminderPlan } from "../domain/reminders";
+import { deriveTasks } from "../domain/tasks";
 
 type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
   expectedPaymentDay: string;
@@ -66,7 +66,11 @@ export function SettingsScreen() {
   const [billPaymentAmount, setBillPaymentAmount] = useState("");
   const [taxRecipient, setTaxRecipient] = useState("");
   const [taxAccount, setTaxAccount] = useState("");
-  const reminderPlan = useMemo(() => document ? buildReminderPlan(document) : [], [document]);
+  const [linkDrafts, setLinkDrafts] = useState<PropertyLink[]>([]);
+  const [linkLabel, setLinkLabel] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkCategory, setLinkCategory] = useState<PropertyLink["category"]>("UTILITY");
+  const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
 
   useEffect(() => {
     if (!document) return;
@@ -94,6 +98,8 @@ export function SettingsScreen() {
 
   const openProperty = (property?: Property) => {
     setEditing(property ?? null);
+    setLinkDrafts(property ? document.propertyLinks.filter((link) => link.propertyId === property.id) : []);
+    setLinkLabel(""); setLinkUrl(""); setLinkCategory("UTILITY");
     setModalOpen(true);
     setDraft(
       property
@@ -162,7 +168,7 @@ export function SettingsScreen() {
       id: editing?.id ?? createId("property"),
       name,
       ...optional("address", draft.address),
-      ...(rent ? { defaultMonthlyRent: rent.replace(",", ".") } : {}),
+      ...(rent ? { defaultMonthlyRent: rent.replace(",", "."), rentSchedule: updatedRentSchedule(editing, rent.replace(",", ".")) } : {}),
       ...optional("tenantName", draft.tenantName),
       ...optional("tenantPhone", draft.tenantPhone),
       ...optional("tenantEmail", draft.tenantEmail),
@@ -178,10 +184,12 @@ export function SettingsScreen() {
       ...optional("administratorEmail", draft.administratorEmail),
       ...optional("notes", draft.notes),
     };
+    const propertyLinks = linkDrafts.map((link) => ({ ...link, propertyId: property.id }));
     setSaving(true);
     try {
       await update((current) => ({
         ...current,
+        propertyLinks: [...current.propertyLinks.filter((link) => link.propertyId !== property.id), ...propertyLinks],
         properties: editing
           ? current.properties.map((item) =>
               item.id === editing.id ? property : item,
@@ -195,6 +203,14 @@ export function SettingsScreen() {
     } finally {
       setSaving(false);
     }
+  };
+  const addPropertyLink = () => {
+    const label = linkLabel.trim(); const url = linkUrl.trim();
+    if (!label || !isValidHttpsUrl(url)) {
+      Alert.alert("Nieprawidłowy link", "Podaj nazwę i poprawny adres HTTPS."); return;
+    }
+    setLinkDrafts((links) => [...links, { id: createId("link"), propertyId: editing?.id ?? "draft-property", label, url, category: linkCategory }]);
+    setLinkLabel(""); setLinkUrl("");
   };
   const remove = (property: Property) => {
     if (deletingId) return;
@@ -221,6 +237,7 @@ export function SettingsScreen() {
         ...current,
         recurringBills: current.recurringBills.filter((bill) => bill.propertyId !== property.id),
         billPayments: current.billPayments.filter((payment) => !current.recurringBills.some((bill) => bill.id === payment.billId && bill.propertyId === property.id)),
+        propertyLinks: current.propertyLinks.filter((link) => link.propertyId !== property.id),
         properties: current.properties.filter(
                 (item) => item.id !== property.id,
               ),
@@ -428,10 +445,10 @@ export function SettingsScreen() {
         <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : permission === "unavailable" ? "Powiadomienia urządzenia są niedostępne w przeglądarce; przypomnienia pozostają widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
         {([
-          ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"],
+          ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
         ] as const).map(([category, label]) => <Pressable key={category} accessibilityRole="checkbox" accessibilityState={{ checked: document.settings.reminderCategories[category] }} onPress={() => toggleReminderCategory(category)} style={{ paddingVertical: 7 }}><Text style={muted}>{document.settings.reminderCategories[category] ? "☑" : "□"} {label}</Text></Pressable>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
-        {reminderPlan.length ? reminderPlan.slice(0, 6).map((reminder) => <Text key={reminder.key} style={muted}>{reminder.fireAt.toLocaleDateString("pl-PL")} · {reminder.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
+        {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{task.dueAt.toLocaleDateString("pl-PL")} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
         <Text style={sectionTitle}>Dane płatności podatku</Text>
         <Text style={muted}>Wpisz dane z własnego mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
         <Text style={fieldLabel}>Odbiorca</Text><TextInput accessibilityLabel="Odbiorca podatku" value={taxRecipient} onChangeText={setTaxRecipient} placeholder="Urząd skarbowy" style={inputStyle} />
@@ -634,6 +651,13 @@ export function SettingsScreen() {
             {field("Adres panelu administracji (HTTPS)", "administratorPortalUrl", { placeholder: "https://" })}
             {field("Telefon administracji", "administratorPhone", { keyboardType: "phone-pad" })}
             {field("E-mail administracji", "administratorEmail", { keyboardType: "email-address" })}
+            <Text style={sectionTitle}>Przydatne linki</Text>
+            <Text style={muted}>Linki otwierają się w przeglądarce. Nie zapisuj tu haseł.</Text>
+            <TextInput accessibilityLabel="Nazwa przydatnego linku" value={linkLabel} onChangeText={setLinkLabel} placeholder="np. Dostawca prądu" style={inputStyle} />
+            <TextInput accessibilityLabel="Adres przydatnego linku HTTPS" value={linkUrl} onChangeText={setLinkUrl} placeholder="https://" autoCapitalize="none" keyboardType="url" style={inputStyle} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>{([ ["ADMINISTRATION", "Administracja"], ["UTILITY", "Media"], ["TAX", "Podatki"], ["OTHER", "Inne"] ] as const).map(([category, label]) => <Pressable key={category} accessibilityRole="radio" accessibilityState={{ checked: linkCategory === category }} onPress={() => setLinkCategory(category)} style={[modeButton, linkCategory === category && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}><Text style={modeText}>{label}</Text></Pressable>)}</View>
+            <Pressable accessibilityRole="button" onPress={addPropertyLink} style={secondaryButton}><Text style={modeText}>Dodaj link</Text></Pressable>
+            {linkDrafts.map((link) => <View key={link.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}><View style={{ flex: 1 }}><Text style={fieldLabel}>{link.label}</Text><Text style={muted}>{link.url}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Usuń link ${link.label}`} onPress={() => setLinkDrafts((current) => current.filter((item) => item.id !== link.id))}><Text style={{ ...action, color: theme.colors.danger }}>Usuń</Text></Pressable></View>)}
             {field("Notatki", "notes", { multiline: true })}
             <Pressable
               accessibilityRole="button"
@@ -705,6 +729,14 @@ function nextBillDueDate(day: number, now = new Date()): string {
     due = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()), 12);
   }
   return new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long", year: "numeric" }).format(due);
+}
+
+function updatedRentSchedule(property: Property | null, amount: string) {
+  const month = todayIsoDate().slice(0, 7);
+  const existing = property?.rentSchedule ?? [];
+  if (property?.defaultMonthlyRent === amount && existing.some((rate) => rate.effectiveFrom === month && rate.amount === amount)) return existing;
+  if (property?.defaultMonthlyRent === amount && existing.length) return existing;
+  return [...existing.filter((rate) => rate.effectiveFrom !== month), { effectiveFrom: month, amount }].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
 }
 
 function optional(

@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import { AppState, Linking, Platform } from "react-native";
-import { buildReminderPlan } from "../domain/reminders";
+import { taskNotificationPlan } from "../domain/tasks";
 import { reconcileReminderSchedule } from "./reconcile";
 import { useRentalData } from "../data/RentalDataProvider";
 import { supportsLocalNotifications } from "./support";
@@ -53,7 +53,7 @@ export function ReminderProvider({ children }: PropsWithChildren) {
 
   const reconcile = useCallback(async () => {
     if (!supportsLocalNotifications(Platform.OS) || !document || permission !== "granted") return;
-    const plan = buildReminderPlan(document);
+    const plan = taskNotificationPlan(document);
     queue.current = queue.current.then(async () => {
       try {
         const existing = await Notifications.getAllScheduledNotificationsAsync();

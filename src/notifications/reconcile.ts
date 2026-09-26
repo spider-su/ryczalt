@@ -1,12 +1,12 @@
-import type { LocalReminder } from "../domain/reminders";
+import type { ReturnTypeTaskNotification } from "../domain/tasks";
 
 export type ScheduledReminder = { identifier: string; reminderKey: string; signature: string };
 
 export async function reconcileReminderSchedule(
-  plan: LocalReminder[],
+  plan: ReturnTypeTaskNotification[],
   scheduled: ScheduledReminder[],
   cancel: (identifier: string) => Promise<void>,
-  schedule: (reminder: LocalReminder) => Promise<void>,
+  schedule: (reminder: ReturnTypeTaskNotification) => Promise<void>,
 ): Promise<void> {
   const current = new Map<string, ScheduledReminder>();
   for (const notification of scheduled) {

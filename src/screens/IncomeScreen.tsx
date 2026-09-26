@@ -69,8 +69,18 @@ export function IncomeScreen() {
     [document, taxYear],
   );
   useEffect(() => {
-    const params = route.params as { propertyId?: string; rentalMonth?: string } | undefined;
+    const params = route.params as { propertyId?: string; rentalMonth?: string; quickAdd?: boolean; expectedAmount?: string } | undefined;
     const property = params?.propertyId ? properties.find((item) => item.id === params.propertyId) : undefined;
+    if (params?.quickAdd) {
+      const amount = params.expectedAmount ?? property?.defaultMonthlyRent ?? "";
+      setEditing(null);
+      setTaxableExpanded(false);
+      setDraft({ ...blankDraft(), propertyId: property?.id ?? properties[0]?.id ?? "", amount,
+        taxableAmount: amount, rentalMonth: params.rentalMonth ?? "" });
+      setModalOpen(true);
+      navigation.setParams({ quickAdd: undefined, expectedAmount: undefined, propertyId: undefined, rentalMonth: undefined });
+      return;
+    }
     if (!property || !params?.rentalMonth) return;
     setEditing(null);
     setTaxableExpanded(false);
@@ -79,7 +89,7 @@ export function IncomeScreen() {
     navigation.setParams({ propertyId: undefined, rentalMonth: undefined });
   // Notification actions are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document]);
+  }, [document, route.params]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>

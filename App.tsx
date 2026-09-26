@@ -10,6 +10,7 @@ import { ThemeProvider, useTheme, theme } from './src/theme/theme';
 import { IncomeScreen } from './src/screens/IncomeScreen';
 import { TaxScreen } from './src/screens/TaxScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { PulpitScreen } from './src/screens/PulpitScreen';
 import { RentalDataProvider } from './src/data/RentalDataProvider';
 import { ReminderProvider } from './src/notifications/ReminderProvider';
 
@@ -29,7 +30,8 @@ function RentalApp() {
       }
       const navigator = navigationRef as any;
       if (category === 'tax') navigator.navigate('Podatek', { period: data.period });
-      else if (category === 'rent') navigator.navigate('Przychód', { propertyId: data.propertyId, rentalMonth: data.period });
+      else if (category === 'rent') navigator.navigate('Przychód', { quickAdd: true, propertyId: data.propertyId, rentalMonth: data.period, expectedAmount: data.expectedAmount });
+      else if (category === 'custom') navigator.navigate('Pulpit', { taskId: data.taskId });
       else navigator.navigate('Ustawienia', { propertyId: data.propertyId, billId: data.billId });
       void Notifications.clearLastNotificationResponseAsync();
     };
@@ -43,8 +45,9 @@ function RentalApp() {
       headerTintColor: theme.colors.textPrimary,
       tabBarActiveTintColor: theme.colors.primary,
       tabBarStyle: { backgroundColor: theme.colors.surface },
-      tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
+      tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>
+      <Tabs.Screen name="Pulpit" component={PulpitScreen} />
       <Tabs.Screen name="Przychód" component={IncomeScreen} />
       <Tabs.Screen name="Podatek" component={TaxScreen} />
       <Tabs.Screen name="Ustawienia" component={SettingsScreen} />
