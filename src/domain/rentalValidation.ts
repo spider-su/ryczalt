@@ -3,6 +3,7 @@ import type { IncomeEntry, Property, RentalDocument } from "../model/rental";
 export const RENTAL_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const DECIMAL_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
 export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const AGREEMENT_REMINDER_DAYS = [90, 60, 30, 14, 7, 0] as const;
 
 export class RentalValidationError extends Error {
   constructor(message: string) {
@@ -30,7 +31,9 @@ export function isRentalMonth(value: string): boolean {
 }
 
 export function isDecimalString(value: string): boolean {
-  return DECIMAL_PATTERN.test(value);
+  if (!DECIMAL_PATTERN.test(value)) return false;
+  const [whole, fraction = ""] = value.split(".");
+  return BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, "0")) <= BigInt(Number.MAX_SAFE_INTEGER);
 }
 
 export function isPositiveMoney(value: string): boolean {
@@ -39,6 +42,28 @@ export function isPositiveMoney(value: string): boolean {
 
 export function isNonnegativeMoney(value: string): boolean {
   return isDecimalString(value) && compareDecimalStrings(value, "0") >= 0;
+}
+
+export function isValidHttpsUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+export function isValidPolishBankAccount(value: string): boolean {
+  const normalized = value.replace(/\s/g, "").toUpperCase();
+  const iban = normalized.startsWith("PL") ? normalized : `PL${normalized}`;
+  if (!/^PL\d{26}$/.test(iban)) return false;
+  const rearranged = `${iban.slice(4)}2521${iban.slice(2, 4)}`;
+  let remainder = 0;
+  for (const character of rearranged) {
+    const digits = /[A-Z]/.test(character) ? String(character.charCodeAt(0) - 55) : character;
+    for (const digit of digits) remainder = (remainder * 10 + Number(digit)) % 97;
+  }
+  return remainder === 1;
 }
 
 /** Exact decimal comparison; no JavaScript floating-point arithmetic is used. */
@@ -99,7 +124,7 @@ export function validateIncomeValues(
 export function validateRentalDocumentShape(
   document: RentalDocument,
 ): RentalDocument {
-  if (document.schemaVersion !== 1)
+  if (document.schemaVersion !== 2)
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
@@ -115,6 +140,16 @@ export function validateRentalDocumentShape(
       !isNonnegativeMoney(property.defaultMonthlyRent)
     )
       throw new RentalValidationError("Default rent is invalid.");
+    if (property.rentalEndDate && !isValidCalendarDate(property.rentalEndDate))
+      throw new RentalValidationError("Rental agreement end date is invalid.");
+    if (property.expectedPaymentDay !== undefined && (!Number.isInteger(property.expectedPaymentDay) || property.expectedPaymentDay < 1 || property.expectedPaymentDay > 31))
+      throw new RentalValidationError("Expected payment day is invalid.");
+    if (property.paymentReminderDelayDays !== undefined && (!Number.isInteger(property.paymentReminderDelayDays) || property.paymentReminderDelayDays < 0 || property.paymentReminderDelayDays > 30))
+      throw new RentalValidationError("Rent reminder delay is invalid.");
+    if (property.rentalEndReminderDays?.some((days) => !AGREEMENT_REMINDER_DAYS.includes(days as typeof AGREEMENT_REMINDER_DAYS[number])) || new Set(property.rentalEndReminderDays ?? []).size !== (property.rentalEndReminderDays ?? []).length)
+      throw new RentalValidationError("Agreement reminder preferences are invalid.");
+    if (property.administratorPortalUrl && !isValidHttpsUrl(property.administratorPortalUrl))
+      throw new RentalValidationError("Administrator portal must use a valid HTTPS URL.");
   }
   const incomeIds = new Set<string>();
   for (const entry of document.incomeEntries) {
@@ -131,12 +166,38 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Tax payment IDs must be unique.");
     taxIds.add(payment.id);
     if (
-      !isRentalMonth(payment.period) ||
+      !isSettlementPeriod(payment.period) ||
       !isValidCalendarDate(payment.paidAt) ||
       !isPositiveMoney(payment.amount)
     ) {
       throw new RentalValidationError("Tax payment is invalid.");
     }
   }
+  const billIds = new Set<string>();
+  for (const bill of document.recurringBills) {
+    if (billIds.has(bill.id)) throw new RentalValidationError("Bill IDs must be unique.");
+    billIds.add(bill.id);
+    if (!document.properties.some((property) => property.id === bill.propertyId) || !bill.name.trim())
+      throw new RentalValidationError("Recurring bill is invalid.");
+    if (bill.expectedAmount && !isPositiveMoney(bill.expectedAmount))
+      throw new RentalValidationError("Bill amount is invalid.");
+    if (bill.dueDay !== undefined && (!Number.isInteger(bill.dueDay) || bill.dueDay < 1 || bill.dueDay > 31))
+      throw new RentalValidationError("Bill due day is invalid.");
+    if (bill.bankAccount && !isValidPolishBankAccount(bill.bankAccount))
+      throw new RentalValidationError("Bill bank account is invalid.");
+  }
+  const billPaymentIds = new Set<string>();
+  for (const payment of document.billPayments) {
+    if (billPaymentIds.has(payment.id)) throw new RentalValidationError("Bill payment IDs must be unique.");
+    billPaymentIds.add(payment.id);
+    if (!billIds.has(payment.billId) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
+      throw new RentalValidationError("Bill payment is invalid.");
+  }
+  if (document.settings.taxMicroAccount && !isValidPolishBankAccount(document.settings.taxMicroAccount))
+    throw new RentalValidationError("Tax micro-account is invalid.");
   return document;
+}
+
+function isSettlementPeriod(value: string): boolean {
+  return isRentalMonth(value) || /^\d{4}-Q[1-4]$/.test(value);
 }

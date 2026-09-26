@@ -108,14 +108,16 @@ describe("rental validation and operations", () => {
 
   it("rejects duplicate entry IDs and unknown property references in documents", () => {
     const document: RentalDocument = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       properties: [property],
       incomeEntries: [
         entry("income-1", "2026-01-01"),
         entry("income-1", "2026-01-02"),
       ],
       taxPayments: [],
-      settings: { taxYear: 2026 },
+      recurringBills: [],
+      billPayments: [],
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true } },
     };
     expect(() => validateRentalDocumentShape(document)).toThrow();
   });

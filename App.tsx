@@ -1,18 +1,43 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme, theme } from './src/theme/theme';
 import { IncomeScreen } from './src/screens/IncomeScreen';
 import { TaxScreen } from './src/screens/TaxScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { RentalDataProvider } from './src/data/RentalDataProvider';
+import { ReminderProvider } from './src/notifications/ReminderProvider';
 
 const Tabs = createBottomTabNavigator();
+const navigationRef = createNavigationContainerRef<any>();
 function RentalApp() {
   const { mode } = useTheme();
-  return <NavigationContainer><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const openTarget = (response: Notifications.NotificationResponse, retry = 0) => {
+      const data = response.notification.request.content.data;
+      if (!data) return;
+      const category = data.category;
+      if (!navigationRef.isReady()) {
+        if (retry < 10) setTimeout(() => openTarget(response, retry + 1), 150);
+        return;
+      }
+      const navigator = navigationRef as any;
+      if (category === 'tax') navigator.navigate('Podatek', { period: data.period });
+      else if (category === 'rent') navigator.navigate('Przychód', { propertyId: data.propertyId, rentalMonth: data.period });
+      else navigator.navigate('Ustawienia', { propertyId: data.propertyId, billId: data.billId });
+      void Notifications.clearLastNotificationResponseAsync();
+    };
+    const subscription = Notifications.addNotificationResponseReceivedListener(openTarget);
+    void Notifications.getLastNotificationResponseAsync().then((response) => { if (response) openTarget(response); });
+    return () => subscription.remove();
+  }, []);
+  return <NavigationContainer ref={navigationRef}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <Tabs.Navigator screenOptions={({ route }) => ({
       headerStyle: { backgroundColor: theme.colors.background },
       headerTintColor: theme.colors.textPrimary,
@@ -26,4 +51,4 @@ function RentalApp() {
     </Tabs.Navigator>
   </NavigationContainer>;
 }
-export default function App() { return <SafeAreaProvider><ThemeProvider><RentalDataProvider><RentalApp /></RentalDataProvider></ThemeProvider></SafeAreaProvider>; }
+export default function App() { return <SafeAreaProvider><ThemeProvider><RentalDataProvider><ReminderProvider><RentalApp /></ReminderProvider></RentalDataProvider></ThemeProvider></SafeAreaProvider>; }

@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useEffect } from "react";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +21,8 @@ import type { IncomeEntry } from "../model/rental";
 import { theme } from "../theme/theme";
 import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
 import { entriesForTaxYear } from "../domain/rentalHistory";
+import { formatPln } from "../domain/ryczaltTax";
+import { summarizeRentMonth } from "../domain/reminders";
 import {
   isNonnegativeMoney,
   isPositiveMoney,
@@ -46,6 +50,8 @@ const blankDraft = (): PaymentDraft => ({
 
 export function IncomeScreen() {
   const { document, error, update } = useRentalData();
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<IncomeEntry | null>(null);
   const [draft, setDraft] = useState<PaymentDraft>(blankDraft());
@@ -54,6 +60,7 @@ export function IncomeScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const properties = document?.properties ?? [];
   const [selectedTaxYear, setSelectedTaxYear] = useState<number | null>(null);
+  const rentalMonth = todayIsoDate().slice(0, 7);
   const configuredTaxYear =
     document?.settings.taxYear ?? new Date().getFullYear();
   const taxYear = selectedTaxYear ?? configuredTaxYear;
@@ -61,6 +68,18 @@ export function IncomeScreen() {
     () => (document ? entriesForTaxYear(document.incomeEntries, taxYear) : []),
     [document, taxYear],
   );
+  useEffect(() => {
+    const params = route.params as { propertyId?: string; rentalMonth?: string } | undefined;
+    const property = params?.propertyId ? properties.find((item) => item.id === params.propertyId) : undefined;
+    if (!property || !params?.rentalMonth) return;
+    setEditing(null);
+    setTaxableExpanded(false);
+    setDraft({ ...blankDraft(), propertyId: property.id, amount: property.defaultMonthlyRent ?? "", taxableAmount: property.defaultMonthlyRent ?? "", rentalMonth: params.rentalMonth });
+    setModalOpen(true);
+    navigation.setParams({ propertyId: undefined, rentalMonth: undefined });
+  // Notification actions are consumed once the document has loaded.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [document]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>
@@ -72,14 +91,15 @@ export function IncomeScreen() {
       <ActivityIndicator style={{ flex: 1 }} />
     );
 
-  const openNew = () => {
+  const openNew = (selectedPropertyId?: string, selectedRentalMonth = "") => {
     setEditing(null);
     setTaxableExpanded(false);
     setDraft({
       ...blankDraft(),
-      propertyId: properties[0]?.id ?? "",
-      amount: properties[0]?.defaultMonthlyRent ?? "",
-      taxableAmount: properties[0]?.defaultMonthlyRent ?? "",
+      propertyId: selectedPropertyId ?? properties[0]?.id ?? "",
+      amount: properties.find((property) => property.id === selectedPropertyId)?.defaultMonthlyRent ?? (selectedPropertyId ? "" : properties[0]?.defaultMonthlyRent ?? ""),
+      taxableAmount: properties.find((property) => property.id === selectedPropertyId)?.defaultMonthlyRent ?? (selectedPropertyId ? "" : properties[0]?.defaultMonthlyRent ?? ""),
+      rentalMonth: selectedRentalMonth,
     });
     setModalOpen(true);
   };
@@ -339,13 +359,20 @@ export function IncomeScreen() {
           flexGrow: 1,
         }}
         ListHeaderComponent={
-          <Pressable
-            accessibilityRole="button"
-            onPress={openNew}
-            style={primaryButton}
-          >
-            <Text style={primaryText}>＋ Potwierdź otrzymaną wpłatę</Text>
-          </Pressable>
+          <View>
+            {properties.map((property) => {
+              const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
+              return <View key={property.id} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
+                <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{property.name} · {rentalMonth}</Text>
+                {summary.status === "unknown" ? <Text style={muted}>Oczekiwany czynsz nieustalony</Text> : <>
+                  <Text style={muted}>Oczekiwano {formatPln(summary.expectedGrosz)} · potwierdzono {formatPln(summary.confirmedGrosz)}</Text>
+                  {summary.status === "complete" ? <Text style={muted}>Wpłata potwierdzona</Text> : <Text style={muted}>Pozostało do potwierdzenia {formatPln(summary.remainingGrosz)}</Text>}
+                </>}
+                <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)}><Text style={action}>Sprawdź wpłatę</Text></Pressable>
+              </View>;
+            })}
+            <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź otrzymaną wpłatę</Text></Pressable>
+          </View>
         }
         ListEmptyComponent={
           <Text style={{ color: theme.colors.textSecondary, marginTop: 18 }}>

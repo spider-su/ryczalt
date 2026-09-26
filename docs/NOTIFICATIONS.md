@@ -1,6 +1,6 @@
 # Tasks and local notifications — target design
 
-**Status:** planned. The inspected baseline does not yet contain a native notification implementation. Persistent in-app tasks are the primary UX; local OS notifications are reminders about them, not the task database.
+**Status:** implemented for current rent, agreement, tax, and recurring-bill reminders. In-app status remains primary; local OS notifications are disposable reminders derived from local records.
 
 ## Categories
 
@@ -20,11 +20,13 @@ Financial task completion is derived from manually confirmed records. A task may
 
 ## Reconciliation
 
-Project tasks from current domain records → apply persisted snooze/dismissal → compare desired future native notifications to scheduled IDs → cancel obsolete and schedule missing. Reconcile after load, relevant mutation and preference changes. Avoid duplicates and past schedules; use a reasonable local hour and test timezones/DST, end-of-month days and changed agreement dates. Reschedule on apartment deletion where permitted.
+Project reminders from current domain records → compare desired future notifications to scheduled stable keys/signatures → cancel obsolete and duplicate entries and schedule missing ones. Reconcile after permission grant, data/preferences changes, app restart and foreground resume. Avoid duplicates and past schedules; fire at 09:00 device-local time and recalculate on resume after timezone/DST changes. Agreement offsets are configurable (90/60/30/14/7/0 days); rent and bill due days clamp to shorter months. Apartment deletion removes its projected reminders.
 
 ## Navigation and permissions
 
-Notification tap opens contextual apartment/month, tax period, bill/portal or agreement settings. Prefilled forms never auto-save money. Request permission contextually, allow category toggles and keep in-app tasks fully functional if denied or on Web. Do not promise guaranteed delivery when the app is terminated or OS scheduling is constrained.
+Notification tap opens contextual apartment/month, tax period, or bill settings. Prefilled forms never auto-save money. Permission is requested only from settings; categories are independently configurable. Denied permission leaves in-app reminders/status available. Expo Web does not use this local scheduling path, so it stays usable without OS notifications. Delivery remains subject to OS scheduling constraints.
+
+Tax reminders are projected from the tax calculator and outstanding manually-paid balance; changing receipts or tax payments changes the next reconciliation. Rent expectations never enter taxable income. Payment QR generation is deferred: a reliable Polish banking format and compatibility claim have not been established. Payment-detail copy actions remain available.
 
 ## Anti-spam
 

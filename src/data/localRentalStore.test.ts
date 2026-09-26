@@ -20,7 +20,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 const storage = vi.mocked(AsyncStorage);
 
 const validDocument: RentalDocument = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   properties: [
     {
       id: "property-1",
@@ -46,7 +46,9 @@ const validDocument: RentalDocument = {
       amount: "212.50",
     },
   ],
-  settings: { taxYear: 2026 },
+  recurringBills: [],
+  billPayments: [],
+  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true } },
 };
 
 describe("localRentalStore", () => {
@@ -66,6 +68,17 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).resolves.toEqual(validDocument);
   });
 
+  it("defaults legacy tax settings to monthly without discarding existing data", async () => {
+    const legacy = { ...validDocument, schemaVersion: 1, recurringBills: undefined, billPayments: undefined, settings: { taxYear: 2026 } };
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(legacy));
+    await expect(loadRentalDocument()).resolves.toMatchObject({
+      incomeEntries: validDocument.incomeEntries,
+      taxPayments: validDocument.taxPayments,
+      schemaVersion: 2,
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true } },
+    });
+  });
+
   it("reports invalid JSON as corrupted data", async () => {
     storage.getItem.mockResolvedValueOnce("{not-json");
 
@@ -76,7 +89,7 @@ describe("localRentalStore", () => {
 
   it("rejects unsupported schema versions", async () => {
     storage.getItem.mockResolvedValueOnce(
-      JSON.stringify({ ...validDocument, schemaVersion: 2 }),
+      JSON.stringify({ ...validDocument, schemaVersion: 3 }),
     );
 
     await expect(loadRentalDocument()).rejects.toMatchObject({

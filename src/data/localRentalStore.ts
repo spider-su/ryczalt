@@ -1,8 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type {
+  BillPayment,
   IncomeEntry,
   Property,
+  RecurringBill,
   RentalDocument,
   TaxPayment,
 } from "../model/rental";
@@ -11,7 +13,7 @@ import {
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
 
-export const RENTAL_DOCUMENT_SCHEMA_VERSION = 1;
+export const RENTAL_DOCUMENT_SCHEMA_VERSION = 2;
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
@@ -33,7 +35,15 @@ export const emptyDocument = (
   properties: [],
   incomeEntries: [],
   taxPayments: [],
-  settings: { taxYear },
+  recurringBills: [],
+  billPayments: [],
+  settings: {
+    taxYear,
+    settlementMode: "monthly",
+    jointSpouseThreshold: false,
+    quarterlyEligible: false,
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true },
+  },
 });
 
 export async function loadRentalDocument(): Promise<RentalDocument> {
@@ -63,7 +73,7 @@ export async function saveRentalDocument(
 function validateRentalDocument(data: unknown): RentalDocument {
   if (!isRecord(data))
     throw corrupted("Local rental document must be a JSON object.");
-  if (data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
+  if (data.schemaVersion !== 1 && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
     throw new RentalStoreError(
       "UNSUPPORTED_VERSION",
       "Local rental document schema version is not supported.",
@@ -79,6 +89,17 @@ function validateRentalDocument(data: unknown): RentalDocument {
     throw corrupted("Local rental settings are invalid.");
   }
   const taxYear = settings.taxYear;
+  const settlementMode = settings.settlementMode ?? "monthly";
+  const jointSpouseThreshold = settings.jointSpouseThreshold ?? false;
+  const quarterlyEligible = settings.quarterlyEligible ?? false;
+  const reminderCategories = validateReminderCategories(settings.reminderCategories);
+  if (
+    (settlementMode !== "monthly" && settlementMode !== "quarterly") ||
+    typeof jointSpouseThreshold !== "boolean" ||
+    typeof quarterlyEligible !== "boolean"
+  ) throw corrupted("Local tax settings are invalid.");
+  if (settlementMode === "quarterly" && !quarterlyEligible)
+    throw corrupted("Quarterly settlement requires confirmed eligibility.");
 
   const properties = validateArray(
     data.properties,
@@ -95,6 +116,8 @@ function validateRentalDocument(data: unknown): RentalDocument {
     validateTaxPayment,
     "taxPayments",
   );
+  const recurringBills = data.recurringBills === undefined ? [] : validateArray(data.recurringBills, validateRecurringBill, "recurringBills");
+  const billPayments = data.billPayments === undefined ? [] : validateArray(data.billPayments, validateBillPayment, "billPayments");
 
   try {
     return validateRentalDocumentShape({
@@ -102,7 +125,13 @@ function validateRentalDocument(data: unknown): RentalDocument {
       properties,
       incomeEntries,
       taxPayments,
-      settings: { taxYear },
+      recurringBills,
+      billPayments,
+      settings: {
+        taxYear, settlementMode, jointSpouseThreshold, quarterlyEligible, reminderCategories,
+        ...(optionalString(settings.taxRecipientName) ? { taxRecipientName: settings.taxRecipientName } : {}),
+        ...(optionalString(settings.taxMicroAccount) ? { taxMicroAccount: settings.taxMicroAccount } : {}),
+      },
     });
   } catch (error) {
     if (error instanceof RentalValidationError) throw corrupted(error.message);
@@ -136,8 +165,45 @@ function validateProperty(value: unknown): Property {
     ...(optionalString(value.tenantSince)
       ? { tenantSince: value.tenantSince }
       : {}),
+    ...(optionalString(value.rentalEndDate) ? { rentalEndDate: value.rentalEndDate } : {}),
+    ...(optionalNumberArray(value.rentalEndReminderDays) ? { rentalEndReminderDays: value.rentalEndReminderDays } : {}),
+    ...(optionalNumber(value.expectedPaymentDay) ? { expectedPaymentDay: value.expectedPaymentDay } : {}),
+    ...(optionalBoolean(value.paymentReminderEnabled) ? { paymentReminderEnabled: value.paymentReminderEnabled } : {}),
+    ...(optionalNumber(value.paymentReminderDelayDays) ? { paymentReminderDelayDays: value.paymentReminderDelayDays } : {}),
+    ...(optionalString(value.administratorName) ? { administratorName: value.administratorName } : {}),
+    ...(optionalString(value.administratorPortalUrl) ? { administratorPortalUrl: value.administratorPortalUrl } : {}),
+    ...(optionalString(value.administratorPhone) ? { administratorPhone: value.administratorPhone } : {}),
+    ...(optionalString(value.administratorEmail) ? { administratorEmail: value.administratorEmail } : {}),
     ...(optionalString(value.notes) ? { notes: value.notes } : {}),
   };
+}
+
+function validateRecurringBill(value: unknown): RecurringBill {
+  if (!isRecord(value) || !isStableId(value.id) || !isStableId(value.propertyId) || !isNonEmptyString(value.name) || typeof value.reminderEnabled !== "boolean")
+    throw corrupted("Recurring bill entry is invalid.");
+  return {
+    id: value.id, propertyId: value.propertyId, name: value.name, reminderEnabled: value.reminderEnabled,
+    ...(optionalString(value.recipientName) ? { recipientName: value.recipientName } : {}),
+    ...(optionalString(value.bankAccount) ? { bankAccount: value.bankAccount } : {}),
+    ...(optionalString(value.paymentTitle) ? { paymentTitle: value.paymentTitle } : {}),
+    ...(optionalDecimal(value.expectedAmount, "expectedAmount") ? { expectedAmount: value.expectedAmount } : {}),
+    ...(optionalNumber(value.dueDay) ? { dueDay: value.dueDay } : {}),
+    ...(optionalBoolean(value.variableAmount) ? { variableAmount: value.variableAmount } : {}),
+  };
+}
+
+function validateBillPayment(value: unknown): BillPayment {
+  if (!isRecord(value) || !isStableId(value.id) || !isStableId(value.billId) || !isNonEmptyString(value.period) || !isNonEmptyString(value.paidAt) || !isDecimalString(value.amount))
+    throw corrupted("Bill payment entry is invalid.");
+  return { id: value.id, billId: value.billId, period: value.period, paidAt: value.paidAt, amount: value.amount };
+}
+
+function validateReminderCategories(value: unknown): RentalDocument["settings"]["reminderCategories"] {
+  if (value === undefined) return { rent: true, agreements: true, tax: true, bills: true };
+  if (!isRecord(value)) throw corrupted("Notification settings are invalid.");
+  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills };
+  if (Object.values(categories).some((enabled) => typeof enabled !== "boolean")) throw corrupted("Notification settings are invalid.");
+  return categories as RentalDocument["settings"]["reminderCategories"];
 }
 
 function validateIncomeEntry(value: unknown): IncomeEntry {
@@ -207,6 +273,24 @@ function optionalString(value: unknown): value is string {
   if (value === undefined) return false;
   if (typeof value === "string") return true;
   throw corrupted("Optional text field must be a string.");
+}
+
+function optionalNumber(value: unknown): value is number {
+  if (value === undefined) return false;
+  if (typeof value === "number" && Number.isInteger(value)) return true;
+  throw corrupted("Optional numeric field must be an integer.");
+}
+
+function optionalBoolean(value: unknown): value is boolean {
+  if (value === undefined) return false;
+  if (typeof value === "boolean") return true;
+  throw corrupted("Optional boolean field must be true or false.");
+}
+
+function optionalNumberArray(value: unknown): value is number[] {
+  if (value === undefined) return false;
+  if (Array.isArray(value) && value.every((item) => typeof item === "number" && Number.isInteger(item))) return true;
+  throw corrupted("Reminder day list is invalid.");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

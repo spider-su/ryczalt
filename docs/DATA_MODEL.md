@@ -2,14 +2,14 @@
 
 ## Current persisted schema
 
-`RentalDocument.schemaVersion = 1`; storage key `pl.ryczalt.rental.localDocument.v1`. Arrays: `properties`, `incomeEntries`, `taxPayments`; settings currently include `taxYear`. Current `Property` includes optional `tenantSince`; `IncomeEntry` has `receivedAt`, `amount`, `taxableAmount`, optional `rentalMonth` and `tenantNameSnapshot`; `TaxPayment` has `period`, `paidAt`, `amount`. The current tax engine is not implemented.
+`RentalDocument.schemaVersion = 2`; storage key `pl.ryczalt.rental.localDocument.v1`. Arrays: `properties`, `incomeEntries`, `taxPayments`, `recurringBills`, and `billPayments`; settings include tax settlement options, reminder categories, and optional tax payment details. Property retains optional legacy `tenantSince` alongside agreement, expected-rent, and administrator fields. Income has `receivedAt`, `amount`, `taxableAmount`, optional `rentalMonth` and `tenantNameSnapshot`; bill and tax payments remain separate records. Tax is calculated only from confirmed taxable receipts.
 
-## Planned additions (not yet schema fields)
+## Current additions
 
-- Property: optional rental end date and reminder offsets, expected payment day, administrator information/portal and configurable categorized links.
-- Recurring bills: apartment, title, due day, optional expected amount and verified payment details; variable amounts must be checked.
+- Property: optional rental end date and reminder offsets, expected payment day, administrator information and portal.
+- Recurring bills: apartment, title, due day, optional expected amount, recipient/account, and separate manual bill-payment records; variable amounts must be checked.
 - Custom reminders and persisted task interaction state: stable source/period identity, snooze/dismissal. Derived task amounts/status should not be independently authoritative.
-- If tax settings expand, document rate/settlement/micro-account semantics and their verification before implementation.
+- Tax rate, settlement, deadline and micro-account semantics are documented in `TAX_RULES.md`.
 
 ## Sources of truth
 
@@ -28,6 +28,6 @@ An apartment's **current** default rent must not silently rewrite historical exp
 
 ## Migration rules
 
-Never reinterpret `tenantSince` as an end date; retain legacy information even when the UI prioritizes end date. Upgrade schema explicitly with tested migrations and runtime validation. Do not silently reset corrupt/unsupported data or drop historic tenant snapshots, income or payments. Use serialized/atomic-at-app-level mutations to avoid lost writes. Preserve decimal-string PLN money and exact arithmetic; validate dates, IDs and references. Deleting an apartment with financial history must remain guarded.
+Version 1 migrates explicitly to version 2, retaining legacy `tenantSince`, tenant snapshots, income, tax payments and settings. Never reinterpret `tenantSince` as an end date. Do not silently reset corrupt/unsupported data or drop historical records. Preserve decimal-string PLN money and exact arithmetic; validate dates, IDs and references. Deleting an apartment with income history remains guarded; associated bill records are removed with the apartment.
 
 Backup/import/export is deferred; migration safety remains mandatory without it.
