@@ -7,6 +7,7 @@ import { ThemeProvider, useTheme, theme } from './src/theme/theme';
 import { IncomeScreen } from './src/screens/IncomeScreen';
 import { TaxScreen } from './src/screens/TaxScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { RentalDataProvider } from './src/data/RentalDataProvider';
 
 const Tabs = createBottomTabNavigator();
 function RentalApp() {
@@ -25,4 +26,4 @@ function RentalApp() {
     </Tabs.Navigator>
   </NavigationContainer>;
 }
-export default function App() { return <SafeAreaProvider><ThemeProvider><RentalApp /></ThemeProvider></SafeAreaProvider>; }
+export default function App() { return <SafeAreaProvider><ThemeProvider><RentalDataProvider><RentalApp /></RentalDataProvider></ThemeProvider></SafeAreaProvider>; }

@@ -5,6 +5,7 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/brand/app-icon.png",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "pl.ryczalt.rental"
@@ -12,10 +13,12 @@
     "android": {
       "package": "pl.ryczalt.rental",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/adaptive-foreground.png",
         "backgroundColor": "#C52632"
       }
     },
     "web": {
+      "favicon": "./public/favicon.png",
       "name": "Ryczałt",
       "shortName": "Ryczałt",
       "lang": "pl",
@@ -26,7 +29,16 @@
       "scope": "/"
     },
     "plugins": [
-      "expo-system-ui"
+      "expo-system-ui",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
     ]
   }
 }

@@ -1,14 +1,14 @@
 {
   "id": "/",
-  "name": "Investory",
-  "short_name": "Investory",
-  "description": "Personal finance and investment management",
+  "name": "Ryczałt",
+  "short_name": "Ryczałt",
+  "description": "Polish private rental income management",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F5F7FC",
-  "theme_color": "#1769E0",
+  "theme_color": "#C52632",
   "icons": [
     { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

@@ -3,20 +3,20 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const blue = [23, 105, 224];
+const red = [197, 38, 50];
 const white = [255, 255, 255];
-const pale = [207, 226, 255];
+const pale = [252, 236, 238];
 const dark = [21, 34, 56];
 
 const segments = [
-  { a: [13, 13], b: [29, 13], width: 4, color: null },
-  { a: [21, 13], b: [21, 35], width: 4, color: null },
-  { a: [13, 35], b: [27, 35], width: 4, color: null },
-  { a: [24, 30], b: [31, 23], width: 3.2, color: 'accent' },
-  { a: [31, 23], b: [34, 25], width: 3.2, color: 'accent' },
-  { a: [34, 25], b: [41, 16], width: 3.2, color: 'accent' },
-  { a: [35, 16], b: [41, 16], width: 3.2, color: 'accent' },
-  { a: [41, 16], b: [41, 22], width: 3.2, color: 'accent' }
+  { a: [11, 25], b: [24, 13], width: 4.8, color: null },
+  { a: [24, 13], b: [37, 25], width: 4.8, color: null },
+  { a: [15, 24], b: [15, 38], width: 4.2, color: null },
+  { a: [33, 24], b: [33, 38], width: 4.2, color: null },
+  { a: [15, 38], b: [33, 38], width: 4.2, color: null },
+  { a: [23, 30], b: [23, 38], width: 3.4, color: 'accent' },
+  { a: [27, 30], b: [27, 38], width: 3.4, color: 'accent' },
+  { a: [23, 30], b: [27, 30], width: 3.4, color: 'accent' }
 ];
 
 function distanceToSegment(x, y, [ax, ay], [bx, by]) {
@@ -29,11 +29,11 @@ function distanceToSegment(x, y, [ax, ay], [bx, by]) {
 function sampleAt(nx, ny, { background, mark, splash = false, adaptive = false }) {
   const coords = splash ? [nx * 64 - 8, ny * 64 - 8] : [nx * 48, ny * 48];
   const [x, y] = coords;
-  let color = background ? blue : null;
+  let color = background ? red : null;
   if (mark) {
     for (const segment of segments) {
       if (distanceToSegment(x, y, segment.a, segment.b) <= segment.width / 2) {
-        color = segment.color ? (mark === 'white' ? pale : mark === 'dark' ? dark : blue) : mark === 'white' ? white : mark === 'dark' ? dark : blue;
+        color = segment.color ? (mark === 'white' ? pale : mark === 'dark' ? dark : red) : mark === 'white' ? white : mark === 'dark' ? dark : red;
       }
     }
   }
@@ -86,11 +86,12 @@ function save(path, size, options) {
 }
 
 for (const size of [16, 32, 48]) save(`public/favicon-${size}.png`, size, { background: true, mark: 'white' });
+save('public/favicon.png', 48, { background: true, mark: 'white' });
 save('public/apple-touch-icon.png', 180, { background: true, mark: 'white' });
 save('public/pwa-192.png', 192, { background: true, mark: 'white' });
 save('public/pwa-512.png', 512, { background: true, mark: 'white' });
 save('public/pwa-maskable-512.png', 512, { background: true, mark: 'white' });
 save('assets/brand/app-icon.png', 1024, { background: true, mark: 'white' });
 save('assets/brand/adaptive-foreground.png', 1024, { mark: 'white', adaptive: true });
-save('assets/brand/splash.png', 512, { mark: 'blue', splash: true });
-console.log('Generated Investory icon assets at 16, 32, 48, 180, 192, 512, and 1024 px.');
+save('assets/brand/splash.png', 512, { mark: 'red', splash: true });
+console.log('Generated temporary Ryczałt icon assets at 16, 32, 48, 180, 192, 512, and 1024 px.');
