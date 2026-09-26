@@ -9,6 +9,8 @@ This file records **delivered and verified changes**, not roadmap promises.
 - Reframed the target product as a local-first personal landlord assistant.
 - Defined canonical user flows, technical/data/task architecture, proposed roadmap and release gates.
 - Clarified current foundation versus planned tax, Pulpit and local-notification features.
+- Added competitive-pattern guidance so proven landlord workflows can be adapted without copying competitor UI or expanding into full property management.
+- Added a Codex implementation guide covering product invariants, source-of-truth rules, task/notification architecture, scope guardrails and expected validation.
 
 No application behavior, app version or release artifact changed in this documentation-only update.
 
