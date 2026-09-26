@@ -2,9 +2,15 @@
 
 These are **target flows** for implementation and acceptance testing, not claims of currently available screens.
 
+## 0. Guided setup
+
+First run or incomplete apartment → Pulpit shows a small setup checklist → user adds apartment → expected rent → expected payment day → current tenant → optional agreement end date/reminders → optional administrator portal → completed steps disappear. When all essential steps are complete, onboarding leaves the normal Pulpit. Do not require optional fields to finish setup.
+
 ## 1. Check monthly rent
 
-Apartment has expected amount and payment day → generate a stable period-specific task → local notification when appropriate → tap opens that apartment/month → user checks bank and confirms actual amount and actual receipt date → update income ledger and remaining amount to check. Partial payment keeps the task actionable; full confirmed amount resolves it. Correction/deletion re-derives task. A missing app record is not proof of arrears. Actual receipt date controls taxable income; rental month labels the expected period.
+Apartment has an effective expected amount and payment day → generate a stable period-specific task → local notification when appropriate → tap opens that apartment/month → user checks bank and confirms actual amount and actual receipt date → update income ledger and remaining amount to check. Partial payment keeps the task actionable; full confirmed amount resolves it. Correction/deletion re-derives task. A missing app record is not proof of arrears. Actual receipt date controls taxable income; rental month labels the expected period.
+
+If expected rent changes, the new value applies prospectively; previous periods must preserve their earlier expected amount.
 
 ## 2. Pay rental tax
 
@@ -12,15 +18,19 @@ Actual taxable receipts → verified tax engine calculates obligation for the re
 
 ## 3. Check administration/utility bill
 
-Configured recurring bill and apartment → reminder to verify current amount (especially variable bills) → optional administrator/utility portal link → user checks bill and pays externally → explicit payment confirmation if tracking exists, otherwise clearly labeled “Oznacz jako załatwione” without fabricating a bank transaction. Opening link does not resolve task.
+Configured recurring bill and apartment → if fixed, show expected amount; if variable, prompt to verify current amount → optional administrator/utility portal link → user checks bill and pays externally → explicit payment confirmation if tracking exists, otherwise clearly labeled “Oznacz jako załatwione” without fabricating a bank transaction. Opening link does not resolve task.
 
 ## 4. Agreement expiration
 
 Optional end date → reminders at configured offsets → tap opens apartment agreement section → user can change date on renewal, snooze, dismiss or mark task handled. Changing date cancels stale schedules; indefinite agreement has no expiration task. Legacy tenancy start is not an end date.
 
-## 5. Custom reminder
+## 5. Personal reminder
 
-User enters title, optional apartment, due date and note → appears in Pulpit and may schedule local notification → user snoozes or completes it. Do not build a generic project-management system.
+User enters title, optional apartment, due date, note and recurrence: one-time, monthly or yearly → appears in Pulpit and may schedule local notification → user snoozes or completes it. Do not build a generic project-management system.
+
+## 6. Monthly apartment overview
+
+Select apartment/month → show expected rent for that period, confirmed receipts, remaining amount to check, nearby agreement/bill tasks and useful links → contextual quick actions open payment confirmation or external portal. Do not mix expected rent into confirmed-income statistics.
 
 ## Cross-cutting behavior
 
@@ -29,3 +39,4 @@ User enters title, optional apartment, due date and note → appears in Pulpit a
 - OS permission denied, Web or app restart: tasks still available in-app; reconcile native schedules where supported.
 - Deleting/renaming apartments and editing source records must not leave orphaned or duplicate reminders.
 - Quick actions should preserve context and require user confirmation before financial writes.
+- Guided setup is contextual help, not a permanent dashboard section.
