@@ -1,0 +1,9 @@
+/.idea/
+/node_modules/
+/dist/
+/.expo/
+
+.expo/
+*:Zone.Identifier
+.playwright-mcp/
+/android/
