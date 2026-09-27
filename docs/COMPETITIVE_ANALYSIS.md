@@ -29,7 +29,7 @@ Relevant patterns:
 - dashboard that mixes tasks with summary information;
 - task completion when related information is available.
 
-**Adopt:** actionable dashboard, derived tasks and context-sensitive completion. Guided setup remains planned and is not implemented.
+**Adopt:** actionable dashboard, derived tasks and context-sensitive completion. Guided setup is implemented as a lightweight, derived Pulpit flow.
 
 **Do not adopt:** tenant portals, bank import, KSeF/business accounting, maintenance tickets, AI chatbot as a dependency, professional multi-user platform features.
 
@@ -64,7 +64,7 @@ Relevant patterns:
 
 1. **Pulpit is action-first.** Tasks requiring attention appear before charts.
 2. **Most tasks are derived.** Expected rent, tax, bills and agreement dates generate tasks; users should not recreate them manually every month.
-3. **Guided setup is temporary (planned).** If implemented, it should help configure only essential facts and then disappear.
+3. **Guided setup is temporary.** It configures only essential facts and disappears once required setup is complete.
 4. **Expected vs actual are separate.** Expected rent drives a check task; actual manually confirmed receipts drive income and tax.
 5. **Partial receipts are first-class.** Remaining amount changes the same task rather than creating unrelated reminders.
 6. **Rent expectations need history.** A new rent amount must not alter previous months.
