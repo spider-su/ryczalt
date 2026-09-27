@@ -1,33 +1,21 @@
 # Changelog
 
-This file records delivered code on the current branch. Physical-device behavior and public releases are tracked separately.
+This file records **delivered and verified changes**, not roadmap promises.
 
 ## Unreleased
 
-- Added lightweight guided setup on Pulpit, derived from real apartment configuration and reusing the existing property editor without creating financial records or enabling reminders automatically.
-- Use generic local-notification display text to avoid exposing personal or financial details on the lock screen; reject malformed notification routes safely.
-- Cover global notification switches, lock-screen wording and invalid deep-link payloads with regression tests.
-- Add dedicated Android debug-assemble and EAS Android build workflows; document verified Expo identity and Android beta checklist.
+### Added
 
-### Stabilization and regression coverage
-
-- Honored per-apartment rent and bill notification switches while retaining the underlying in-app tasks.
-- Added populated v1/v2 migration fixtures, a v3 round-trip fixture, assistant workflow regressions, and testable notification-intent mapping.
-- Added Expo Doctor, Web export and Android prebuild checks to CI for relevant PRs and pushes to `develop` and `main`.
-- Split property editing/listing, recurring-bill listing, income history rows, Pulpit task rows and shared payment details into focused components.
-
-### Previously delivered assistant MVP
-
-- Added the four-tab app, tax calculation/payment tracking, effective-dated rent expectations, recurring bills, property links and one-time custom reminders.
-- Added the task projection, snooze/dismiss/completion state, native local-notification reconciliation and compact Pulpit statistics.
-- Migrated the persisted rental document to schema version 3 without dropping confirmed histories.
+- Added lightweight Pulpit setup guidance derived from real apartment configuration. It reuses the existing Settings editor, keeps tenant/agreement/portal data optional, and never creates financial records or enables reminders without the user's choice.
 
 ### Documentation
 
 - Reframed the target product as a local-first personal landlord assistant.
 - Defined canonical user flows, technical/data/task architecture, proposed roadmap and release gates.
-- Clarified implemented capabilities, planned setup/recurrent-reminder work and parked product scope.
+- Clarified current foundation versus planned tax, Pulpit and local-notification features.
 - Added competitive-pattern guidance so proven landlord workflows can be adapted without copying competitor UI or expanding into full property management.
 - Added a Codex implementation guide covering product invariants, source-of-truth rules, task/notification architecture, scope guardrails and expected validation.
 
-The merged implementation is on `develop`; this does not establish that a public binary or app release exists.
+No application behavior, app version or release artifact changed in this documentation-only update.
+
+For implementation history of the open rental-foundation PR, see PR #1 and its commits. Do not interpret proposed roadmap milestones as published versions.

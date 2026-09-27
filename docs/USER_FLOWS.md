@@ -1,10 +1,10 @@
 # Canonical user flows
 
-These describe the implemented flows on `develop`. Guided setup is implemented; recurring custom reminders remain planned.
+These are **target flows** for implementation and acceptance testing, not claims of currently available screens.
 
 ## 0. Guided setup
 
-No apartments → Pulpit offers one “Dodaj mieszkanie” action → the existing Settings property editor opens. With apartments present, progress is derived from apartment name, expected rent and expected payment day; Pulpit shows only the next useful required action. Optional tenant, agreement and administrator details do not block completion. A rent-reminder suggestion may be offered but never enables itself or requests permission automatically. Setup creates no income, tax-payment or bill-payment records.
+No apartments → Pulpit shows a short explanation and one “Dodaj mieszkanie” action → existing Settings apartment editor opens. With apartment data present, setup progress is derived from the saved name, expected rent and payment day; Pulpit offers only the next useful action and Settings opens the same editor at the corresponding field. Required progress is evaluated per apartment and optional tenant, agreement and administrator details do not block completion. Once required setup is complete, the guidance disappears, except that an unenabled in-app rent reminder may be offered as one optional suggestion. This suggestion only opens the existing preference; it does not enable the reminder or request notification permission. If OS notifications are denied, tasks remain visible in Pulpit. Setup writes configuration only: it creates no income, tax-payment or bill-payment records and does not invent dates or URLs.
 
 ## 1. Check monthly rent
 
@@ -18,7 +18,7 @@ Actual taxable receipts → verified tax engine calculates obligation for the re
 
 ## 3. Check administration/utility bill
 
-Configured recurring bill and apartment → if fixed, show expected amount; if variable, prompt to verify current amount → optional administrator/utility portal link → user pays externally → manually records the actual bill payment. The task resolves only from that bill-payment record. Opening a link or dismissing a task does not create a payment.
+Configured recurring bill and apartment → if fixed, show expected amount; if variable, prompt to verify current amount → optional administrator/utility portal link → user checks bill and pays externally → explicit payment confirmation if tracking exists, otherwise clearly labeled “Oznacz jako załatwione” without fabricating a bank transaction. Opening link does not resolve task.
 
 ## 4. Agreement expiration
 
@@ -26,7 +26,7 @@ Optional end date → reminders at configured offsets → tap opens apartment ag
 
 ## 5. Personal reminder
 
-User enters title, optional apartment, due date and note → one-time reminder appears in Pulpit and may schedule a local notification → user snoozes, completes or dismisses it. Recurrence is planned, not implemented.
+User enters title, optional apartment, due date, note and recurrence: one-time, monthly or yearly → appears in Pulpit and may schedule local notification → user snoozes or completes it. Do not build a generic project-management system.
 
 ## 6. Monthly apartment overview
 
@@ -39,4 +39,4 @@ Select apartment/month → show expected rent for that period, confirmed receipt
 - OS permission denied, Web or app restart: tasks still available in-app; reconcile native schedules where supported.
 - Deleting/renaming apartments and editing source records must not leave orphaned or duplicate reminders.
 - Quick actions should preserve context and require user confirmation before financial writes.
-- Guided setup is contextual and disappears when required apartment configuration is complete; it must not become a permanent dashboard section.
+- Guided setup is contextual help, not a permanent dashboard section.

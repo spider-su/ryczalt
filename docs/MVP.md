@@ -1,23 +1,23 @@
 # MVP — personal landlord assistant
 
-This describes the implemented MVP and its remaining quality gates. Source code on `develop` is authoritative; capabilities below are not a claim of a published app release.
+The functional MVP target is the user-facing assistant experience described here; **this is not a list of features already shipped**. Current implementation is the three-tab rental foundation on PR #1; tax calculation, Pulpit, notifications, bills and links are not part of that baseline.
 
 ## Core user outcomes and acceptance
 
-1. **Configure apartments:** Settings supports apartment, expected rent/payment day, tenant, agreement end date/reminders, administrator portal and useful links. Pulpit derives temporary guided setup from saved apartment data, requires only apartment name, expected rent and payment day, and reuses the existing editor. Tenant, agreement, portal and reminder enablement remain optional.
+1. **Configure apartments:** Settings supports apartment, expected rent/payment day, tenant, agreement end date/reminders, administrator portal and useful links. Pulpit derives temporary setup guidance from saved apartment data, shows one next action, and reuses the existing Settings editor. Required completion is based on apartment name, expected rent and payment day; tenant, agreement date and portal stay optional. An optional rent-reminder suggestion never turns itself on.
 2. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; OS notification dismissal does not erase tasks. Empty state is useful.
 3. **Check rent:** configure an expected rent schedule/day per apartment, open a contextual reminder, manually record actual receipt date and amount, support partial receipts and show remaining amount *to confirm*. No inferred arrears or auto-created income.
 4. **Review tax:** compute verified private-rental ryczałt using actual taxable receipts; support applicable settlement periods and deadlines, manual tax payments and outstanding balance. Corrected receipts/payments update the obligation and tasks.
 5. **Remember dates:** local reminders for rent checks, tax, recurring bills and optional rental agreement end date (default 30/7-day options). End date replaces tenancy start as primary visible agreement field; indefinite agreements supported. Preserve legacy start date.
 6. **Handle recurring apartment bills:** support fixed and variable recurring obligations. Fixed amounts may be prefilled; variable obligations remind the user to verify the current amount in the relevant portal or bill.
 7. **Use relevant services:** user-supplied per-apartment administrator portal and optional categorized utility links; open externally without credentials, scraping or implicit completion.
-8. **Use small personal reminders:** one-time reminder with title, optional apartment, due date and note. Recurrence is planned, not implemented.
+8. **Use small personal reminders:** one-time, monthly or yearly reminder with title, optional apartment and note. Do not become a generic task manager.
 9. **Understand the month:** compact confirmed income, amount left to check, tax remaining and attention count; six-month income history and per-apartment totals. No ROI or valuation.
 10. **Act quickly:** Pulpit quick actions prefill apartment/month/remaining expected rent but require manual confirmation. Snooze alters reminder time, not legal/payment due date.
 
 ## Important rental-history rule
 
-A current apartment default rent must not rewrite previous months. Schema v3 records effective-month rent amounts. A legacy property without rate history uses its default only for current/future periods; unknown historical expectations remain unknown.
+A current apartment default rent must not rewrite previous months. Before historical expected-vs-received statistics are treated as authoritative, introduce an effective-date or period-specific expected-rent model so a later rent change preserves older expectations.
 
 ## Quality and scope constraints
 

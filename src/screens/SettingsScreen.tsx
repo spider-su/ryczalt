@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,18 +15,38 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import type { BillPayment, Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
-import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
-import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
+import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
-import { PaymentDetail } from "../components/PaymentDetail";
-import { PropertyList } from "../components/settings/PropertyList";
-import { RecurringBillList } from "../components/settings/RecurringBillList";
-import { blankPropertyDraft, PropertyEditorModal, type PropertyDraft } from "../components/settings/PropertyEditorModal";
-import { removePropertyData } from "../domain/rentalOperations";
 import type { SetupAction } from "../domain/setupProgress";
 import { setupActionField } from "../navigation/setupIntent";
+
+type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
+  expectedPaymentDay: string;
+  paymentReminderEnabled: boolean;
+  paymentReminderDelayDays: string;
+  rentalEndReminderDays: number[];
+};
+const blankDraft: PropertyDraft = {
+  name: "",
+  address: "",
+  defaultMonthlyRent: "",
+  tenantName: "",
+  tenantPhone: "",
+  tenantEmail: "",
+  tenantSince: "",
+  rentalEndDate: "",
+  rentalEndReminderDays: [30, 7],
+  expectedPaymentDay: "",
+  paymentReminderEnabled: false,
+  paymentReminderDelayDays: "1",
+  administratorName: "",
+  administratorPortalUrl: "",
+  administratorPhone: "",
+  administratorEmail: "",
+  notes: "",
+};
 
 type BillDraft = { propertyId: string; name: string; recipientName: string; bankAccount: string; paymentTitle: string; expectedAmount: string; dueDay: string; reminderEnabled: boolean; variableAmount: boolean };
 const emptyBillDraft: BillDraft = { propertyId: "", name: "", recipientName: "", bankAccount: "", paymentTitle: "", expectedAmount: "", dueDay: "", reminderEnabled: false, variableAmount: false };
@@ -36,10 +56,11 @@ export function SettingsScreen() {
   const { permission, requestPermission } = useReminders();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const propertyEditorScrollRef = useRef<ScrollView>(null);
   const [editing, setEditing] = useState<Property | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
   const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
-  const [draft, setDraft] = useState<PropertyDraft>(blankPropertyDraft);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draft, setDraft] = useState<PropertyDraft>(blankDraft);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [billEditing, setBillEditing] = useState<RecurringBill | null>(null);
@@ -68,7 +89,7 @@ export function SettingsScreen() {
     if (params?.propertyId || params?.billId || params?.setupAction) navigation.setParams({ propertyId: undefined, billId: undefined, setupAction: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, route.params]);
+  }, [document]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>
@@ -107,7 +128,7 @@ export function SettingsScreen() {
             administratorEmail: property.administratorEmail ?? "",
             notes: property.notes ?? "",
           }
-        : blankPropertyDraft,
+        : blankDraft,
     );
   };
   const save = async () => {
@@ -117,7 +138,7 @@ export function SettingsScreen() {
       Alert.alert("Brak nazwy", "Wpisz nazwę mieszkania.");
       return;
     }
-    if (rent && !isNonnegativeMoney(rent.replace(",", "."))) {
+    if (rent && !/^\d+(?:[.,]\d{1,2})?$/.test(rent)) {
       Alert.alert(
         "Nieprawidłowy czynsz",
         "Wpisz kwotę w formacie 2500 lub 2500,50.",
@@ -219,7 +240,15 @@ export function SettingsScreen() {
           style: "destructive",
           onPress: () => {
             setDeletingId(property.id);
-            void update((current) => removePropertyData(current, property.id))
+            void update((current) => ({
+        ...current,
+        recurringBills: current.recurringBills.filter((bill) => bill.propertyId !== property.id),
+        billPayments: current.billPayments.filter((payment) => !current.recurringBills.some((bill) => bill.id === payment.billId && bill.propertyId === property.id)),
+        propertyLinks: current.propertyLinks.filter((link) => link.propertyId !== property.id),
+        properties: current.properties.filter(
+                (item) => item.id !== property.id,
+              ),
+            }))
               .catch(() => undefined)
               .finally(() => setDeletingId(null));
           },
@@ -227,6 +256,52 @@ export function SettingsScreen() {
       ],
     );
   };
+  const field = (
+    label: string,
+    key: "name" | "address" | "defaultMonthlyRent" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalEndDate" | "administratorName" | "administratorPortalUrl" | "administratorPhone" | "administratorEmail" | "notes",
+    options: {
+      keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad";
+      multiline?: boolean;
+      placeholder?: string;
+    } = {},
+  ) => (
+    <View style={{ marginBottom: 14 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
+      propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+      setSetupFocus(null);
+    } : undefined}>
+      <Text
+        style={{
+          color: theme.colors.textSecondary,
+          fontSize: 13,
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </Text>
+      <TextInput
+        accessibilityLabel={label}
+        value={draft[key] ?? ""}
+        onChangeText={(value) =>
+          setDraft((current) => ({ ...current, [key]: value }))
+        }
+        placeholder={options.placeholder}
+        placeholderTextColor={theme.colors.textMuted}
+        keyboardType={options.keyboardType ?? "default"}
+        multiline={options.multiline}
+        style={{
+          color: theme.colors.textPrimary,
+          backgroundColor: theme.colors.inputBackground,
+          borderColor: theme.colors.inputBorder,
+          borderWidth: 1,
+          borderRadius: 8,
+          minHeight: options.multiline ? 84 : 46,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          textAlignVertical: options.multiline ? "top" : "center",
+        }}
+      />
+    </View>
+  );
   const updateTaxSettings = (change: (settings: RentalDocument["settings"]) => RentalDocument["settings"]) => {
     void update((current) => ({
       ...current,
@@ -342,10 +417,10 @@ export function SettingsScreen() {
         </Text>
         <Text style={muted}>Rok podatkowy: {document.settings.taxYear}</Text>
         <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
-          <Pressable accessibilityRole="button" disabled={document.settings.taxYear <= Math.min(...SUPPORTED_TAX_YEARS)} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))} style={[modeButton, document.settings.taxYear <= Math.min(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>
+          <Pressable accessibilityRole="button" onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))} style={modeButton}>
             <Text style={modeText}>− Rok</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" disabled={document.settings.taxYear >= Math.max(...SUPPORTED_TAX_YEARS)} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} style={[modeButton, document.settings.taxYear >= Math.max(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>
+          <Pressable accessibilityRole="button" onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} style={modeButton}>
             <Text style={modeText}>+ Rok</Text>
           </Pressable>
         </View>
@@ -422,20 +497,203 @@ export function SettingsScreen() {
             {error}
           </Text>
         ) : null}
-        <PropertyList properties={document.properties} onEdit={openProperty} onRemove={remove} onOpenPortal={(property) => void openPortal(property)} />
+        {document.properties.length === 0 ? (
+          <Text style={{ color: theme.colors.textSecondary, marginTop: 22 }}>
+            Nie dodano jeszcze mieszkań.
+          </Text>
+        ) : (
+          document.properties.map((property) => (
+            <View
+              key={property.id}
+              style={{
+                paddingVertical: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.colors.divider,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "flex-start",
+                }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: theme.colors.textPrimary,
+                      fontSize: 17,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {property.name}
+                  </Text>
+                  {property.address ? (
+                    <Text style={muted}>{property.address}</Text>
+                  ) : null}
+                </View>
+                <View style={{ flexDirection: "row", gap: 16 }}>
+                  <Text
+                    onPress={() => openProperty(property)}
+                    accessibilityRole="button"
+                    style={action}
+                  >
+                    Edytuj
+                  </Text>
+                  <Text
+                    onPress={() => remove(property)}
+                    accessibilityRole="button"
+                    style={{ ...action, color: theme.colors.danger }}
+                  >
+                    Usuń
+                  </Text>
+                </View>
+              </View>
+              {property.defaultMonthlyRent ? (
+                <Text style={muted}>
+                  Domyślny czynsz: {property.defaultMonthlyRent} zł / mies.
+                </Text>
+              ) : null}
+              {property.expectedPaymentDay ? <Text style={muted}>Oczekiwany czynsz: {property.expectedPaymentDay}. dzień miesiąca</Text> : null}
+              {property.paymentReminderEnabled ? <Text style={muted}>Przypomnienie: {property.paymentReminderDelayDays ?? 1} dni po terminie</Text> : null}
+              {property.tenantName ? (
+                <Text style={muted}>Najemca: {property.tenantName}</Text>
+              ) : null}
+              {property.tenantPhone ? (
+                <Text style={muted}>Telefon: {property.tenantPhone}</Text>
+              ) : null}
+              {property.tenantEmail ? (
+                <Text style={muted}>E-mail: {property.tenantEmail}</Text>
+              ) : null}
+              {property.rentalEndDate ? <Text style={muted}>Umowa do: {property.rentalEndDate}</Text> : null}
+              {property.administratorName ? <Text style={muted}>Administracja: {property.administratorName}</Text> : null}
+              {property.administratorPhone ? <Text style={muted}>Telefon administracji: {property.administratorPhone}</Text> : null}
+              {property.administratorEmail ? <Text style={muted}>E-mail administracji: {property.administratorEmail}</Text> : null}
+              {property.administratorPortalUrl ? <Pressable accessibilityRole="link" onPress={() => void openPortal(property)} style={{ paddingVertical: 7 }}><Text style={action}>Otwórz panel administracji</Text></Pressable> : null}
+              {property.notes ? (
+                <Text style={{ ...muted, marginTop: 5 }}>{property.notes}</Text>
+              ) : null}
+            </View>
+          ))
+        )}
         <View style={{ marginTop: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={sectionTitle}>Pozostałe rachunki</Text>
           <Pressable accessibilityRole="button" onPress={() => openBill()}><Text style={action}>＋ Dodaj</Text></Pressable>
         </View>
-        <RecurringBillList bills={document.recurringBills} properties={document.properties} onDetails={setBillForDetails} onEdit={openBill} onRemove={removeBill} />
+        {document.recurringBills.map((bill) => {
+          const property = document.properties.find((item) => item.id === bill.propertyId);
+          return <View key={bill.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
+            <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.name ?? "Mieszkanie"}</Text>
+            <Text style={muted}>{bill.variableAmount ? "Kwotę sprawdź na bieżąco" : bill.expectedAmount ? `${bill.expectedAmount} zł` : "Kwota do sprawdzenia"}{bill.dueDay ? ` · termin ${bill.dueDay}. dzień` : ""}</Text>
+            <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => setBillForDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
+          </View>;
+        })}
       </ScrollView>
-      <PropertyEditorModal
-        visible={modalOpen} editing={editing} draft={draft} setDraft={setDraft} saving={saving}
-        onClose={() => { setModalOpen(false); setEditing(null); setSetupFocus(null); }} onSave={() => void save()}
-        linkDrafts={linkDrafts} setLinkDrafts={setLinkDrafts} linkLabel={linkLabel} setLinkLabel={setLinkLabel}
-        linkUrl={linkUrl} setLinkUrl={setLinkUrl} linkCategory={linkCategory} setLinkCategory={setLinkCategory} onAddLink={addPropertyLink}
-        focusField={setupFocus ? setupActionField(setupFocus) : undefined} onFocusHandled={() => setSetupFocus(null)}
-      />
+      <Modal
+        visible={modalOpen}
+        animationType="slide"
+        onRequestClose={() => {
+          setModalOpen(false);
+          setEditing(null);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+          <View
+            style={{
+              padding: 18,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.divider,
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: theme.colors.textPrimary,
+                fontSize: 19,
+                fontWeight: "700",
+              }}
+            >
+              {editing ? "Edytuj mieszkanie" : "Nowe mieszkanie"}
+            </Text>
+            <Text
+              onPress={() => {
+                setModalOpen(false);
+                setEditing(null);
+                setSetupFocus(null);
+              }}
+              accessibilityRole="button"
+              style={action}
+            >
+              Zamknij
+            </Text>
+          </View>
+          <ScrollView
+            ref={propertyEditorScrollRef}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: 20 }}
+          >
+            {field("Nazwa mieszkania *", "name", {
+              placeholder: "np. Mieszkanie przy Parkowej",
+            })}
+            {field("Adres", "address")}
+            {field("Domyślny czynsz miesięczny (zł)", "defaultMonthlyRent", {
+              keyboardType: "decimal-pad",
+              placeholder: "np. 2500,00",
+            })}
+            {field("Imię i nazwisko najemcy", "tenantName")}
+            {field("Telefon", "tenantPhone", { keyboardType: "phone-pad" })}
+            {field("E-mail", "tenantEmail", { keyboardType: "email-address" })}
+            {field("Umowa najmu do (RRRR-MM-DD)", "rentalEndDate", { placeholder: "2026-12-31" })}
+            <Text style={fieldLabel}>Przypomnij przed końcem umowy</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {AGREEMENT_REMINDER_DAYS.map((days) => {
+                const selected = draft.rentalEndReminderDays.includes(days);
+                return <Pressable key={days} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} onPress={() => setDraft((current) => ({ ...current, rentalEndReminderDays: selected ? current.rentalEndReminderDays.filter((item) => item !== days) : [...current.rentalEndReminderDays, days].sort((a, b) => b - a) }))} style={[modeButton, selected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}><Text style={modeText}>{days === 0 ? "W dniu umowy" : `${days} dni`}</Text></Pressable>;
+              })}
+            </View>
+            <Text style={sectionTitle}>Przypomnienie o czynszu</Text>
+            <View onLayout={setupFocus === "payment-day" ? (event) => {
+              propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+              setSetupFocus(null);
+            } : undefined}>
+              <Text style={fieldLabel}>Oczekiwany dzień płatności (1–31)</Text><TextInput accessibilityLabel="Oczekiwany dzień płatności" value={draft.expectedPaymentDay} onChangeText={(value) => setDraft((current) => ({ ...current, expectedPaymentDay: value }))} keyboardType="number-pad" placeholder="np. 10" style={inputStyle} />
+            </View>
+            <View onLayout={setupFocus === "payment-reminder" ? (event) => {
+              propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+              setSetupFocus(null);
+            } : undefined}>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: draft.paymentReminderEnabled }} onPress={() => setDraft((current) => ({ ...current, paymentReminderEnabled: !current.paymentReminderEnabled }))} style={{ paddingVertical: 10 }}><Text style={muted}>{draft.paymentReminderEnabled ? "☑" : "□"} Przypominaj, aby sprawdzić wpłatę</Text></Pressable>
+            </View>
+            {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
+            <Text style={sectionTitle}>Administracja</Text>
+            {field("Nazwa administratora", "administratorName")}
+            {field("Adres panelu administracji (HTTPS)", "administratorPortalUrl", { placeholder: "https://" })}
+            {field("Telefon administracji", "administratorPhone", { keyboardType: "phone-pad" })}
+            {field("E-mail administracji", "administratorEmail", { keyboardType: "email-address" })}
+            <Text style={sectionTitle}>Przydatne linki</Text>
+            <Text style={muted}>Linki otwierają się w przeglądarce. Nie zapisuj tu haseł.</Text>
+            <TextInput accessibilityLabel="Nazwa przydatnego linku" value={linkLabel} onChangeText={setLinkLabel} placeholder="np. Dostawca prądu" style={inputStyle} />
+            <TextInput accessibilityLabel="Adres przydatnego linku HTTPS" value={linkUrl} onChangeText={setLinkUrl} placeholder="https://" autoCapitalize="none" keyboardType="url" style={inputStyle} />
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>{([ ["ADMINISTRATION", "Administracja"], ["UTILITY", "Media"], ["TAX", "Podatki"], ["OTHER", "Inne"] ] as const).map(([category, label]) => <Pressable key={category} accessibilityRole="radio" accessibilityState={{ checked: linkCategory === category }} onPress={() => setLinkCategory(category)} style={[modeButton, linkCategory === category && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}><Text style={modeText}>{label}</Text></Pressable>)}</View>
+            <Pressable accessibilityRole="button" onPress={addPropertyLink} style={secondaryButton}><Text style={modeText}>Dodaj link</Text></Pressable>
+            {linkDrafts.map((link) => <View key={link.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}><View style={{ flex: 1 }}><Text style={fieldLabel}>{link.label}</Text><Text style={muted}>{link.url}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Usuń link ${link.label}`} onPress={() => setLinkDrafts((current) => current.filter((item) => item.id !== link.id))}><Text style={{ ...action, color: theme.colors.danger }}>Usuń</Text></Pressable></View>)}
+            {field("Notatki", "notes", { multiline: true })}
+            <Pressable
+              accessibilityRole="button"
+              disabled={saving}
+              onPress={() => void save()}
+              style={[primaryButton, saving && { opacity: 0.6 }]}
+            >
+              <Text style={primaryText}>
+                {saving ? "Zapisywanie…" : "Zapisz mieszkanie"}
+              </Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </Modal>
       <Modal visible={billModalOpen} animationType="slide" onRequestClose={() => setBillModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>{billEditing ? "Edytuj rachunek" : "Nowy rachunek"}</Text><Text accessibilityRole="button" onPress={() => setBillModalOpen(false)} style={action}>Zamknij</Text></View>
@@ -554,3 +812,13 @@ const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop:
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
 const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
 const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
+
+function PaymentDetail({ label, value, onCopy }: { label: string; value?: string; onCopy: () => void }) {
+  return <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
+    <Text style={muted}>{label}</Text>
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <Text selectable style={{ color: theme.colors.textPrimary, flex: 1 }}>{value || "Nie skonfigurowano"}</Text>
+      {value ? <Pressable accessibilityRole="button" accessibilityLabel={`Kopiuj: ${label}`} onPress={onCopy}><Text style={action}>Kopiuj</Text></Pressable> : null}
+    </View>
+  </View>;
+}
