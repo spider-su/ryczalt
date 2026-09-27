@@ -11,7 +11,6 @@ import type { CustomReminder, Property } from "../model/rental";
 import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { TaskRow } from "../components/pulpit/TaskRow";
-import { useReminders } from "../notifications/ReminderProvider";
 
 type TaskView = "active" | "completed" | "dismissed";
 export function PulpitScreen() {
@@ -155,26 +154,6 @@ export function PulpitScreen() {
     </ScrollView>
   </View>;
 
-  const openSetupAction = (action: SetupAction, propertyId?: string) => {
-    const intent = setupActionIntent(action, propertyId);
-    navigation.navigate(intent.screen, intent.params);
-  };
-
-  if (!document) return <View style={{ flex: 1, backgroundColor: theme.colors.background }} />;
-  if (document.properties.length === 0) return <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 30 }}>
-      <Text style={pageTitle}>Pulpit</Text>
-      <View accessibilityLabel="Skonfiguruj pierwszy najem" style={setupCard}>
-        <Text style={setupTitle}>Skonfiguruj pierwszy najem</Text>
-        <Text style={muted}>Dodaj mieszkanie, aby zapisać oczekiwany czynsz i terminy. Wpłaty ani płatności nie zostaną utworzone automatycznie.</Text>
-        <Pressable accessibilityRole="button" onPress={() => openSetupAction("apartment")} style={primaryButton}>
-          <Text style={primaryText}>Dodaj mieszkanie</Text>
-        </Pressable>
-      </View>
-      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
-    </ScrollView>
-  </View>;
-
   return <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
     <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 30 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -307,16 +286,6 @@ function SetupCard({ action, label, propertyName, completed, total, onPress }: {
 function OverviewMetric({ label, amount }: { label: string; amount: number }) { return <View style={metricRow}><Text style={muted}>{label}</Text><Text style={metricValue}>{formatPln(amount)}</Text></View>; }
 function Kpi({ label, value }: { label: string; value: string }) { return <View style={kpi}><Text style={kpiLabel}>{label}</Text><Text style={kpiValue}>{value}</Text></View>; }
 function QuickAction({ label, onPress }: { label: string; onPress: () => void }) { return <Pressable accessibilityRole="button" onPress={onPress} style={quickButton}><Text style={quickText}>{label}</Text></Pressable>; }
-function SetupCard({ action, label, propertyName, completed, total, onPress }: { action: SetupAction; label: string; propertyName?: string; completed: number; total: number; onPress: () => void }) {
-  const reminderSuggestion = action === "payment-reminder";
-  return <View accessibilityLabel="Konfiguracja mieszkania" style={setupCard}>
-    <Text style={smallLabel}>{reminderSuggestion ? "Podstawy gotowe" : `${completed} z ${total} podstawowych kroków`}</Text>
-    <Text style={setupTitle}>{reminderSuggestion ? label : propertyName ? `${propertyName} — ${label.toLocaleLowerCase("pl-PL")}` : label}</Text>
-    <Pressable accessibilityRole="button" onPress={onPress} style={secondaryButton}>
-      <Text style={buttonText}>{label}</Text>
-    </Pressable>
-  </View>;
-}
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) { return <View style={modalHeader}><Text style={modalTitle}>{title}</Text><Pressable accessibilityRole="button" onPress={onClose}><Text style={action}>Zamknij</Text></Pressable></View>; }
 function shiftMonth(month: string, offset: number) { const [year, number] = month.split("-").map(Number); const date = new Date(year!, number! - 1 + offset, 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; }
 function monthLabel(month: string) { const [year, number] = month.split("-").map(Number); return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(year!, number! - 1, 1)); }
