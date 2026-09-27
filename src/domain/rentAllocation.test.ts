@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, Property } from "../model/rental";
+import { allocateRentReceipts } from "./rentAllocation";
 import { summarizeRentMonth } from "./reminders";
 import { calculateSettlements } from "./ryczaltTax";
 import { deriveTasks, groupActiveTasks, rentMonthAmounts, taskNotificationPlan } from "./tasks";
@@ -62,6 +63,27 @@ describe("rent receipt allocation", () => {
     const veryLarge = document([receipt("large", "30000.00")]);
     expect(rentMonthAmounts(reduta, veryLarge.incomeEntries, "2026-09", now).unallocatedGrosz).toBe(2_730_000);
     expect(veryLarge.incomeEntries[0]?.amount).toBe("30000.00");
+  });
+
+  it("stops expected rent at the agreement end month, including a mid-month end date", () => {
+    const ending = { ...reduta, rentalEndDate: "2026-10-31" };
+    expect(rentMonthAmounts(ending, [], "2026-09", now).expectedGrosz).toBe(270_000);
+    expect(rentMonthAmounts(ending, [], "2026-10", now).expectedGrosz).toBe(270_000);
+    expect(rentMonthAmounts(ending, [], "2026-11", now).expectedGrosz).toBeNull();
+    expect(rentMonthAmounts({ ...ending, rentalEndDate: "2026-10-12" }, [], "2026-10", now).expectedGrosz).toBe(270_000);
+  });
+
+  it("does not allocate a post-agreement receipt into a future rent month", () => {
+    const ending = { ...reduta, rentalEndDate: "2026-10-31", rentSchedule: [{ effectiveFrom: "2026-09", amount: "2700.00" }] };
+    const result = allocateRentReceipts(ending, [receipt("post-end", "9000.00", "2026-11-12", reduta.id, "2026-11")], now);
+    expect(result.byMonth.has("2026-11")).toBe(false);
+    expect(result.unallocatedGrosz).toBe(360_000);
+  });
+
+  it("keeps exact and partial rent receipts free of unallocated excess", () => {
+    expect(rentMonthAmounts(reduta, [receipt("exact", "2700.00")], "2026-09", now).unallocatedGrosz).toBe(0);
+    expect(rentMonthAmounts(reduta, [receipt("partial", "1000.00")], "2026-09", now).unallocatedGrosz).toBe(0);
+    expect(rentMonthAmounts(reduta, [receipt("over", "3000.00")], "2026-09", now).unallocatedGrosz).toBe(30_000);
   });
 
   it("prioritizes an explicit rent month, then closes the oldest unpaid historical month", () => {

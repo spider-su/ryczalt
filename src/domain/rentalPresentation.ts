@@ -39,6 +39,21 @@ export function rentConfirmationGroups<T extends { state: RentDisplayState }>(it
   return { pending, allPaid: items.length > 0 && pending.length === 0 };
 }
 
+export function unallocatedRentWarning(unallocatedGrosz: number): string | null {
+  return unallocatedGrosz > 0
+    ? `Nadwyżka wpłaty: ${new Intl.NumberFormat("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(unallocatedGrosz / 100)} zł nieprzypisana do czynszu`
+    : null;
+}
+
+export function incomeSectionLabels(currentMonth: string, selectedYear: number) {
+  const date = new Date(`${currentMonth}-15T12:00:00`);
+  const currentPeriod = new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(date).toLocaleUpperCase("pl-PL");
+  return {
+    currentRent: `DO POTWIERDZENIA · ${currentPeriod}`,
+    paymentHistory: `POTWIERDZONE WPŁATY · ${selectedYear}`,
+  };
+}
+
 export function attentionSummary(count: number) {
   return count > 0
     ? { interactive: true, label: `${count} ${count === 1 ? "sprawa wymaga" : "sprawy wymagają"} uwagi`, action: "Pokaż ›" }
