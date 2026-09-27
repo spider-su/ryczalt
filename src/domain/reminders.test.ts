@@ -4,6 +4,7 @@ import { reconcileReminderSchedule } from "../notifications/reconcile";
 import { missingPaymentDetails } from "./paymentDetails";
 import { isValidPolishBankAccount } from "./rentalValidation";
 import { supportsLocalNotifications } from "../notifications/support";
+import { ensureAndroidReminderChannel } from "../notifications/androidChannel";
 import { summarizeRentMonth } from "./reminders";
 import { deriveTasks, taskNotificationPlan } from "./tasks";
 
@@ -40,6 +41,25 @@ describe("task reminders and payment details", () => {
     await reconcileReminderSchedule(plan, plan.map((item, index) => ({ identifier: `${index}`, reminderKey: `ryczalt:${item.key}`, signature: item.signature })), cancel, schedule);
     expect(schedule).toHaveBeenCalledTimes(plan.length);
     expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("retries a transient scheduling failure without changing support or permission state", async () => {
+    const plan = taskNotificationPlan(fixture(), new Date(2026, 0, 1, 8));
+    const cancel = vi.fn(async () => undefined);
+    const schedule = vi.fn().mockRejectedValueOnce(new Error("temporary OS scheduling failure")).mockResolvedValue(undefined);
+    await expect(reconcileReminderSchedule(plan, [], cancel, schedule)).rejects.toThrow("temporary OS scheduling failure");
+    expect(supportsLocalNotifications("android")).toBe(true);
+    expect(await reconcileReminderSchedule(plan, [], cancel, schedule)).toBeUndefined();
+    expect(schedule).toHaveBeenCalledTimes(plan.length + 1);
+  });
+
+  it("ensures the Android channel independently and tolerates repeated initialization", async () => {
+    const createChannel = vi.fn(async () => null);
+    await ensureAndroidReminderChannel("android", createChannel);
+    await ensureAndroidReminderChannel("android", createChannel);
+    await ensureAndroidReminderChannel("ios", createChannel);
+    expect(createChannel).toHaveBeenCalledTimes(2);
+    expect(createChannel).toHaveBeenLastCalledWith("reminders", { name: "Przypomnienia", importance: 5 });
   });
 
   it("cancels notifications that become obsolete after a date change", async () => {

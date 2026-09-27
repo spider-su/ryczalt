@@ -35,3 +35,6 @@ Monthly/yearly reminder definitions are stored once and projected as the current
 ## Anti-spam
 
 No blanket daily alerts for already-resolved obligations. Partial payment may change the next reminder to the remaining amount to check. Snooze suppresses repeat alerts until the selected time. A dismissed OS banner alone does not change persisted task state.
+## Runtime reliability
+
+Android creates or ensures the `reminders` channel on app startup and foreground, even when notification permission has not been granted. Channel creation is independent of the permission prompt. Permission/support state is not changed by scheduling failures. Reconciliation retries after local document changes and when the app becomes active; an OS scheduling error may leave a reminder unscheduled until a retry succeeds.

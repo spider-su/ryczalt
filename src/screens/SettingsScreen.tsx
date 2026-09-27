@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { PaymentDetail } from "../components/PaymentDetail";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import type { Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
@@ -816,13 +817,3 @@ const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop:
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
 const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
 const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
-
-function PaymentDetail({ label, value, onCopy }: { label: string; value?: string; onCopy: () => void }) {
-  return <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
-    <Text style={muted}>{label}</Text>
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <Text selectable style={{ color: theme.colors.textPrimary, flex: 1 }}>{value || "Nie skonfigurowano"}</Text>
-      {value ? <Pressable accessibilityRole="button" accessibilityLabel={`Kopiuj: ${label}`} onPress={onCopy}><Text style={action}>Kopiuj</Text></Pressable> : null}
-    </View>
-  </View>;
-}

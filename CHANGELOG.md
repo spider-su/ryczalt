@@ -4,6 +4,16 @@ This file records **delivered and verified changes**, not roadmap promises.
 
 ## Unreleased
 
+### Fixed
+
+- Added explicit local-data recovery with raw-data copy and confirmed reset; tightened persisted date/period validation.
+- Applied confirmed tax payments oldest-outstanding-period first and carried excess credit into later periods without changing income records.
+- Ensured Android reminder channels on startup and foreground; kept transient scheduling failures retryable without changing permission state.
+
+### Documentation
+
+- Removed branch-specific status wording from the README and documented the calculation boundary and tax regression-test expectations.
+
 ### Added
 
 - Added one-time, monthly and yearly personal reminders with bounded occurrence projection, occurrence-specific task state and local notification scheduling.

@@ -6,6 +6,7 @@ import { calculateSettlements, formatPln, SUPPORTED_TAX_YEARS } from "../domain/
 import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
+import { removeTaxPayment, upsertTaxPayment } from "../domain/taxPayment";
 import type { TaxPayment } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
@@ -66,9 +67,7 @@ export function TaxScreen() {
     const next: TaxPayment = { id: editing?.id ?? createId("tax"), period: settlement.period, paidAt: paymentDraft.paidAt, amount };
     setSaving(true);
     try {
-      await update((current) => ({ ...current, taxPayments: editing
-        ? current.taxPayments.map((item) => item.id === editing.id ? next : item)
-        : [...current.taxPayments, next] }));
+      await update((current) => upsertTaxPayment(current, next));
       setModalOpen(false);
       setEditing(null);
     } catch { /* The provider reports persistence failure. */ }
@@ -76,7 +75,7 @@ export function TaxScreen() {
   };
   const deletePayment = (payment: TaxPayment) => Alert.alert("Usunąć potwierdzenie wpłaty?", `${payment.amount} zł z dnia ${payment.paidAt}.`, [
     { text: "Anuluj", style: "cancel" },
-    { text: "Usuń", style: "destructive", onPress: () => void update((current) => ({ ...current, taxPayments: current.taxPayments.filter((item) => item.id !== payment.id) })).catch(() => undefined) },
+    { text: "Usuń", style: "destructive", onPress: () => void update((current) => removeTaxPayment(current, payment.id)).catch(() => undefined) },
   ]);
   const changeYear = (year: number) => {
     setSelectedYear(year);

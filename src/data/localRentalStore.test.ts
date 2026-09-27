@@ -10,6 +10,8 @@ import {
   RentalStoreError,
   emptyDocument,
   loadRentalDocument,
+  readRawRentalDocument,
+  resetRentalDocument,
   saveRentalDocument,
 } from "./localRentalStore";
 import type { RentalDocument } from "../model/rental";
@@ -19,6 +21,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
     getItem: vi.fn(),
     setItem: vi.fn(),
+    removeItem: vi.fn(),
   },
 }));
 
@@ -162,6 +165,25 @@ describe("localRentalStore", () => {
     } satisfies Partial<RentalStoreError>);
   });
 
+  it("copies corrupt raw data on request and resets only when explicitly called", async () => {
+    storage.getItem.mockResolvedValueOnce("{broken source data");
+    await expect(readRawRentalDocument()).resolves.toBe("{broken source data");
+    expect(storage.removeItem).not.toHaveBeenCalled();
+
+    storage.removeItem.mockResolvedValueOnce();
+    await resetRentalDocument();
+    expect(storage.removeItem).toHaveBeenCalledWith(RENTAL_DOCUMENT_STORAGE_KEY);
+    storage.getItem.mockResolvedValueOnce(null);
+    await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
+  });
+
+  it("resets valid local data to the normal empty-document startup state", async () => {
+    storage.removeItem.mockResolvedValueOnce();
+    await resetRentalDocument();
+    storage.getItem.mockResolvedValueOnce(null);
+    await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
+  });
+
   it("rejects unsupported schema versions", async () => {
     storage.getItem.mockResolvedValueOnce(
       JSON.stringify({ ...validDocument, schemaVersion: 5 }),
@@ -193,6 +215,30 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).rejects.toMatchObject({
       code: "CORRUPTED_DATA",
     } satisfies Partial<RentalStoreError>);
+  });
+
+  it.each([
+    ["income receipt date", (doc: RentalDocument) => { doc.incomeEntries[0]!.receivedAt = "2026-9-10"; }],
+    ["rental month", (doc: RentalDocument) => { doc.incomeEntries[0]!.rentalMonth = "2026-13"; }],
+    ["agreement end date", (doc: RentalDocument) => { doc.properties[0]!.rentalEndDate = "2026-02-30"; }],
+    ["rent effective month", (doc: RentalDocument) => { doc.properties[0]!.rentSchedule = [{ effectiveFrom: "2026-9", amount: "1.00" }]; }],
+    ["tax payment period", (doc: RentalDocument) => { doc.taxPayments[0]!.period = "2026-Q5"; }],
+    ["tax payment date", (doc: RentalDocument) => { doc.taxPayments[0]!.paidAt = "2026-10-20T00:00:00Z"; }],
+    ["reminder due date", (doc: RentalDocument) => { doc.customReminders = [{ id: "r1", title: "Termin", dueDate: "2026-02-30", recurrence: "ONCE" }]; }],
+    ["bill payment period", (doc: RentalDocument) => { doc.recurringBills = [{ id: "b1", propertyId: "property-1", name: "Prąd", reminderEnabled: false }]; doc.billPayments = [{ id: "bp1", billId: "b1", period: "2026-13", paidAt: "2026-09-10", amount: "1.00" }]; }],
+    ["bill payment date", (doc: RentalDocument) => { doc.recurringBills = [{ id: "b1", propertyId: "property-1", name: "Prąd", reminderEnabled: false }]; doc.billPayments = [{ id: "bp1", billId: "b1", period: "2026-09", paidAt: "2026-09-31", amount: "1.00" }]; }],
+  ])("rejects malformed stored %s", async (_field, corrupt) => {
+    const invalid = structuredClone(validDocument);
+    corrupt(invalid);
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(invalid));
+    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
+  });
+
+  it("accepts a correctly formatted quarterly tax period", async () => {
+    const quarterly = structuredClone(validDocument);
+    quarterly.taxPayments[0]!.period = "2026-Q4";
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(quarterly));
+    await expect(loadRentalDocument()).resolves.toMatchObject({ taxPayments: [{ period: "2026-Q4" }] });
   });
 
   it("rejects taxable amounts above the amount received", async () => {

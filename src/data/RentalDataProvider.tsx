@@ -11,6 +11,8 @@ import {
 import {
   emptyDocument,
   loadRentalDocument,
+  readRawRentalDocument,
+  resetRentalDocument,
   saveRentalDocument,
 } from "./localRentalStore";
 import type { RentalDocument } from "../model/rental";
@@ -20,6 +22,10 @@ import { persistRentalMutation } from "./persistRentalMutation";
 type RentalDataContextValue = {
   document: RentalDocument | null;
   error: string;
+  loadError: string;
+  retryLoad: () => Promise<void>;
+  copyRawData: () => Promise<string | null>;
+  resetLocalData: () => Promise<void>;
   update: (
     change: (current: RentalDocument) => RentalDocument,
   ) => Promise<void>;
@@ -30,16 +36,31 @@ const RentalDataContext = createContext<RentalDataContextValue | null>(null);
 export function RentalDataProvider({ children }: PropsWithChildren) {
   const [document, setDocument] = useState<RentalDocument | null>(null);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const documentRef = useRef<RentalDocument | null>(null);
   const mutationQueue = useRef(createSerializedMutationQueue());
 
-  useEffect(() => {
-    void loadRentalDocument()
-      .then((loaded) => {
-        documentRef.current = loaded;
-        setDocument(loaded);
-      })
-      .catch(() => setError("Nie udało się odczytać danych lokalnych."));
+  const retryLoad = useCallback(async () => {
+    try {
+      const loaded = await loadRentalDocument();
+      documentRef.current = loaded;
+      setDocument(loaded);
+      setLoadError("");
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : "Nie udało się odczytać danych lokalnych.");
+    }
+  }, []);
+
+  useEffect(() => { void retryLoad(); }, [retryLoad]);
+
+  const copyRawData = useCallback(() => readRawRentalDocument(), []);
+  const resetLocalData = useCallback(async () => {
+    await resetRentalDocument();
+    const empty = emptyDocument();
+    documentRef.current = empty;
+    setDocument(empty);
+    setError("");
+    setLoadError("");
   }, []);
 
   const update = useCallback(
@@ -62,8 +83,8 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
   );
 
   const value = useMemo(
-    () => ({ document, error, update }),
-    [document, error, update],
+    () => ({ document, error, loadError, retryLoad, copyRawData, resetLocalData, update }),
+    [document, error, loadError, retryLoad, copyRawData, resetLocalData, update],
   );
   return (
     <RentalDataContext.Provider value={value}>

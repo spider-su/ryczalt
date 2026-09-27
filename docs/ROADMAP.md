@@ -14,6 +14,20 @@ This roadmap describes the **target sequence**, not a statement that versions/ta
 
 **Parked next phase:** PIT-28 annual summary, manual JSON backup/import/export and Investory integration. These are not implied by 0.4/0.5.
 
+## Post-POC / Beta hardening
+
+These items are explicitly parked; do not treat them as blockers to the narrow POC fixes in progress:
+
+- JSON backup/export and restore; cloud or Investory backup.
+- Encrypted storage and secure handling of tenant/bank data; focused privacy review and `PRIVACY.md`; `SECURITY.md`.
+- Accessibility review and documentation.
+- Tax-year support after 2026, with an annual source-review, rules update, regression examples, and release checklist.
+- Broader reminder edge-case coverage, dependency automation (Dependabot/Renovate), full lint coverage, and broader unit/integration coverage.
+- Typed navigation cleanup, including `navigationRef as any`; replace `Math.random()` IDs if still relevant.
+- Contributor documentation and app/release version metadata cleanup.
+- URL allow-listing or scheme hardening while property links remain user-configurable.
+- Full production release setup, signing, store distribution and support process.
+
 **Separate product decisions:** deposits, tenant history/rotation, bank feeds, cloud sync, OCR, tenant communication, widgets, property valuation and full expense accounting. Competitors may offer them; that alone is not a reason to add them.
 
 The milestones above are proposals. `CHANGELOG.md` records only actual deliveries.
