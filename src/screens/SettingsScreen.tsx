@@ -13,14 +13,15 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import type { BillPayment, Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
+import type { Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
-import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
+import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
 import type { SetupAction } from "../domain/setupProgress";
 import { setupActionField } from "../navigation/setupIntent";
+import { makeBillPayment } from "../domain/billPayment";
 
 type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
   expectedPaymentDay: string;
@@ -67,6 +68,7 @@ export function SettingsScreen() {
   const [billModalOpen, setBillModalOpen] = useState(false);
   const [billDraft, setBillDraft] = useState<BillDraft>(emptyBillDraft);
   const [billForDetails, setBillForDetails] = useState<RecurringBill | null>(null);
+  const [billPaymentPeriod, setBillPaymentPeriod] = useState(() => todayIsoDate().slice(0, 7));
   const [billPaymentAmount, setBillPaymentAmount] = useState("");
   const [taxRecipient, setTaxRecipient] = useState("");
   const [taxAccount, setTaxAccount] = useState("");
@@ -80,16 +82,19 @@ export function SettingsScreen() {
     if (!document) return;
     setTaxRecipient(document.settings.taxRecipientName ?? "");
     setTaxAccount(document.settings.taxMicroAccount ?? "");
-    const params = route.params as { propertyId?: string; billId?: string; setupAction?: SetupAction } | undefined;
+    const params = route.params as { propertyId?: string; billId?: string; period?: string; setupAction?: SetupAction } | undefined;
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     const bill = params?.billId ? document.recurringBills.find((item) => item.id === params.billId) : undefined;
     if (params?.setupAction === "apartment" && !params.propertyId) openProperty(undefined, params.setupAction);
     else if (property) openProperty(property, params?.setupAction);
-    if (bill) setBillForDetails(bill);
-    if (params?.propertyId || params?.billId || params?.setupAction) navigation.setParams({ propertyId: undefined, billId: undefined, setupAction: undefined });
+    if (bill) {
+      setBillPaymentPeriod(params?.period && isRentalMonth(params.period) ? params.period : todayIsoDate().slice(0, 7));
+      setBillForDetails(bill);
+    }
+    if (params?.propertyId || params?.billId || params?.period || params?.setupAction) navigation.setParams({ propertyId: undefined, billId: undefined, period: undefined, setupAction: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document]);
+  }, [document, route.params]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>
@@ -332,6 +337,10 @@ export function SettingsScreen() {
     } : { ...emptyBillDraft, propertyId: document.properties[0]?.id ?? "" });
     setBillModalOpen(true);
   };
+  const openBillDetails = (bill: RecurringBill, period = todayIsoDate().slice(0, 7)) => {
+    setBillPaymentPeriod(period);
+    setBillForDetails(bill);
+  };
   const saveBill = async () => {
     const name = billDraft.name.trim();
     const expectedAmount = billDraft.expectedAmount.trim().replace(",", ".");
@@ -393,9 +402,7 @@ export function SettingsScreen() {
     if (!billForDetails) return;
     const amount = billPaymentAmount.trim().replace(",", ".");
     if (!isPositiveMoney(amount)) { Alert.alert("Nieprawidłowa kwota", "Wpisz zapłaconą kwotę."); return; }
-    const now = new Date();
-    const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const payment: BillPayment = { id: createId("bill-payment"), billId: billForDetails.id, period, paidAt: `${period}-${String(now.getDate()).padStart(2, "0")}`, amount };
+    const payment = makeBillPayment(createId("bill-payment"), billForDetails.id, billPaymentPeriod, amount, todayIsoDate());
     try {
       await update((current) => ({ ...current, billPayments: [...current.billPayments, payment] }));
       setBillForDetails(null);
@@ -586,7 +593,7 @@ export function SettingsScreen() {
           return <View key={bill.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
             <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.name ?? "Mieszkanie"}</Text>
             <Text style={muted}>{bill.variableAmount ? "Kwotę sprawdź na bieżąco" : bill.expectedAmount ? `${bill.expectedAmount} zł` : "Kwota do sprawdzenia"}{bill.dueDay ? ` · termin ${bill.dueDay}. dzień` : ""}</Text>
-            <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => setBillForDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
+            <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => openBillDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
           </View>;
         })}
       </ScrollView>
@@ -722,6 +729,7 @@ export function SettingsScreen() {
               const dueDate = billForDetails.dueDay ? nextBillDueDate(billForDetails.dueDay) : undefined;
               const missing = missingPaymentDetails(details);
               return <>
+                <Text accessibilityLabel="Okres rozliczeniowy płatności" style={{ ...muted, marginBottom: 10 }}>Okres rozliczenia: {billPaymentPeriod}</Text>
                 <PaymentDetail label="Odbiorca" value={details.recipientName} onCopy={() => void copyPaymentValue(details.recipientName, "Nazwa odbiorcy")} />
                 <PaymentDetail label="Numer rachunku" value={details.bankAccount} onCopy={() => void copyPaymentValue(details.bankAccount, "Numer rachunku")} />
                 <PaymentDetail label={billForDetails.variableAmount ? "Kwota do sprawdzenia" : "Kwota"} value={details.amount ? `${details.amount} zł` : "Sprawdź bieżącą kwotę"} onCopy={() => void copyPaymentValue(details.amount, "Kwota")} />

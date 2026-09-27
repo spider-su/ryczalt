@@ -100,14 +100,26 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
       for (let offset = -1; offset <= 3; offset++) {
         const period = shiftMonth(current, offset);
         const dueAt = paymentDay(period, bill.dueDay);
-        const paid = document.billPayments.some((payment) => payment.billId === bill.id && payment.period === period);
+        const variable = bill.variableAmount || !bill.expectedAmount;
+        const payments = document.billPayments.filter((payment) => payment.billId === bill.id && payment.period === period);
+        const confirmedGrosz = variable ? undefined : payments.reduce((sum, payment) => sum + moneyToGrosz(payment.amount), 0);
+        const expectedGrosz = variable ? undefined : moneyToGrosz(bill.expectedAmount!);
+        const remainingGrosz = expectedGrosz === undefined ? undefined : Math.max(0, expectedGrosz - confirmedGrosz!);
+        const paid = variable ? payments.length > 0 : remainingGrosz === 0;
         const property = document.properties.find((item) => item.id === bill.propertyId);
+        const amountDetail = variable
+          ? "Sprawdź bieżącą kwotę."
+          : remainingGrosz === 0
+            ? `Oczekiwano ${formatPln(expectedGrosz!)}, potwierdzono ${formatPln(confirmedGrosz!)}.`
+            : confirmedGrosz! > 0
+              ? `Oczekiwano ${formatPln(expectedGrosz!)}, potwierdzono ${formatPln(confirmedGrosz!)}, pozostało ${formatPln(remainingGrosz!)}.`
+              : `Oczekiwano ${formatPln(expectedGrosz!)}.`;
         tasks.push(makeTask(document, now, {
           id: `RECURRING_BILL:${bill.id}:${period}`, type: "RECURRING_BILL",
           title: paid ? `${bill.name} — opłacono` : `Płatność: ${bill.name}`,
-          detail: `${property?.name ? `${property.name} · ` : ""}${bill.variableAmount || !bill.expectedAmount ? "Sprawdź bieżącą kwotę." : `Kwota orientacyjna ${bill.expectedAmount} zł.`}`,
+          detail: `${property?.name ? `${property.name} · ` : ""}${amountDetail}`,
           propertyId: bill.propertyId, period, dueAt, notificationAt: dueAt,
-          expectedGrosz: bill.expectedAmount ? moneyToGrosz(bill.expectedAmount) : undefined,
+          expectedGrosz, confirmedGrosz, remainingGrosz,
           resolved: paid,
         }));
       }
