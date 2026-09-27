@@ -34,6 +34,25 @@ export function rentDisplayState(expectedGrosz: number | null, confirmedGrosz: n
   return { kind: "unpaid", remainingGrosz };
 }
 
+export function rentConfirmationGroups<T extends { state: RentDisplayState }>(items: T[]) {
+  const pending = items.filter(({ state }) => state.kind !== "paid");
+  return { pending, allPaid: items.length > 0 && pending.length === 0 };
+}
+
+export function attentionSummary(count: number) {
+  return count > 0
+    ? { interactive: true, label: `${count} ${count === 1 ? "sprawa wymaga" : "sprawy wymagają"} uwagi`, action: "Pokaż ›" }
+    : { interactive: false, label: "✓ Wszystko na dziś załatwione", action: null };
+}
+
+export function taxPaymentPrompt(outstandingGrosz: number, overpaidGrosz: number, obligationGrosz = 0) {
+  if (outstandingGrosz > 0) return { showPayment: true, status: null };
+  return {
+    showPayment: false,
+    status: overpaidGrosz > 0 ? "Nadpłata — nie dodawaj kolejnej wpłaty" : obligationGrosz > 0 ? "Podatek za okres rozliczony" : "Brak podatku do zapłaty",
+  };
+}
+
 export function upcomingTasks(tasks: AssistantTask[], now = new Date(), limit = 4): AssistantTask[] {
   const cutoff = new Date(now.getTime() + 31 * 24 * 60 * 60 * 1000);
   return tasks

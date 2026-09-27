@@ -53,15 +53,30 @@ describe("rent receipt allocation", () => {
     expect(deriveTasks(doc, now).find((item) => item.id === "TENANT_PAYMENT_CHECK:reduta:2026-09")?.status).toBe("completed");
   });
 
-  it("allocates overpayment to the next open month and reports excess beyond projected obligations", () => {
+  it("keeps rent overpayment unallocated instead of prepaying future months", () => {
     const doc = document([receipt("over", "6500.00")]);
     expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-09", now).confirmedGrosz).toBe(270_000);
-    expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-10", now)).toMatchObject({ confirmedGrosz: 270_000, remainingGrosz: 0 });
-    expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-11", now)).toMatchObject({ confirmedGrosz: 110_000, remainingGrosz: 160_000 });
+    expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-10", now)).toMatchObject({ confirmedGrosz: 0, remainingGrosz: 270_000 });
+    expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-09", now).unallocatedGrosz).toBe(380_000);
 
     const veryLarge = document([receipt("large", "30000.00")]);
-    expect(rentMonthAmounts(reduta, veryLarge.incomeEntries, "2026-09", now).unallocatedGrosz).toBe(1_110_000);
+    expect(rentMonthAmounts(reduta, veryLarge.incomeEntries, "2026-09", now).unallocatedGrosz).toBe(2_730_000);
     expect(veryLarge.incomeEntries[0]?.amount).toBe("30000.00");
+  });
+
+  it("prioritizes an explicit rent month, then closes the oldest unpaid historical month", () => {
+    const historical = { ...reduta, rentSchedule: [{ effectiveFrom: "2026-08", amount: "3900.00" }] };
+    const entries = [receipt("aug", "3000.00", "2026-08-27", reduta.id, "2026-08"), receipt("sep", "4800.00", "2026-09-27", reduta.id, "2026-09")];
+    expect(rentMonthAmounts(historical, entries, "2026-09", now)).toMatchObject({ confirmedGrosz: 390_000, remainingGrosz: 0 });
+    expect(rentMonthAmounts(historical, entries, "2026-08", now)).toMatchObject({ confirmedGrosz: 390_000, remainingGrosz: 0 });
+    expect(rentMonthAmounts(historical, entries, "2026-10", now)).toMatchObject({ confirmedGrosz: 0, remainingGrosz: 390_000 });
+  });
+
+  it("allocates receipts without rentalMonth to the oldest open month due by receipt date", () => {
+    const historical = { ...reduta, rentSchedule: [{ effectiveFrom: "2026-08", amount: "3900.00" }] };
+    const entries = [receipt("aug", "3000.00", "2026-08-27", reduta.id, "2026-08"), receipt("unspecified", "4800.00", "2026-09-27", reduta.id)];
+    expect(rentMonthAmounts(historical, entries, "2026-08", now)).toMatchObject({ confirmedGrosz: 390_000, remainingGrosz: 0 });
+    expect(rentMonthAmounts(historical, entries, "2026-09", now)).toMatchObject({ confirmedGrosz: 390_000, remainingGrosz: 0 });
   });
 
   it("does not change another property's expectation", () => {

@@ -58,7 +58,7 @@ function RentalApp() {
       headerTintColor: theme.colors.textPrimary,
       tabBarActiveTintColor: theme.colors.primary,
       tabBarInactiveTintColor: theme.colors.inactiveNavigation,
-      tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, paddingBottom: 0, elevation: 0 },
+      tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, elevation: 0 },
       tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 1 },
       tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>

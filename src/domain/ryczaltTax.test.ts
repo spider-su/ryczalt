@@ -93,6 +93,18 @@ describe("Polish private-rental ryczałt", () => {
     expect(overpaymentAfterEdit[1]?.outstandingGrosz).toBe(7_000);
   });
 
+  it("exposes prior overpayment applied alongside the current period payment", () => {
+    const settlements = calculateSettlements({
+      entries: [entry("jan", "2026-01-02", "1000.00"), entry("feb", "2026-02-02", "10517.65")],
+      payments: [
+        { id: "jan-overpaid", period: "2026-01", paidAt: "2026-02-10", amount: "399.00" },
+        { id: "feb-payment", period: "2026-02", paidAt: "2026-03-10", amount: "580.00" },
+      ],
+      taxYear: 2026, mode: "monthly", today: "2026-03-15",
+    });
+    expect(settlements[1]).toMatchObject({ obligationGrosz: 89_400, paidGrosz: 58_000, creditAppliedGrosz: 31_400, outstandingGrosz: 0 });
+  });
+
   it("handles zero revenue, rounding, and Polish non-working-day deadlines", () => {
     const zero = calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-01-01" })[0]!;
     expect(zero.status).toBe("no-tax");
