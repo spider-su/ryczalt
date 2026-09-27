@@ -2,7 +2,7 @@
 
 **Twój osobisty asystent najmu.** Ryczałt is a local-first Expo mobile application for Polish private landlords: see what needs attention, record money actually received, review rental tax and open useful property-related services. The product direction is a lightweight personal assistant, **not** a full property-management platform.
 
-> **Implementation status:** The current `develop` branch contains the four-tab landlord-assistant MVP: Pulpit, Przychód, Podatek and Ustawienia. Guided setup and recurring custom reminders remain planned; device-specific notification and release checks remain pending. Roadmap milestones do not imply published app versions.
+> **Implementation status:** PR #5 and its native-readiness follow-up are under review; the four-tab assistant MVP is not yet merged to `develop`. Guided setup and recurring custom reminders remain planned; real-device notification and release checks remain pending. Roadmap milestones do not imply published app versions.
 
 ## Documentation
 
@@ -16,6 +16,7 @@
 - [Tasks and local notifications](docs/NOTIFICATIONS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release process](docs/RELEASES.md)
+- [Private beta Android checklist](docs/PRIVATE_BETA_ANDROID_CHECKLIST.md)
 - [Change history](CHANGELOG.md)
 
 ## Current technical baseline
@@ -42,4 +43,4 @@ npx expo-doctor
 
 ## Distribution status
 
-EAS builds remain manual until a standalone Expo project, account ownership and signing credentials are configured. Never reuse the `ryczalt_it` EAS project ID. Generated red/white branding is temporary. See [RELEASES.md](docs/RELEASES.md).
+This app has its own verified Expo project, `@smart-box/ryczalt`, with project ID `90116624-70fc-4f49-92f7-e787344dc969`; it does not reuse the `ryczalt_it` project ID. GitHub Actions builds Android through EAS on `develop` (preview) and `main` (production profile), and a separate manual/targeted workflow assembles a local debug APK. These builds do not publish to an app store. Real-device and signing readiness are tracked in [RELEASES.md](docs/RELEASES.md). Generated red/white branding is temporary.

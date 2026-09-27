@@ -4,6 +4,10 @@ This file records delivered code on the current branch. Physical-device behavior
 
 ## Unreleased
 
+- Use generic local-notification display text to avoid exposing personal or financial details on the lock screen; reject malformed notification routes safely.
+- Cover global notification switches, lock-screen wording and invalid deep-link payloads with regression tests.
+- Add dedicated Android debug-assemble and EAS Android build workflows; document verified Expo identity and Android beta checklist.
+
 ### Stabilization and regression coverage
 
 - Honored per-apartment rent and bill notification switches while retaining the underlying in-app tasks.

@@ -23,14 +23,20 @@ function RentalApp() {
     if (Platform.OS === 'web') return;
     const openTarget = (response: Notifications.NotificationResponse, retry = 0) => {
       const data = response.notification.request.content.data;
-      if (!data) return;
+      if (!data) {
+        void Notifications.clearLastNotificationResponseAsync();
+        return;
+      }
       if (!navigationRef.isReady()) {
         if (retry < 10) setTimeout(() => openTarget(response, retry + 1), 150);
         return;
       }
       const navigator = navigationRef as any;
       const intent = notificationDataToIntent(data);
-      if (!intent) return;
+      if (!intent) {
+        void Notifications.clearLastNotificationResponseAsync();
+        return;
+      }
       navigator.navigate(intent.screen, intent.params);
       void Notifications.clearLastNotificationResponseAsync();
     };

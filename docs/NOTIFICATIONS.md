@@ -26,6 +26,8 @@ Project reminders from current domain records → compare desired future notific
 
 Notification tap maps to contextual apartment/month, tax period, bill settings, agreement settings or the custom task on Pulpit. Rent quick-add prefills context but never saves until the user confirms amount and actual receipt date. Global categories plus per-apartment rent and per-bill reminder switches control OS scheduling; disabling a schedule does not hide its task from Pulpit. Denied permission leaves in-app reminders/status available. Expo Web does not schedule OS notifications. Delivery remains subject to OS scheduling constraints and needs device verification.
 
+OS notification title/body use generic wording; never put tenant, property, bill, reminder-note, tax or payment amounts in lock-screen text. Context needed after a tap stays in the local notification data. Invalid, incomplete or unknown payloads must not navigate. These guarantees are covered by domain/mapping tests; actual OS delivery and tap behavior still require the manual Android checklist.
+
 Tax reminders are projected from the tax calculator and outstanding manually-paid balance; changing receipts or tax payments changes the next reconciliation. Rent expectations never enter taxable income. Payment QR generation is deferred: a reliable Polish banking format and compatibility claim have not been established. Payment-detail copy actions remain available.
 
 Custom reminders are one-time only. Monthly/yearly custom recurrence is planned, not implemented.

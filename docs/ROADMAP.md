@@ -8,7 +8,7 @@ Milestone labels describe capability progress, not published app versions. Check
 | 0.2 — Tax foundation | Supported-year private-rental calculations, periods/deadlines, exact arithmetic and manual tax payments | Complete for documented 2025/2026 rules; not a tax-return filing tool |
 | 0.3 — Apartment lifecycle | Effective-month rent, payment day, agreement reminders, administrator/useful links, recurring bills and reminder preferences | Substantially complete |
 | 0.4 — Personal assistant MVP | Pulpit, persistent tasks, local notifications/Web fallback, snooze, source-derived completion, quick actions and light stats | Largely implemented; stabilization, guided setup and recurring custom reminders remain |
-| 0.5 — Private beta/release readiness | Real-device notification tests, migration verification, accessibility, payment details, distribution/signing and privacy review | Pending; see [RELEASES](RELEASES.md) |
+| 0.5 — Private beta/release readiness | Real-device notification tests, migration verification, accessibility, payment details, distribution/signing and privacy review | Pending. Standalone EAS identity and local Android debug build are verified; device notification, signing and distribution gates remain. See [RELEASES](RELEASES.md) |
 
 **Dependencies:** the shared tax engine, task projection and effective-month rent model are implemented. Stabilize and verify those contracts before adding new product features.
 
