@@ -19,9 +19,10 @@ import {
 } from "../data/RentalDataProvider";
 import type { IncomeEntry } from "../model/rental";
 import { theme } from "../theme/theme";
+import { ui } from "../theme/ui";
 import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
 import { entriesForTaxYear } from "../domain/rentalHistory";
-import { formatPln } from "../domain/ryczaltTax";
+import { formatPln, moneyToGrosz } from "../domain/ryczaltTax";
 import { summarizeRentMonth } from "../domain/reminders";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import {
@@ -69,6 +70,7 @@ export function IncomeScreen() {
     () => (document ? entriesForTaxYear(document.incomeEntries, taxYear) : []),
     [document, taxYear],
   );
+  const annualIncomeGrosz = orderedEntries.reduce((total, entry) => total + moneyToGrosz(entry.amount), 0);
   useEffect(() => {
     const params = route.params as { propertyId?: string; rentalMonth?: string; quickAdd?: boolean; expectedAmount?: string } | undefined;
     const property = params?.propertyId ? properties.find((item) => item.id === params.propertyId) : undefined;
@@ -298,17 +300,8 @@ export function IncomeScreen() {
   );
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: theme.colors.background,
-        paddingTop: 18,
-      }}
-    >
+    <View style={{ ...ui.page, paddingTop: 18 }}>
       <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-        <Text style={{ color: theme.colors.textSecondary }}>
-          Ręczna ewidencja wpływów · rok podatkowy {taxYear}
-        </Text>
         <Text
           style={{
             color: theme.colors.textPrimary,
@@ -365,15 +358,19 @@ export function IncomeScreen() {
         data={orderedEntries}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{
-          paddingHorizontal: 20,
-          paddingBottom: 20,
+          paddingHorizontal: 18,
+          paddingBottom: 32,
           flexGrow: 1,
         }}
         ListHeaderComponent={
           <View>
+            <View style={ui.card}>
+              <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Roczna ewidencja wpływów · {taxYear}</Text>
+              <Text style={{ color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700", marginTop: 8 }}>{formatPln(annualIncomeGrosz)}</Text>
+            </View>
             {properties.map((property) => {
               const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
-              return <View key={property.id} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
+              return <View key={property.id} style={ui.card}>
                 <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{property.name} · {rentalMonth}</Text>
                 {summary.status === "unknown" ? <Text style={muted}>Oczekiwany czynsz nieustalony</Text> : <>
                   <Text style={muted}>Oczekiwano {formatPln(summary.expectedGrosz)} · potwierdzono {formatPln(summary.confirmedGrosz)}</Text>
@@ -386,11 +383,11 @@ export function IncomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          <Text style={{ color: theme.colors.textSecondary, marginTop: 18 }}>
-            {properties.length
+          <View style={{ ...ui.emptyState, marginTop: 18 }}>
+            <Text style={{ color: theme.colors.textSecondary }}>{properties.length
               ? "Brak potwierdzonych wpłat."
-              : "Dodaj mieszkanie w zakładce Ustawienia, aby zapisać wpłatę."}
-          </Text>
+              : "Dodaj mieszkanie w zakładce Ustawienia, aby zapisać wpłatę."}</Text>
+          </View>
         }
         renderItem={({ item }) => <IncomeEntryRow
           entry={item}
@@ -527,15 +524,7 @@ export function IncomeScreen() {
   );
 }
 
-const primaryButton = {
-  backgroundColor: theme.colors.primary,
-  minHeight: 48,
-  borderRadius: 8,
-  justifyContent: "center" as const,
-  alignItems: "center" as const,
-  paddingHorizontal: 16,
-  marginVertical: 8,
-};
+const primaryButton = ui.primaryButton;
 const primaryText = {
   color: theme.colors.onAccent,
   fontWeight: "700" as const,

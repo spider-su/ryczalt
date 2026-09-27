@@ -12,6 +12,7 @@ import type { CustomReminder, Property, ReminderRecurrence } from "../model/rent
 import { deleteCustomReminder, findCustomReminderForTask, recurrenceLabel, saveCustomReminder } from "../domain/customReminders";
 import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
+import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
 
 type TaskView = "active" | "completed" | "dismissed";
@@ -49,7 +50,7 @@ export function PulpitScreen() {
     navigation.setParams({ taskId: undefined });
   }, [document, navigation, route.params]);
 
-  if (!document) return <View style={{ flex: 1, backgroundColor: theme.colors.background }} />;
+  if (!document) return <View style={ui.page} />;
   const now = new Date();
   const attention = tasks.filter((task) => task.status === "needs-attention");
   const filteredTasks = view === "active" ? tasks.filter((task) => ["needs-attention", "upcoming", "snoozed"].includes(task.status))
@@ -145,8 +146,8 @@ export function PulpitScreen() {
     navigation.navigate(intent.screen, intent.params);
   };
 
-  if (document.properties.length === 0) return <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 30 }}>
+  if (document.properties.length === 0) return <View style={ui.page}>
+    <ScrollView contentContainerStyle={ui.content}>
       <Text style={pageTitle}>Pulpit</Text>
       <View accessibilityLabel="Skonfiguruj pierwszy najem" style={setupCard}>
         <Text style={setupTitle}>Skonfiguruj pierwszy najem</Text>
@@ -157,41 +158,13 @@ export function PulpitScreen() {
     </ScrollView>
   </View>;
 
-  return <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 30 }}>
+  return <View style={ui.page}>
+    <ScrollView contentContainerStyle={ui.content}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <View><Text style={pageTitle}>Pulpit</Text><Text style={muted}>Dzień dobry</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Dodaj osobiste przypomnienie" onPress={openCustom} style={iconButton}><Text style={action}>＋</Text></Pressable>
       </View>
 
-      <View style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text><Text style={muted}>Do sprawdzenia · {attention.length}</Text></View>
-      <View style={segmented}>{([["active", "Aktywne"], ["completed", "Zakończone"], ["dismissed", "Ukryte"]] as const).map(([key, label]) =>
-        <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: view === key }} onPress={() => setView(key)} style={[segment, view === key && selectedSegment]}><Text style={view === key ? selectedSegmentText : segmentText}>{label}</Text></Pressable>)}</View>
-      {shownTasks.length ? shownTasks.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)
-        : <Text style={emptyText}>{view === "active" ? "Wszystko na dziś załatwione." : view === "completed" ? "Brak zakończonych spraw." : "Brak ukrytych spraw."}</Text>}
-      {view === "active" && tasks.some((task) => task.status === "upcoming" || task.status === "snoozed") ? <Text style={muted}>Nadchodzące sprawy pozostają na liście; uśpione wrócą w wybranym terminie.</Text> : null}
-
-      {setup?.showGuidance && setup.nextAction ? <SetupCard
-        action={setup.nextAction.action}
-        label={setup.nextAction.label}
-        propertyName={setup.nextAction.propertyName}
-        completed={setup.completedRequiredSteps}
-        total={setup.totalRequiredSteps}
-        onPress={() => openSetupAction(setup.nextAction!.action, setup.nextAction!.propertyId)}
-      /> : null}
-      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
-
-      <Text style={sectionTitle}>Szybkie akcje</Text>
-      <View style={quickRow}>
-        <QuickAction label="Dodaj wpłatę" onPress={addIncome} />
-        <QuickAction label="Podatek" onPress={openTax} />
-        <QuickAction label="Administracja" onPress={() => openAdministration()} />
-      </View>
-      <View style={linkRow}>
-        <Text style={smallLabel}>Usługi podatkowe MF</Text>
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://www.podatki.gov.pl/mikrorachunek-podatkowy/")}><Text style={action}>Mikrorachunek</Text></Pressable>
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://www.podatki.gov.pl/e-urzad-skarbowy/")}><Text style={action}>e-Urząd Skarbowy</Text></Pressable>
-      </View>
 
       <View style={sectionHeader}>
         <Text style={sectionTitle}>Przegląd miesiąca</Text>
@@ -223,7 +196,7 @@ export function PulpitScreen() {
         const amount = rentMonthAmounts(document, property, selectedMonth, now);
         const nextTask = tasks.filter((task) => task.propertyId === property.id && task.status !== "completed" && task.status !== "dismissed").sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0];
         const links = document.propertyLinks.filter((link) => link.propertyId === property.id);
-        return <View key={property.id} style={propertyRow}>
+        return <View key={property.id} style={[ui.card, propertyRow]}>
           <View style={propertyHeader}><View style={{ flex: 1 }}><Text style={propertyName}>{property.name}</Text>{property.tenantName ? <Text style={muted}>{property.tenantName}</Text> : null}</View>
             <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { propertyId: property.id })}><Text style={action}>Edytuj</Text></Pressable></View>
           {amount.expectedGrosz === null ? <Text style={muted}>Oczekiwany czynsz za {selectedMonth} nieustalony</Text> : <>
@@ -240,6 +213,36 @@ export function PulpitScreen() {
           </View>
         </View>;
       })}
+
+      <View style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text><Text style={muted}>Do sprawdzenia · {attention.length}</Text></View>
+      <View style={segmented}>{([["active", "Aktywne"], ["completed", "Zakończone"], ["dismissed", "Ukryte"]] as const).map(([key, label]) =>
+        <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: view === key }} onPress={() => setView(key)} style={[segment, view === key && selectedSegment]}><Text style={view === key ? selectedSegmentText : segmentText}>{label}</Text></Pressable>)}</View>
+      {shownTasks.length ? shownTasks.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)
+        : <Text style={emptyText}>{view === "active" ? "Wszystko na dziś załatwione." : view === "completed" ? "Brak zakończonych spraw." : "Brak ukrytych spraw."}</Text>}
+      {view === "active" && tasks.some((task) => task.status === "upcoming" || task.status === "snoozed") ? <Text style={muted}>Nadchodzące sprawy pozostają na liście; uśpione wrócą w wybranym terminie.</Text> : null}
+
+      {setup?.showGuidance && setup.nextAction ? <SetupCard
+        action={setup.nextAction.action}
+        label={setup.nextAction.label}
+        propertyName={setup.nextAction.propertyName}
+        completed={setup.completedRequiredSteps}
+        total={setup.totalRequiredSteps}
+        onPress={() => openSetupAction(setup.nextAction!.action, setup.nextAction!.propertyId)}
+      /> : null}
+      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
+
+      <Text style={sectionTitle}>Szybkie akcje</Text>
+      <View style={quickRow}>
+        <QuickAction label="Dodaj wpłatę" onPress={addIncome} />
+        <QuickAction label="Podatek" onPress={openTax} />
+        <QuickAction label="Administracja" onPress={() => openAdministration()} />
+      </View>
+      <View style={linkRow}>
+        <Text style={smallLabel}>Usługi podatkowe MF</Text>
+        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://www.podatki.gov.pl/mikrorachunek-podatkowy/")}><Text style={action}>Mikrorachunek</Text></Pressable>
+        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://www.podatki.gov.pl/e-urzad-skarbowy/")}><Text style={action}>e-Urząd Skarbowy</Text></Pressable>
+      </View>
+
     </ScrollView>
 
     <Modal visible={Boolean(snoozeTask)} transparent animationType="fade" onRequestClose={() => setSnoozeTask(null)}>
@@ -297,52 +300,52 @@ function ModalHeader({ title, onClose }: { title: string; onClose: () => void })
 function shiftMonth(month: string, offset: number) { const [year, number] = month.split("-").map(Number); const date = new Date(year!, number! - 1 + offset, 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; }
 function monthLabel(month: string) { const [year, number] = month.split("-").map(Number); return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(year!, number! - 1, 1)); }
 
-const pageTitle = { color: theme.colors.textPrimary, fontSize: 25, fontWeight: "700" as const };
-const setupCard = { marginTop: 14, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.divider, backgroundColor: theme.colors.surface };
+const pageTitle = { color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700" as const };
+const setupCard = { ...ui.card, marginTop: 14 };
 const setupTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 5 };
-const sectionTitle = { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" as const, marginTop: 22, marginBottom: 8 };
+const sectionTitle = ui.sectionTitle;
 const muted = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 4 };
 const smallLabel = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
 const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 13 };
 const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 12 };
-const segmented = { flexDirection: "row" as const, padding: 3, backgroundColor: theme.colors.surfaceSecondary, borderRadius: 8, gap: 3, marginBottom: 8 };
-const segment = { flex: 1, minHeight: 34, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 6 };
+const segmented = { flexDirection: "row" as const, padding: 4, backgroundColor: theme.colors.surfaceMuted, borderRadius: 13, gap: 4, marginBottom: 8 };
+const segment = { flex: 1, minHeight: 38, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 10 };
 const selectedSegment = { backgroundColor: theme.colors.surface };
 const segmentText = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
 const selectedSegmentText = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "700" as const };
-const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surfaceSecondary, padding: 12, borderRadius: 8, marginVertical: 4, fontSize: 13 };
+const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
 const quickRow = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginVertical: 8 };
-const quickButton = { flexGrow: 1, minWidth: 96, minHeight: 42, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 8, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 9 };
+const quickButton = { flexGrow: 1, minWidth: 96, minHeight: 44, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 9 };
 const quickText = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "700" as const, textAlign: "center" as const };
 const linkRow = { flexDirection: "row" as const, flexWrap: "wrap" as const, alignItems: "center" as const, gap: 12, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const kpiGrid = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginVertical: 9 };
-const kpi = { width: "48%" as const, minHeight: 66, backgroundColor: theme.colors.surfaceSecondary, borderRadius: 8, padding: 10, justifyContent: "space-between" as const };
-const kpiLabel = { color: theme.colors.textSecondary, fontSize: 11 };
-const kpiValue = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 6 };
+const kpi = { width: "48%" as const, minHeight: 86, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 16, padding: 13, justifyContent: "space-between" as const, elevation: 1 };
+const kpiLabel = { color: theme.colors.textSecondary, fontSize: 12 };
+const kpiValue = { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" as const, marginTop: 6 };
 const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
-const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 6, paddingHorizontal: 9, paddingVertical: 5 };
+const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
 const selectedFilter = { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.primary };
 const filterText = { color: theme.colors.textPrimary, fontSize: 11 };
-const chartContainer = { height: 145, borderBottomWidth: 1, borderColor: theme.colors.divider, flexDirection: "row" as const, alignItems: "stretch" as const, justifyContent: "space-around" as const, marginBottom: 10 };
+const chartContainer = { height: 145, borderWidth: 1, borderColor: theme.colors.borderSubtle, backgroundColor: theme.colors.surface, borderRadius: 16, flexDirection: "row" as const, alignItems: "stretch" as const, justifyContent: "space-around" as const, marginBottom: 10, paddingTop: 8 };
 const barColumn = { flex: 1, alignItems: "center" as const, justifyContent: "flex-end" as const, paddingHorizontal: 2 };
 const barValue = { color: theme.colors.textMuted, fontSize: 9, height: 18, textAlign: "center" as const };
-const barTrack = { height: 98, width: "55%" as const, backgroundColor: theme.colors.surfaceSecondary, justifyContent: "flex-end" as const, borderRadius: 3, overflow: "hidden" as const };
+const barTrack = { height: 98, width: "55%" as const, backgroundColor: theme.colors.surfaceMuted, justifyContent: "flex-end" as const, borderRadius: 6, overflow: "hidden" as const };
 const barFill = { width: "100%" as const, backgroundColor: theme.colors.primary, minHeight: 0 };
 const barMonth = { color: theme.colors.textSecondary, fontSize: 10, marginVertical: 6 };
-const propertyRow = { paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
+const propertyRow = { paddingVertical: 14, marginTop: 5 };
 const propertyHeader = { flexDirection: "row" as const, alignItems: "flex-start" as const, justifyContent: "space-between" as const, gap: 12, marginBottom: 4 };
 const propertyName = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const };
 const metricRow = { flexDirection: "row" as const, justifyContent: "space-between" as const, paddingVertical: 2 };
 const metricValue = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "600" as const };
 const emptyRow = { gap: 7, marginTop: 4 };
-const iconButton = { width: 38, height: 38, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 8, backgroundColor: theme.colors.accentSoft };
+const iconButton = { width: 42, height: 42, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 14, backgroundColor: theme.colors.accentSoft };
 const modalBackdrop = { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: "center" as const, padding: 18 };
-const modalPanel = { backgroundColor: theme.colors.modalBackground, borderRadius: 8, padding: 18, maxHeight: "85%" as const };
+const modalPanel = { backgroundColor: theme.colors.modalBackground, borderRadius: 18, padding: 18, maxHeight: "85%" as const };
 const modalHeader = { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const modalTitle = { color: theme.colors.textPrimary, fontWeight: "700" as const, fontSize: 18 };
 const modalAction = { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
-const input = { borderWidth: 1, borderColor: theme.colors.inputBorder, backgroundColor: theme.colors.inputBackground, color: theme.colors.textPrimary, borderRadius: 8, minHeight: 44, paddingHorizontal: 11, marginTop: 6, marginBottom: 12 };
-const primaryButton = { minHeight: 46, justifyContent: "center" as const, alignItems: "center" as const, backgroundColor: theme.colors.primary, borderRadius: 8, marginTop: 10 };
+const input = { borderWidth: 1, borderColor: theme.colors.inputBorder, backgroundColor: theme.colors.inputBackground, color: theme.colors.textPrimary, borderRadius: 12, minHeight: 46, paddingHorizontal: 11, marginTop: 6, marginBottom: 12 };
+const primaryButton = { ...ui.primaryButton, marginTop: 10 };
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const };
 const secondaryButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 8, marginTop: 9 };
 const buttonText = { color: theme.colors.textPrimary, fontWeight: "600" as const };

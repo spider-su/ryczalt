@@ -4,7 +4,7 @@
     "slug": "ryczalt",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "icon": "./assets/brand/app-icon.png",
     "ios": {
       "supportsTablet": false,
@@ -22,8 +22,8 @@
       "name": "Ryczałt",
       "shortName": "Ryczałt",
       "lang": "pl",
-      "themeColor": "#C52632",
-      "backgroundColor": "#F5F7FC",
+      "themeColor": "#D20A32",
+      "backgroundColor": "#F4F6F9",
       "display": "standalone",
       "startUrl": "/",
       "scope": "/"

@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import type { IncomeEntry } from "../../model/rental";
 import { theme } from "../../theme/theme";
+import { ui } from "../../theme/ui";
 
 export function IncomeEntryRow({ entry, propertyName, onEdit, onRemove }: {
   entry: IncomeEntry;
@@ -22,7 +23,7 @@ export function IncomeEntryRow({ entry, propertyName, onEdit, onRemove }: {
   </View>;
 }
 
-const entryRow = { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
+const entryRow = { ...ui.card, padding: 14, marginVertical: 5 };
 const entryHeader = { flexDirection: "row" as const, justifyContent: "space-between" as const, gap: 12 };
 const propertyNameStyle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "600" as const };
 const amount = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" as const };
