@@ -1,6 +1,6 @@
 # Tasks and local notifications — target design
 
-**Status:** implemented for current rent, agreement, tax, and recurring-bill reminders. In-app status remains primary; local OS notifications are disposable reminders derived from local records.
+**Status:** implemented for rent, agreement, tax, recurring-bill and one-time custom reminders. In-app status remains primary; local OS notifications are disposable reminders derived from local records.
 
 ## Categories
 
@@ -24,9 +24,11 @@ Project reminders from current domain records → compare desired future notific
 
 ## Navigation and permissions
 
-Notification tap opens contextual apartment/month, tax period, or bill settings. Prefilled forms never auto-save money. Permission is requested only from settings; categories are independently configurable. Denied permission leaves in-app reminders/status available. Expo Web does not use this local scheduling path, so it stays usable without OS notifications. Delivery remains subject to OS scheduling constraints.
+Notification tap opens contextual apartment/month, tax period, bill settings, or the custom reminder on Pulpit. Rent quick-add prefills the remaining expected amount, but the user still confirms actual amount and receipt date. Permission is requested from settings; categories are independently configurable. Denied permission leaves in-app reminders/status available. Expo Web does not use this local scheduling path, so it stays usable without OS notifications. Delivery remains subject to OS scheduling constraints.
 
 Tax reminders are projected from the tax calculator and outstanding manually-paid balance; changing receipts or tax payments changes the next reconciliation. Rent expectations never enter taxable income. Payment QR generation is deferred: a reliable Polish banking format and compatibility claim have not been established. Payment-detail copy actions remain available.
+
+Recurring personal reminders are not part of the current model; custom reminders are one-time tasks with title, optional apartment, due date and note.
 
 ## Anti-spam
 

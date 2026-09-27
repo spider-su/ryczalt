@@ -1,10 +1,6 @@
 # Canonical user flows
 
-These are **target flows** for implementation and acceptance testing, not claims of currently available screens.
-
-## 0. Guided setup
-
-First run or incomplete apartment → Pulpit shows a small setup checklist → user adds apartment → expected rent → expected payment day → current tenant → optional agreement end date/reminders → optional administrator portal → completed steps disappear. When all essential steps are complete, onboarding leaves the normal Pulpit. Do not require optional fields to finish setup.
+These flows describe the implemented MVP. Guided onboarding and recurring personal reminders are not included.
 
 ## 1. Check monthly rent
 
@@ -26,7 +22,7 @@ Optional end date → reminders at configured offsets → tap opens apartment ag
 
 ## 5. Personal reminder
 
-User enters title, optional apartment, due date, note and recurrence: one-time, monthly or yearly → appears in Pulpit and may schedule local notification → user snoozes or completes it. Do not build a generic project-management system.
+User enters title, optional apartment, due date and note → one-time reminder appears in Pulpit and may schedule a local notification → user snoozes, completes or dismisses it. Do not build a generic project-management system.
 
 ## 6. Monthly apartment overview
 

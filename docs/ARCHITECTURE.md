@@ -1,8 +1,8 @@
 # Technical architecture
 
-## Current implementation (feature/expo-rental-app-skeleton)
+## Current implementation (`develop`)
 
-Expo SDK 57 / React Native 0.86 / React 19 / TypeScript, React Navigation, AsyncStorage and Vitest. `App.tsx` hosts the current three tabs and `RentalDataProvider`. `src/model/rental.ts` defines `Property`, `IncomeEntry`, `TaxPayment`, `RentalDocument` (schema v1). `src/data/localRentalStore.ts` validates and persists the local document. Serialized mutations and domain validation are implemented in `src/data` and `src/domain`. `TaxScreen` remains a placeholder; native notification service is not present in the inspected baseline.
+Expo SDK 57 / React Native 0.86 / React 19 / TypeScript, React Navigation, AsyncStorage and Vitest. `App.tsx` hosts Pulpit, Przychód, Podatek and Ustawienia with `RentalDataProvider`. `src/model/rental.ts` defines the version-3 rental document and its source records. `src/data/localRentalStore.ts` validates and migrates persisted documents; serialized mutations and domain validation live in `src/data` and `src/domain`. The tax screen uses the shared ryczałt engine, and the Pulpit and notification reconciler consume the shared task projection.
 
 ## Target logical responsibilities (not a mandated folder rewrite)
 
