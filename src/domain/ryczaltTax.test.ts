@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, formatPln, moneyToGrosz, taxOnRevenue } from "./ryczaltTax";
+import { calculateSettlements, formatPln, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "./ryczaltTax";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
   id, propertyId, receivedAt, amount: taxableAmount, taxableAmount,
 });
 
 describe("Polish private-rental ryczałt", () => {
+  it("resolves monthly and quarterly settlement periods from the calendar month", () => {
+    expect(settlementPeriodForMonth("2026-09", "monthly")).toBe("2026-09");
+    expect(settlementPeriodForMonth("2026-01", "quarterly")).toBe("2026-Q1");
+    expect(settlementPeriodForMonth("2026-05", "quarterly")).toBe("2026-Q2");
+    expect(settlementPeriodForMonth("2026-08", "quarterly")).toBe("2026-Q3");
+    expect(settlementPeriodForMonth("2026-12", "quarterly")).toBe("2026-Q4");
+    expect(settlementPeriodForMonth("2026-13", "quarterly")).toBeNull();
+  });
+
   it("uses year-specific 8.5% and 12.5% bands with whole-zloty rounding", () => {
     expect(taxOnRevenue(50_000_00, 2026)).toBe(425_000);
     expect(taxOnRevenue(100_000_00, 2026)).toBe(850_000);
@@ -91,6 +100,18 @@ describe("Polish private-rental ryczałt", () => {
     const overpaymentAfterEdit = calculate([{ id: "jan-edited", period: "2026-01", paidAt: "2026-02-10", amount: "100.00" }]);
     expect(overpaymentBeforeEdit[1]?.outstandingGrosz).toBe(4_000);
     expect(overpaymentAfterEdit[1]?.outstandingGrosz).toBe(7_000);
+  });
+
+  it("exposes prior overpayment applied alongside the current period payment", () => {
+    const settlements = calculateSettlements({
+      entries: [entry("jan", "2026-01-02", "1000.00"), entry("feb", "2026-02-02", "10517.65")],
+      payments: [
+        { id: "jan-overpaid", period: "2026-01", paidAt: "2026-02-10", amount: "399.00" },
+        { id: "feb-payment", period: "2026-02", paidAt: "2026-03-10", amount: "580.00" },
+      ],
+      taxYear: 2026, mode: "monthly", today: "2026-03-15",
+    });
+    expect(settlements[1]).toMatchObject({ obligationGrosz: 89_400, paidGrosz: 58_000, creditAppliedGrosz: 31_400, outstandingGrosz: 0 });
   });
 
   it("handles zero revenue, rounding, and Polish non-working-day deadlines", () => {

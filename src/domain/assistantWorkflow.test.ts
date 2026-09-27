@@ -32,7 +32,7 @@ describe("assistant workflows across domain modules", () => {
     doc.incomeEntries = [first];
     expect(first.tenantNameSnapshot).toBe("Anna");
     expect(deriveTasks(doc, now).find((task) => task.id === taskId)).toMatchObject({ remainingGrosz: 100_000, status: "needs-attention" });
-    expect(rentMonthAmounts(doc, doc.properties[0]!, "2026-08", now).expectedGrosz).toBe(250_000);
+    expect(rentMonthAmounts(doc.properties[0]!, doc.incomeEntries, "2026-08", now).expectedGrosz).toBe(250_000);
 
     const corrected = editIncomeEntry(first, { propertyId: "p1", receivedAt: "2026-10-02", amount: "3000.00", taxableAmount: "2800.00", rentalMonth: "2026-09" });
     doc.properties[0]!.tenantName = "Beata";

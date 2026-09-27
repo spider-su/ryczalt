@@ -1,7 +1,8 @@
 import { calculateSettlements, formatPln, moneyToGrosz } from "./ryczaltTax";
 import { customReminderTaskId, recurrenceLabel, reminderOccurrenceDates } from "./customReminders";
-import { isRentalMonth } from "./rentalValidation";
-import type { Property, RentalDocument, TaskState } from "../model/rental";
+import type { RentalDocument, TaskState } from "../model/rental";
+import { rentMonthAmounts } from "./rentAllocation";
+export { expectedRentForMonth, rentMonthAmounts } from "./rentAllocation";
 
 export type TaskType = "TENANT_PAYMENT_CHECK" | "TAX_PAYMENT" | "RECURRING_BILL" | "RENTAL_AGREEMENT_END" | "CUSTOM_REMINDER";
 export type TaskStatus = "upcoming" | "needs-attention" | "snoozed" | "completed" | "dismissed";
@@ -22,21 +23,11 @@ export type AssistantTask = {
   manuallyCompletable: boolean;
 };
 
-export function expectedRentForMonth(property: Property, month: string, now = new Date()): number | null {
-  if (!isRentalMonth(month)) return null;
-  const rates = [...(property.rentSchedule ?? [])].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
-  const applicable = rates.find((rate) => rate.effectiveFrom <= month);
-  if (applicable) return moneyToGrosz(applicable.amount);
-  const currentMonth = monthOf(now);
-  if (!rates.length && month >= currentMonth && property.defaultMonthlyRent !== undefined) return moneyToGrosz(property.defaultMonthlyRent);
-  return null;
-}
-
-export function rentMonthAmounts(document: RentalDocument, property: Property, month: string, now = new Date()) {
-  const expectedGrosz = expectedRentForMonth(property, month, now);
-  const confirmedGrosz = document.incomeEntries.filter((entry) => entry.propertyId === property.id && entry.rentalMonth === month)
-    .reduce((total, entry) => total + moneyToGrosz(entry.amount), 0);
-  return { expectedGrosz, confirmedGrosz, remainingGrosz: expectedGrosz === null ? null : Math.max(0, expectedGrosz - confirmedGrosz) };
+export function groupActiveTasks(tasks: AssistantTask[]) {
+  return {
+    actionable: tasks.filter((task) => task.status === "needs-attention"),
+    upcoming: tasks.filter((task) => task.status === "upcoming" || task.status === "snoozed"),
+  };
 }
 
 export function deriveTasks(document: RentalDocument, now = new Date()): AssistantTask[] {
@@ -46,7 +37,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
     if (property.expectedPaymentDay) {
       for (let offset = -2; offset <= 6; offset++) {
         const period = shiftMonth(current, offset);
-        const amounts = rentMonthAmounts(document, property, period, now);
+        const amounts = rentMonthAmounts(property, document.incomeEntries, period, now);
         if (amounts.expectedGrosz === null || amounts.expectedGrosz === 0 || amounts.remainingGrosz === null) continue;
         const dueAt = paymentDay(period, property.expectedPaymentDay);
         const notificationAt = addDays(dueAt, property.paymentReminderDelayDays ?? 1);
@@ -58,7 +49,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
         const detail = `Za ${monthLabel(period)}: oczekiwano ${formatPln(amounts.expectedGrosz)}, potwierdzono ${formatPln(amounts.confirmedGrosz)}${remaining ? `, do potwierdzenia ${formatPln(remaining)}` : ""}.`;
         tasks.push(makeTask(document, now, {
           id: `TENANT_PAYMENT_CHECK:${property.id}:${period}`, type: "TENANT_PAYMENT_CHECK", title, detail,
-          propertyId: property.id, period, dueAt, notificationAt, expectedGrosz: amounts.expectedGrosz,
+          propertyId: property.id, period, dueAt, notificationAt, attentionAt: dueAt, expectedGrosz: amounts.expectedGrosz,
           confirmedGrosz: amounts.confirmedGrosz, remainingGrosz: remaining, resolved: done,
         }));
       }
@@ -144,13 +135,13 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   return tasks.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 }
 
-function makeTask(document: RentalDocument, now: Date, input: Omit<AssistantTask, "status" | "dismissible" | "manuallyCompletable"> & { resolved: boolean; manuallyCompletable?: boolean }): AssistantTask {
+function makeTask(document: RentalDocument, now: Date, input: Omit<AssistantTask, "status" | "dismissible" | "manuallyCompletable"> & { resolved: boolean; manuallyCompletable?: boolean; attentionAt?: Date }): AssistantTask {
   const state = document.taskStates.find((item) => item.taskId === input.id);
   const activeSnooze = state?.snoozedUntil ? new Date(state.snoozedUntil) : undefined;
   const snoozed = !input.resolved && activeSnooze !== undefined && activeSnooze > now;
   const manuallyCompleted = Boolean(state?.completedAt) && Boolean(input.manuallyCompletable);
-  const { resolved, ...task } = input;
-  const status = resolved || manuallyCompleted ? "completed" : state?.dismissedAt ? "dismissed" : snoozed ? "snoozed" : input.notificationAt <= now ? "needs-attention" : "upcoming";
+  const { resolved, attentionAt, ...task } = input;
+  const status = resolved || manuallyCompleted ? "completed" : state?.dismissedAt ? "dismissed" : snoozed ? "snoozed" : (attentionAt ?? input.notificationAt) <= now ? "needs-attention" : "upcoming";
   return { ...task, status, dismissible: status !== "completed", manuallyCompletable: Boolean(input.manuallyCompletable) };
 }
 

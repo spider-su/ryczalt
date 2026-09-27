@@ -7,6 +7,15 @@ export const RYCZALT_RULES = {
 export const SUPPORTED_TAX_YEARS = Object.keys(RYCZALT_RULES).map(Number) as (keyof typeof RYCZALT_RULES)[];
 
 export type SettlementMode = "monthly" | "quarterly";
+/** Resolve the settlement bucket containing a calendar month. */
+export function settlementPeriodForMonth(month: string, mode: SettlementMode): string | null {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+  if (!match) return null;
+  if (mode === "monthly") return month;
+  const quarter = Math.ceil(Number(match[2]) / 3);
+  return `${match[1]}-Q${quarter}`;
+}
+
 export type Settlement = {
   period: string;
   revenueGrosz: number;
@@ -14,6 +23,7 @@ export type Settlement = {
   obligationGrosz: number;
   cumulativeTaxGrosz: number;
   paidGrosz: number;
+  creditAppliedGrosz: number;
   outstandingGrosz: number;
   overpaidGrosz: number;
   dueDate: string;
@@ -121,7 +131,7 @@ export function calculateSettlements(args: {
     const dueDate = paymentDeadline(taxYear, index, mode);
     const paidGrosz = paymentTotals[index]!;
     return { period, revenueGrosz, cumulativeRevenueGrosz, obligationGrosz,
-      cumulativeTaxGrosz, paidGrosz, outstandingGrosz: unpaidByPeriod.get(index) ?? 0,
+      cumulativeTaxGrosz, paidGrosz, creditAppliedGrosz: creditUsedGrosz, outstandingGrosz: unpaidByPeriod.get(index) ?? 0,
       overpaidGrosz, dueDate, status: "due" as const };
   });
   return settlements.map((settlement, index) => {
