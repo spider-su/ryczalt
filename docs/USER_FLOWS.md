@@ -26,7 +26,7 @@ Optional end date → reminders at configured offsets → tap opens apartment ag
 
 ## 5. Personal reminder
 
-User enters title, optional apartment, due date, note and recurrence: one-time, monthly or yearly → appears in Pulpit and may schedule local notification → user snoozes or completes it. Do not build a generic project-management system.
+User enters title, optional apartment, anchor date, note and recurrence: one-time, monthly or yearly → the definition is saved once, while only the current period and nearest next occurrence are projected into Pulpit and the notification plan → the user snoozes, dismisses or completes one occurrence. A later occurrence stays independent. Monthly dates use the last valid day in shorter months without changing the anchor; yearly February 29 reminders use February 28 in non-leap years and return to February 29 in leap years. Do not build a generic project-management system.
 
 ## 6. Monthly apartment overview
 

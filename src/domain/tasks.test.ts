@@ -4,7 +4,7 @@ import { deriveTasks, expectedRentForMonth, setTaskState, taskNotificationPlan }
 
 function document(): RentalDocument {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     properties: [{ id: "p1", name: "Parkowa", defaultMonthlyRent: "3000.00", expectedPaymentDay: 10,
       rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
       rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
@@ -75,7 +75,7 @@ describe("personal assistant tasks", () => {
 
   it("classifies upcoming, snoozed, dismissed and manually completed tasks without changing due dates", () => {
     const doc = document();
-    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-10-03", propertyId: "p1" }];
+    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-10-03", propertyId: "p1", recurrence: "ONCE" }];
     const now = new Date(2026, 8, 26, 12);
     const id = "CUSTOM_REMINDER:r1";
     expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("upcoming");

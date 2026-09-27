@@ -125,7 +125,7 @@ export function validateIncomeValues(
 export function validateRentalDocumentShape(
   document: RentalDocument,
 ): RentalDocument {
-  if (document.schemaVersion !== 3)
+  if (document.schemaVersion !== 4)
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
@@ -212,7 +212,7 @@ export function validateRentalDocumentShape(
   }
   const customIds = new Set<string>();
   for (const reminder of document.customReminders) {
-    if (customIds.has(reminder.id) || !reminder.title.trim() || !isValidCalendarDate(reminder.dueDate) || (reminder.propertyId && !propertyIds.has(reminder.propertyId))) throw new RentalValidationError("Custom reminder is invalid.");
+    if (customIds.has(reminder.id) || !reminder.title.trim() || !isValidCalendarDate(reminder.dueDate) || (reminder.propertyId && !propertyIds.has(reminder.propertyId)) || !["ONCE", "MONTHLY", "YEARLY"].includes(reminder.recurrence)) throw new RentalValidationError("Custom reminder is invalid.");
     customIds.add(reminder.id);
   }
   const stateIds = new Set<string>();

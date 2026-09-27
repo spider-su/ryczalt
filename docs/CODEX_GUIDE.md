@@ -2,10 +2,10 @@
 
 Use this document as the default context for implementation tasks in this repository.
 
-## Current capability snapshot (`develop`)
+## Current capability snapshot (`main` and `develop`)
 
-- **Implemented:** Pulpit and three supporting tabs; schema-v3 local persistence/migrations; confirmed income and tax/bill payments; effective-month rents; shared tax engine and task projection; local reminders; apartment links; one-time custom reminders and compact statistics.
-- **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks. Guided setup is implemented; recurring custom reminders are not implemented.
+- **Implemented:** Pulpit and three supporting tabs; schema-v4 local persistence/migrations; confirmed income and tax/bill payments; effective-month rents; shared tax engine and task projection; local reminders; apartment links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
+- **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
 - **Parked:** PIT-28, JSON backup/import/export and Investory integration.
 
 Source code and tests on the checked-out branch are authoritative; these labels should be revisited when code changes.

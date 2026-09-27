@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import schemaV1 from "./fixtures/schema-v1-populated.json";
 import schemaV2 from "./fixtures/schema-v2-populated.json";
 import schemaV3 from "./fixtures/schema-v3-populated.json";
+import schemaV4 from "./fixtures/schema-v4-populated.json";
 
 import {
   RENTAL_DOCUMENT_STORAGE_KEY,
@@ -12,6 +13,7 @@ import {
   saveRentalDocument,
 } from "./localRentalStore";
 import type { RentalDocument } from "../model/rental";
+import { deriveTasks } from "../domain/tasks";
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
@@ -23,7 +25,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 const storage = vi.mocked(AsyncStorage);
 
 const validDocument: RentalDocument = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   properties: [
     {
       id: "property-1",
@@ -80,7 +82,7 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).resolves.toMatchObject({
       incomeEntries: validDocument.incomeEntries,
       taxPayments: validDocument.taxPayments,
-      schemaVersion: 3,
+      schemaVersion: 4,
       settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
     });
   });
@@ -90,7 +92,7 @@ describe("localRentalStore", () => {
       settings: { ...validDocument.settings, reminderCategories: { rent: false, agreements: true, tax: true, bills: false } } };
     storage.getItem.mockResolvedValueOnce(JSON.stringify(schema2));
     await expect(loadRentalDocument()).resolves.toMatchObject({
-      schemaVersion: 3, incomeEntries: validDocument.incomeEntries, taxPayments: validDocument.taxPayments,
+      schemaVersion: 4, incomeEntries: validDocument.incomeEntries, taxPayments: validDocument.taxPayments,
       properties: validDocument.properties, propertyLinks: [], customReminders: [], taskStates: [],
       settings: { reminderCategories: { rent: false, agreements: true, tax: true, bills: false, custom: true } },
     });
@@ -99,7 +101,7 @@ describe("localRentalStore", () => {
   it("migrates a populated schema 1 fixture without losing tenant, income, or tax history", async () => {
     storage.getItem.mockResolvedValueOnce(JSON.stringify(schemaV1));
     await expect(loadRentalDocument()).resolves.toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       properties: [{ id: "property-old", tenantSince: "2024-03-01", tenantName: "Anna Kowalska" }],
       incomeEntries: [{ id: "income-old", tenantNameSnapshot: "Anna Kowalska", rentalMonth: "2025-02" }],
       taxPayments: [{ id: "tax-old", amount: "212.50" }],
@@ -110,7 +112,7 @@ describe("localRentalStore", () => {
   it("migrates a populated schema 2 fixture including bill-payment history and preferences", async () => {
     storage.getItem.mockResolvedValueOnce(JSON.stringify(schemaV2));
     await expect(loadRentalDocument()).resolves.toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       properties: [{ id: "property-v2", tenantName: "Marek Nowak" }],
       incomeEntries: [{ id: "income-v2", taxableAmount: "3000.00" }],
       taxPayments: [{ id: "tax-v2" }],
@@ -120,12 +122,36 @@ describe("localRentalStore", () => {
     });
   });
 
+  it("migrates populated schema 3 reminders to ONCE without losing document or task history", async () => {
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(schemaV3));
+    const migrated = await loadRentalDocument();
+    expect(migrated).toMatchObject({
+      schemaVersion: 4,
+      properties: [{ id: "property-current", tenantName: "Joanna Nowak" }],
+      incomeEntries: [{ id: "income-current", tenantNameSnapshot: "Joanna Nowak" }],
+      taxPayments: [{ id: "tax-current" }],
+      recurringBills: [{ id: "bill-current" }],
+      billPayments: [{ id: "bill-payment-current" }],
+      propertyLinks: [{ id: "link-current" }],
+      customReminders: [{ id: "reminder-current", dueDate: "2026-10-05", recurrence: "ONCE" }],
+      taskStates: [{ taskId: "CUSTOM_REMINDER:reminder-current", snoozedUntil: "2026-10-06T07:00:00.000Z" }],
+    });
+    expect(deriveTasks(migrated, new Date(2026, 9, 5, 10)).find((task) => task.id === "CUSTOM_REMINDER:reminder-current")?.status).toBe("snoozed");
+  });
+
   it("round-trips a populated current-schema fixture", async () => {
-    const current = schemaV3 as RentalDocument;
+    const current = schemaV4 as RentalDocument;
     storage.setItem.mockResolvedValueOnce();
     await saveRentalDocument(current);
     storage.getItem.mockResolvedValueOnce(JSON.stringify(current));
     await expect(loadRentalDocument()).resolves.toEqual(current);
+  });
+
+  it("requires recurrence on schema 4 reminders", async () => {
+    const current = structuredClone(schemaV4) as RentalDocument;
+    delete (current.customReminders[0] as Partial<(typeof current.customReminders)[number]>).recurrence;
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(current));
+    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
   });
 
   it("reports invalid JSON as corrupted data", async () => {
@@ -138,7 +164,7 @@ describe("localRentalStore", () => {
 
   it("rejects unsupported schema versions", async () => {
     storage.getItem.mockResolvedValueOnce(
-      JSON.stringify({ ...validDocument, schemaVersion: 4 }),
+      JSON.stringify({ ...validDocument, schemaVersion: 5 }),
     );
 
     await expect(loadRentalDocument()).rejects.toMatchObject({

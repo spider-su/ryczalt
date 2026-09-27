@@ -8,7 +8,7 @@ import { summarizeRentMonth } from "./reminders";
 import { deriveTasks, taskNotificationPlan } from "./tasks";
 
 const fixture = (): RentalDocument => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   properties: [{ id: "p1", name: "Parkowa", defaultMonthlyRent: "3000.00", expectedPaymentDay: 30, paymentReminderEnabled: true,
     rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00" }], rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "1000.00", taxableAmount: "300.00" }],
@@ -71,7 +71,7 @@ describe("task reminders and payment details", () => {
   it("uses generic lock-screen text and keeps each category switch independent", async () => {
     const doc = fixture();
     doc.properties[0]!.rentalEndDate = "2026-09-15";
-    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-08-05", propertyId: "p1", note: "Szczegóły poufne" }];
+    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-08-05", propertyId: "p1", note: "Szczegóły poufne", recurrence: "ONCE" }];
     doc.incomeEntries = [{ id: "taxable", propertyId: "p1", receivedAt: "2026-07-10", rentalMonth: "2026-07", amount: "3000.00", taxableAmount: "3000.00" }];
     const now = new Date(2026, 7, 1, 8);
     const plan = taskNotificationPlan(doc, now);

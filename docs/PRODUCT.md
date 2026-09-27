@@ -53,10 +53,10 @@ PIT-28 annual reporting, backup/import/export and Investory integration are **pa
 
 ## Status
 
-- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, rent history, recurring bills, agreement reminders, apartment links, local notification scheduling, one-time custom reminders and compact statistics.
+- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, rent history, recurring bills, agreement reminders, apartment links, local notification scheduling, one-time/monthly/yearly custom reminders and compact statistics.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
 - **Implemented:** guided setup derived from apartment configuration.
-- **Planned:** recurring custom reminders.
+- **Functional scope complete:** the 0.4 personal assistant includes recurring custom reminders. This does not establish private-beta readiness.
 - **Parked:** PIT-28, JSON backup/import/export and Investory integration.
 
 See [MVP](MVP.md) for current acceptance scope and [ROADMAP](ROADMAP.md) for delivery state. Milestones are not published releases.
