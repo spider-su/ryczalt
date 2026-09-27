@@ -16,7 +16,7 @@ Stable identity: category + source ID + relevant rental/tax/bill period or agree
 - **Completed:** source condition satisfied by explicit user action (e.g., confirmed full rent/tax payment), or explicit nonfinancial task completion.
 - **Dismissed:** user suppresses task; never means rent/tax/bill was paid.
 
-Financial task completion is derived from manually confirmed records. A task may become unresolved again after correction/deletion. Do not create fictional payment entries when marking a nonfinancial check done.
+Financial task completion is derived from manually confirmed records. A fixed recurring bill remains unresolved until confirmed payments for its bill period total at least the expected amount; partial payments show the remaining amount. Variable bills have no fixed target, so a confirmed payment resolves that period. Bill task and notification navigation retain the task period for manual confirmation. A task may become unresolved again after correction/deletion. Do not create fictional payment entries when marking a nonfinancial check done.
 
 ## Reconciliation
 
