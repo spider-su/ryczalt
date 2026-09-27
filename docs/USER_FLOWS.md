@@ -4,7 +4,7 @@ These are **target flows** for implementation and acceptance testing, not claims
 
 ## 0. Guided setup
 
-First run or incomplete apartment → Pulpit shows a small setup checklist → user adds apartment → expected rent → expected payment day → current tenant → optional agreement end date/reminders → optional administrator portal → completed steps disappear. When all essential steps are complete, onboarding leaves the normal Pulpit. Do not require optional fields to finish setup.
+No apartments → Pulpit shows a short explanation and one “Dodaj mieszkanie” action → existing Settings apartment editor opens. With apartment data present, setup progress is derived from the saved name, expected rent and payment day; Pulpit offers only the next useful action and Settings opens the same editor at the corresponding field. Required progress is evaluated per apartment and optional tenant, agreement and administrator details do not block completion. Once required setup is complete, the guidance disappears, except that an unenabled in-app rent reminder may be offered as one optional suggestion. This suggestion only opens the existing preference; it does not enable the reminder or request notification permission. If OS notifications are denied, tasks remain visible in Pulpit. Setup writes configuration only: it creates no income, tax-payment or bill-payment records and does not invent dates or URLs.
 
 ## 1. Check monthly rent
 

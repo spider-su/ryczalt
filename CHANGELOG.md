@@ -4,6 +4,10 @@ This file records **delivered and verified changes**, not roadmap promises.
 
 ## Unreleased
 
+### Added
+
+- Added lightweight Pulpit setup guidance derived from real apartment configuration. It reuses the existing Settings editor, keeps tenant/agreement/portal data optional, and never creates financial records or enables reminders without the user's choice.
+
 ### Documentation
 
 - Reframed the target product as a local-first personal landlord assistant.
