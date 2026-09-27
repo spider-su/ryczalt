@@ -1,4 +1,5 @@
 import type { IncomeEntry, Property, RentalDocument } from "../model/rental";
+import { SUPPORTED_TAX_YEARS } from "./ryczaltTax";
 
 export const RENTAL_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const DECIMAL_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
@@ -128,6 +129,8 @@ export function validateRentalDocumentShape(
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
+  if (!SUPPORTED_TAX_YEARS.includes(document.settings.taxYear as (typeof SUPPORTED_TAX_YEARS)[number]))
+    throw new RentalValidationError("Tax year is not supported.");
   const propertyIds = new Set<string>();
   for (const property of document.properties) {
     if (propertyIds.has(property.id))
@@ -144,6 +147,8 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Rental agreement end date is invalid.");
     if (property.expectedPaymentDay !== undefined && (!Number.isInteger(property.expectedPaymentDay) || property.expectedPaymentDay < 1 || property.expectedPaymentDay > 31))
       throw new RentalValidationError("Expected payment day is invalid.");
+    if (property.paymentReminderEnabled && property.expectedPaymentDay === undefined)
+      throw new RentalValidationError("Enabled rent reminders require an expected payment day.");
     if (property.paymentReminderDelayDays !== undefined && (!Number.isInteger(property.paymentReminderDelayDays) || property.paymentReminderDelayDays < 0 || property.paymentReminderDelayDays > 30))
       throw new RentalValidationError("Rent reminder delay is invalid.");
     if (property.rentalEndReminderDays?.some((days) => !AGREEMENT_REMINDER_DAYS.includes(days as typeof AGREEMENT_REMINDER_DAYS[number])) || new Set(property.rentalEndReminderDays ?? []).size !== (property.rentalEndReminderDays ?? []).length)
@@ -152,7 +157,7 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Administrator portal must use a valid HTTPS URL.");
     const rentRateMonths = new Set<string>();
     for (const rate of property.rentSchedule ?? []) {
-      if (!isRentalMonth(rate.effectiveFrom) || !isPositiveMoney(rate.amount) || rentRateMonths.has(rate.effectiveFrom)) throw new RentalValidationError("Rent schedule is invalid.");
+      if (!isRentalMonth(rate.effectiveFrom) || !isNonnegativeMoney(rate.amount) || rentRateMonths.has(rate.effectiveFrom)) throw new RentalValidationError("Rent schedule is invalid.");
       rentRateMonths.add(rate.effectiveFrom);
     }
   }
@@ -184,6 +189,8 @@ export function validateRentalDocumentShape(
     billIds.add(bill.id);
     if (!document.properties.some((property) => property.id === bill.propertyId) || !bill.name.trim())
       throw new RentalValidationError("Recurring bill is invalid.");
+    if (bill.reminderEnabled && bill.dueDay === undefined)
+      throw new RentalValidationError("Enabled bill reminders require a due day.");
     if (bill.expectedAmount && !isPositiveMoney(bill.expectedAmount))
       throw new RentalValidationError("Bill amount is invalid.");
     if (bill.dueDay !== undefined && (!Number.isInteger(bill.dueDay) || bill.dueDay < 1 || bill.dueDay > 31))
@@ -209,8 +216,9 @@ export function validateRentalDocumentShape(
     customIds.add(reminder.id);
   }
   const stateIds = new Set<string>();
+  const validTaskId = /^(TENANT_PAYMENT_CHECK|TAX_PAYMENT|RECURRING_BILL|RENTAL_AGREEMENT_END|CUSTOM_REMINDER):[a-z0-9][a-z0-9._:-]*$/i;
   for (const state of document.taskStates) {
-    if (!state.taskId.trim() || stateIds.has(state.taskId) || [state.snoozedUntil, state.dismissedAt, state.completedAt].some((value) => value !== undefined && (typeof value !== "string" || Number.isNaN(new Date(value).getTime())))) throw new RentalValidationError("Task state is invalid.");
+    if (!validTaskId.test(state.taskId) || stateIds.has(state.taskId) || [state.snoozedUntil, state.dismissedAt, state.completedAt].some((value) => value !== undefined && (typeof value !== "string" || Number.isNaN(new Date(value).getTime()) || new Date(value).toISOString() !== value))) throw new RentalValidationError("Task state is invalid.");
     stateIds.add(state.taskId);
   }
   if (document.settings.taxMicroAccount && !isValidPolishBankAccount(document.settings.taxMicroAccount))

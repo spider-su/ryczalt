@@ -9,7 +9,7 @@ import { taskNotificationPlan } from "./tasks";
 
 const fixture = (): RentalDocument => ({
   schemaVersion: 3,
-  properties: [{ id: "p1", name: "Parkowa", defaultMonthlyRent: "3000.00", expectedPaymentDay: 30,
+  properties: [{ id: "p1", name: "Parkowa", defaultMonthlyRent: "3000.00", expectedPaymentDay: 30, paymentReminderEnabled: true,
     rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00" }], rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "1000.00", taxableAmount: "300.00" }],
   taxPayments: [], recurringBills: [{ id: "b1", propertyId: "p1", name: "Prąd", reminderEnabled: true, dueDay: 15, variableAmount: true }],
@@ -52,6 +52,20 @@ describe("task reminders and payment details", () => {
     const schedule = vi.fn(async () => undefined);
     await reconcileReminderSchedule(newPlan, oldPlan.map((item) => ({ identifier: item.key, reminderKey: `ryczalt:${item.key}`, signature: item.signature })), cancel, schedule);
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it("cancels duplicate scheduled identifiers and preserves one matching reminder", async () => {
+    const doc = fixture();
+    const plan = taskNotificationPlan(doc, new Date(2026, 8, 26, 8));
+    const rent = plan.find((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-09")!;
+    const cancel = vi.fn(async () => undefined);
+    const schedule = vi.fn(async () => undefined);
+    await reconcileReminderSchedule(plan, [
+      { identifier: "rent-first", reminderKey: `ryczalt:${rent.key}`, signature: rent.signature },
+      { identifier: "rent-duplicate", reminderKey: `ryczalt:${rent.key}`, signature: rent.signature },
+    ], cancel, schedule);
+    expect(cancel).toHaveBeenCalledWith("rent-duplicate");
+    expect(schedule).not.toHaveBeenCalledWith(rent);
   });
 
   it("keeps web usable without OS reminders and validates copied payment details", () => {

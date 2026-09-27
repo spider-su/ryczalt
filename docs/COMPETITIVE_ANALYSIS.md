@@ -29,7 +29,7 @@ Relevant patterns:
 - dashboard that mixes tasks with summary information;
 - task completion when related information is available.
 
-**Adopt:** guided setup, actionable dashboard, derived tasks and context-sensitive completion.
+**Adopt:** actionable dashboard, derived tasks and context-sensitive completion. Guided setup remains planned and is not implemented.
 
 **Do not adopt:** tenant portals, bank import, KSeF/business accounting, maintenance tickets, AI chatbot as a dependency, professional multi-user platform features.
 
@@ -56,7 +56,7 @@ Relevant patterns:
 - clear paid/partial/outstanding financial state;
 - property-level reporting.
 
-**Adopt:** one-time/monthly/yearly personal reminders, property association, clear partial vs confirmed state, compact trend chart.
+**Adopt:** one-time personal reminders, optional property association, clear partial vs confirmed state, compact trend chart. Monthly/yearly custom reminder recurrence remains a possible future extension, not current functionality.
 
 **Do not adopt:** payment processing, bank feeds, US-specific tax/accounting workflows or large reporting surface.
 
@@ -64,12 +64,12 @@ Relevant patterns:
 
 1. **Pulpit is action-first.** Tasks requiring attention appear before charts.
 2. **Most tasks are derived.** Expected rent, tax, bills and agreement dates generate tasks; users should not recreate them manually every month.
-3. **Guided setup is temporary.** It helps configure the few facts needed for automation, then disappears.
+3. **Guided setup is temporary (planned).** If implemented, it should help configure only essential facts and then disappear.
 4. **Expected vs actual are separate.** Expected rent drives a check task; actual manually confirmed receipts drive income and tax.
 5. **Partial receipts are first-class.** Remaining amount changes the same task rather than creating unrelated reminders.
 6. **Rent expectations need history.** A new rent amount must not alter previous months.
 7. **Bills have two useful modes.** Fixed = known expected amount; variable = remind user to verify amount, usually via a portal.
-8. **Recurring custom reminders stay deliberately small.** One-time, monthly, yearly; optional apartment; no generic task-management feature set.
+8. **Custom reminders stay deliberately small.** Current reminders are one-time with an optional apartment; recurrence is not implemented. Avoid a generic task-management feature set.
 9. **External links are a shortcut, not integration.** Open administration/utility/tax services without scraping credentials or treating navigation as completion.
 10. **Statistics stay light.** Confirmed income, remaining amount to check, outstanding tax, attention count, short monthly trend and apartment split.
 

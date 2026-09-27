@@ -23,6 +23,7 @@ import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
 import { entriesForTaxYear } from "../domain/rentalHistory";
 import { formatPln } from "../domain/ryczaltTax";
 import { summarizeRentMonth } from "../domain/reminders";
+import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import {
   isNonnegativeMoney,
   isPositiveMoney,
@@ -391,82 +392,12 @@ export function IncomeScreen() {
               : "Dodaj mieszkanie w zakładce Ustawienia, aby zapisać wpłatę."}
           </Text>
         }
-        renderItem={({ item }) => {
-          const property = properties.find(
-            (candidate) => candidate.id === item.propertyId,
-          );
-          return (
-            <View
-              style={{
-                paddingVertical: 15,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.colors.divider,
-              }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  gap: 12,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      color: theme.colors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {property?.name ?? "Usunięte mieszkanie"}
-                  </Text>
-                  <Text style={muted}>
-                    {item.receivedAt}
-                    {item.rentalMonth ? ` · za ${item.rentalMonth}` : ""}
-                  </Text>
-                </View>
-                <View>
-                  <Text
-                    style={{
-                      color: theme.colors.textPrimary,
-                      fontSize: 17,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {item.amount} zł
-                  </Text>
-                  {item.taxableAmount !== item.amount ? (
-                    <Text style={muted}>
-                      Podatkowa: {item.taxableAmount} zł
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-              {item.tenantNameSnapshot ? (
-                <Text style={muted}>Najemca: {item.tenantNameSnapshot}</Text>
-              ) : null}
-              {item.description ? (
-                <Text style={muted}>{item.description}</Text>
-              ) : null}
-              <View style={{ flexDirection: "row", gap: 18, marginTop: 7 }}>
-                <Text
-                  accessibilityRole="button"
-                  onPress={() => openEdit(item)}
-                  style={action}
-                >
-                  Popraw
-                </Text>
-                <Text
-                  accessibilityRole="button"
-                  onPress={() => remove(item)}
-                  style={{ ...action, color: theme.colors.danger }}
-                >
-                  Usuń
-                </Text>
-              </View>
-            </View>
-          );
-        }}
+        renderItem={({ item }) => <IncomeEntryRow
+          entry={item}
+          propertyName={properties.find((property) => property.id === item.propertyId)?.name ?? "Usunięte mieszkanie"}
+          onEdit={() => openEdit(item)}
+          onRemove={() => remove(item)}
+        />}
       />
       <Modal
         visible={modalOpen}

@@ -40,6 +40,12 @@
           "backgroundColor": "#FFFFFF"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "90116624-70fc-4f49-92f7-e787344dc969"
+      }
+    },
+    "owner": "smart-box"
   }
 }

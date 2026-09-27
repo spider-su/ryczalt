@@ -149,6 +149,8 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
   return deriveTasks(document, now).flatMap((task) => {
     const category = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bills", RENTAL_AGREEMENT_END: "agreements", CUSTOM_REMINDER: "custom" } as const)[task.type];
     if (!document.settings.reminderCategories[category]) return [];
+    if (task.type === "TENANT_PAYMENT_CHECK" && !document.properties.find((property) => property.id === task.propertyId)?.paymentReminderEnabled) return [];
+    if (task.type === "RECURRING_BILL" && !document.recurringBills.find((bill) => bill.id === task.id.split(":")[1])?.reminderEnabled) return [];
     const routeCategory = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bill", RENTAL_AGREEMENT_END: "agreement", CUSTOM_REMINDER: "custom" } as const)[task.type];
     const state = document.taskStates.find((item) => item.taskId === task.id);
     const activelySnoozed = Boolean(state?.snoozedUntil && new Date(state.snoozedUntil) > now);

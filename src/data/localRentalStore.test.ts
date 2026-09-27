@@ -1,5 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import schemaV1 from "./fixtures/schema-v1-populated.json";
+import schemaV2 from "./fixtures/schema-v2-populated.json";
+import schemaV3 from "./fixtures/schema-v3-populated.json";
 
 import {
   RENTAL_DOCUMENT_STORAGE_KEY,
@@ -91,6 +94,38 @@ describe("localRentalStore", () => {
       properties: validDocument.properties, propertyLinks: [], customReminders: [], taskStates: [],
       settings: { reminderCategories: { rent: false, agreements: true, tax: true, bills: false, custom: true } },
     });
+  });
+
+  it("migrates a populated schema 1 fixture without losing tenant, income, or tax history", async () => {
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(schemaV1));
+    await expect(loadRentalDocument()).resolves.toMatchObject({
+      schemaVersion: 3,
+      properties: [{ id: "property-old", tenantSince: "2024-03-01", tenantName: "Anna Kowalska" }],
+      incomeEntries: [{ id: "income-old", tenantNameSnapshot: "Anna Kowalska", rentalMonth: "2025-02" }],
+      taxPayments: [{ id: "tax-old", amount: "212.50" }],
+      propertyLinks: [], customReminders: [], taskStates: [],
+    });
+  });
+
+  it("migrates a populated schema 2 fixture including bill-payment history and preferences", async () => {
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(schemaV2));
+    await expect(loadRentalDocument()).resolves.toMatchObject({
+      schemaVersion: 3,
+      properties: [{ id: "property-v2", tenantName: "Marek Nowak" }],
+      incomeEntries: [{ id: "income-v2", taxableAmount: "3000.00" }],
+      taxPayments: [{ id: "tax-v2" }],
+      recurringBills: [{ id: "bill-v2" }],
+      billPayments: [{ id: "bill-payment-v2" }],
+      settings: { reminderCategories: { rent: false, custom: true } },
+    });
+  });
+
+  it("round-trips a populated current-schema fixture", async () => {
+    const current = schemaV3 as RentalDocument;
+    storage.setItem.mockResolvedValueOnce();
+    await saveRentalDocument(current);
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(current));
+    await expect(loadRentalDocument()).resolves.toEqual(current);
   });
 
   it("reports invalid JSON as corrupted data", async () => {

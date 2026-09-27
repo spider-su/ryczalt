@@ -1,6 +1,6 @@
 # Tasks and local notifications — target design
 
-**Status:** implemented for current rent, agreement, tax, and recurring-bill reminders. In-app status remains primary; local OS notifications are disposable reminders derived from local records.
+**Status:** rent, agreement, tax, recurring-bill and one-time custom reminders are projected from local records. In-app status is primary; local OS notifications are disposable projections. Guided setup and recurring custom reminders are not implemented.
 
 ## Categories
 
@@ -24,9 +24,11 @@ Project reminders from current domain records → compare desired future notific
 
 ## Navigation and permissions
 
-Notification tap opens contextual apartment/month, tax period, or bill settings. Prefilled forms never auto-save money. Permission is requested only from settings; categories are independently configurable. Denied permission leaves in-app reminders/status available. Expo Web does not use this local scheduling path, so it stays usable without OS notifications. Delivery remains subject to OS scheduling constraints.
+Notification tap maps to contextual apartment/month, tax period, bill settings, agreement settings or the custom task on Pulpit. Rent quick-add prefills context but never saves until the user confirms amount and actual receipt date. Global categories plus per-apartment rent and per-bill reminder switches control OS scheduling; disabling a schedule does not hide its task from Pulpit. Denied permission leaves in-app reminders/status available. Expo Web does not schedule OS notifications. Delivery remains subject to OS scheduling constraints and needs device verification.
 
 Tax reminders are projected from the tax calculator and outstanding manually-paid balance; changing receipts or tax payments changes the next reconciliation. Rent expectations never enter taxable income. Payment QR generation is deferred: a reliable Polish banking format and compatibility claim have not been established. Payment-detail copy actions remain available.
+
+Custom reminders are one-time only. Monthly/yearly custom recurrence is planned, not implemented.
 
 ## Anti-spam
 

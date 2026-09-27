@@ -15,6 +15,7 @@ import {
 } from "./localRentalStore";
 import type { RentalDocument } from "../model/rental";
 import { createSerializedMutationQueue } from "./serializedMutationQueue";
+import { persistRentalMutation } from "./persistRentalMutation";
 
 type RentalDataContextValue = {
   document: RentalDocument | null;
@@ -46,9 +47,8 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
       return mutationQueue.current(async () => {
         const current = documentRef.current;
         if (!current) throw new Error("Rental document is still loading.");
-        const next = change(current);
         try {
-          await saveRentalDocument(next);
+          const next = await persistRentalMutation(current, change, saveRentalDocument);
           documentRef.current = next;
           setDocument(next);
           setError("");

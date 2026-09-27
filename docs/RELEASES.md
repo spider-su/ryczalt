@@ -8,6 +8,12 @@
 
 Current inspected branch declares version `0.1.0`; this does **not** prove a public release exists. Proposed milestone numbers in [ROADMAP](ROADMAP.md) are provisional until checked against actual tags/releases. Never silently bump app version as part of a docs-only PR.
 
+## Current readiness
+
+The merged `develop` branch contains the local-first assistant MVP. CI covers typecheck, lint, unit/domain tests, Expo Doctor, Web export and Android prebuild. Physical-device notification permission, delivery, rescheduling, tap navigation, timezone/DST and restart behavior remain unverified. Guided setup, recurring custom reminders and QR payments are not implemented; PIT-28, backup/import/export and Investory integration remain parked.
+
+`npm audit` currently reports 11 moderate transitive advisories through Expo configuration/build tooling (`@expo/config-plugins` → `xcode` → `uuid@7`, plus Expo CLI/config packages). `npm audit --omit=dev` reports the same toolchain path because Expo is a direct dependency. No vulnerable package is directly imported by application features; the path is build/config tooling, not an identified shipped app runtime code path. npm only offers a breaking, Expo-incompatible major downgrade as an automatic fix. Do not run `npm audit fix --force`; re-evaluate with a compatible Expo SDK/toolchain update.
+
 ## Release flow
 
 1. Merge reviewed implementation and documentation changes to the agreed release branch; keep docs-only PRs separate from code.

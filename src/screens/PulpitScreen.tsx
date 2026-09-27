@@ -2,18 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask, type TaskStatus } from "../domain/tasks";
+import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
 import { calculateSettlements, formatPln, moneyToGrosz } from "../domain/ryczaltTax";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import type { CustomReminder, Property } from "../model/rental";
 import { theme } from "../theme/theme";
+import { TaskRow } from "../components/pulpit/TaskRow";
 
 type TaskView = "active" | "completed" | "dismissed";
-const taskTypeLabel: Record<AssistantTask["type"], string> = {
-  TENANT_PAYMENT_CHECK: "Czynsz", TAX_PAYMENT: "Podatek", RECURRING_BILL: "Rachunek",
-  RENTAL_AGREEMENT_END: "Umowa", CUSTOM_REMINDER: "Osobiste",
-};
-
 export function PulpitScreen() {
   const { document, update } = useRentalData();
   const navigation = useNavigation<any>();
@@ -248,26 +244,6 @@ export function PulpitScreen() {
   </View>;
 }
 
-function TaskRow({ task, onOpen, onSnooze, onDismiss, onComplete }: { task: AssistantTask; onOpen: () => void; onSnooze: () => void; onDismiss: () => void; onComplete: () => void }) {
-  const stateColor = task.status === "needs-attention" ? theme.colors.warning : task.status === "snoozed" ? theme.colors.info : task.status === "completed" ? theme.colors.success : theme.colors.textSecondary;
-  const statusLabel: Record<TaskStatus, string> = { upcoming: "Nadchodzące", "needs-attention": "Do sprawdzenia", snoozed: "Uśpione", completed: "Zakończone", dismissed: "Ukryte" };
-  return <View style={taskCard}>
-    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-      <View style={{ flex: 1 }}><Text style={taskTitle}>{task.title}</Text><Text style={muted}>{task.detail || taskTypeLabel[task.type]}</Text></View>
-      <Text style={[statusText, { color: stateColor }]}>{statusLabel[task.status]}</Text>
-    </View>
-    <Text style={taskMeta}>{taskTypeLabel[task.type]} · termin {task.dueAt.toLocaleDateString("pl-PL")}</Text>
-    <View style={taskActions}>
-      {task.status !== "dismissed" && task.status !== "completed" ? <>
-        <Pressable accessibilityRole="button" onPress={onOpen}><Text style={action}>{task.type === "CUSTOM_REMINDER" ? "Szczegóły" : task.type === "RENTAL_AGREEMENT_END" ? "Zmień datę zakończenia" : "Otwórz"}</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={onSnooze}><Text style={action}>Przypomnij później</Text></Pressable>
-        {task.manuallyCompletable ? <Pressable accessibilityRole="button" onPress={onComplete}><Text style={action}>Oznacz jako załatwione</Text></Pressable> : null}
-        <Pressable accessibilityRole="button" onPress={onDismiss}><Text style={muted}>Ukryj</Text></Pressable>
-      </> : task.status === "completed" ? <Text style={muted}>{task.type === "RECURRING_BILL" ? "Ręcznie potwierdzona płatność" : "Wynika z zapisanych danych"}</Text> : null}
-    </View>
-  </View>;
-}
-
 function OverviewMetric({ label, amount }: { label: string; amount: number }) { return <View style={metricRow}><Text style={muted}>{label}</Text><Text style={metricValue}>{formatPln(amount)}</Text></View>; }
 function Kpi({ label, value }: { label: string; value: string }) { return <View style={kpi}><Text style={kpiLabel}>{label}</Text><Text style={kpiValue}>{value}</Text></View>; }
 function QuickAction({ label, onPress }: { label: string; onPress: () => void }) { return <Pressable accessibilityRole="button" onPress={onPress} style={quickButton}><Text style={quickText}>{label}</Text></Pressable>; }
@@ -286,11 +262,6 @@ const segment = { flex: 1, minHeight: 34, alignItems: "center" as const, justify
 const selectedSegment = { backgroundColor: theme.colors.surface };
 const segmentText = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
 const selectedSegmentText = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "700" as const };
-const taskCard = { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 8, padding: 12, marginVertical: 4 };
-const taskTitle = { color: theme.colors.textPrimary, fontWeight: "700" as const, fontSize: 15 };
-const statusText = { fontSize: 11, fontWeight: "700" as const };
-const taskMeta = { color: theme.colors.textMuted, fontSize: 11, marginTop: 7 };
-const taskActions = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 14, marginTop: 9 };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surfaceSecondary, padding: 12, borderRadius: 8, marginVertical: 4, fontSize: 13 };
 const quickRow = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginVertical: 8 };
 const quickButton = { flexGrow: 1, minWidth: 96, minHeight: 42, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 8, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 9 };

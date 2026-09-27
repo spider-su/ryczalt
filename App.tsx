@@ -13,6 +13,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { PulpitScreen } from './src/screens/PulpitScreen';
 import { RentalDataProvider } from './src/data/RentalDataProvider';
 import { ReminderProvider } from './src/notifications/ReminderProvider';
+import { notificationDataToIntent } from './src/navigation/notificationIntent';
 
 const Tabs = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef<any>();
@@ -23,16 +24,14 @@ function RentalApp() {
     const openTarget = (response: Notifications.NotificationResponse, retry = 0) => {
       const data = response.notification.request.content.data;
       if (!data) return;
-      const category = data.category;
       if (!navigationRef.isReady()) {
         if (retry < 10) setTimeout(() => openTarget(response, retry + 1), 150);
         return;
       }
       const navigator = navigationRef as any;
-      if (category === 'tax') navigator.navigate('Podatek', { period: data.period });
-      else if (category === 'rent') navigator.navigate('Przychód', { quickAdd: true, propertyId: data.propertyId, rentalMonth: data.period, expectedAmount: data.expectedAmount });
-      else if (category === 'custom') navigator.navigate('Pulpit', { taskId: data.taskId });
-      else navigator.navigate('Ustawienia', { propertyId: data.propertyId, billId: data.billId });
+      const intent = notificationDataToIntent(data);
+      if (!intent) return;
+      navigator.navigate(intent.screen, intent.params);
       void Notifications.clearLastNotificationResponseAsync();
     };
     const subscription = Notifications.addNotificationResponseReceivedListener(openTarget);

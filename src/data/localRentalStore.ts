@@ -15,9 +15,11 @@ import {
   RentalValidationError,
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
+import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 
 export const RENTAL_DOCUMENT_SCHEMA_VERSION = 3;
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
+export const DEFAULT_TAX_YEAR = Math.max(...SUPPORTED_TAX_YEARS);
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
 
@@ -32,7 +34,7 @@ export class RentalStoreError extends Error {
 }
 
 export const emptyDocument = (
-  taxYear = new Date().getFullYear(),
+  taxYear = DEFAULT_TAX_YEAR,
 ): RentalDocument => ({
   schemaVersion: RENTAL_DOCUMENT_SCHEMA_VERSION,
   properties: [],
