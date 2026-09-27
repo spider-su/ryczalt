@@ -8,6 +8,7 @@ import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import type { TaxPayment } from "../model/rental";
 import { theme } from "../theme/theme";
+import { ui } from "../theme/ui";
 import { PaymentDetail } from "../components/PaymentDetail";
 
 const statusLabel = { "no-tax": "Brak podatku do zapłaty", due: "Do zapłaty", partial: "Częściowo zapłacono", paid: "Zapłacono", overdue: "Po terminie" } as const;
@@ -95,7 +96,7 @@ export function TaxScreen() {
     catch { Alert.alert("Nie udało się skopiować", "Skopiuj dane ręcznie."); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+  return <View style={ui.page}>
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 36 }}>
       <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700" }}>Podatek</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 12 }}>
@@ -111,25 +112,27 @@ export function TaxScreen() {
           <Text style={{ color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" }}>{settlement.period}</Text>
           <Pressable accessibilityRole="button" disabled={activeIndex === settlements.length - 1} onPress={() => setPeriodIndex(Math.min(settlements.length - 1, activeIndex + 1))}><Text style={[action, activeIndex === settlements.length - 1 && { opacity: 0.35 }]}>Następny ›</Text></Pressable>
         </View>
-        <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: theme.colors.divider, marginTop: 12, paddingVertical: 12 }}>
+        <View style={[ui.card, { marginTop: 12 }]}>
           <Metric label="Przychód podatkowy w okresie" value={formatPln(settlement.revenueGrosz)} />
           <Metric label="Przychód narastająco w roku" value={formatPln(settlement.cumulativeRevenueGrosz)} />
           <Metric label="Ryczałt za okres" value={formatPln(settlement.obligationGrosz)} strong />
           <Metric label="Ręcznie potwierdzone wpłaty" value={formatPln(settlement.paidGrosz)} />
-          <Metric label={settlement.overpaidGrosz ? "Nadpłata" : "Pozostało do zapłaty"} value={formatPln(settlement.overpaidGrosz || settlement.outstandingGrosz)} strong />
+          <Metric label={settlement.overpaidGrosz ? "Nadpłata" : "Pozostało do zapłaty"} value={formatPln(settlement.overpaidGrosz || settlement.outstandingGrosz)} strong positive={settlement.overpaidGrosz > 0} />
           <Metric label="Termin wpłaty" value={settlement.dueDate} />
-          <Text style={{ color: settlement.status === "overdue" ? theme.colors.danger : theme.colors.primary, fontWeight: "700", marginTop: 10 }}>{statusLabel[settlement.status]}</Text>
+          <View style={{ backgroundColor: settlement.status === "no-tax" || settlement.status === "paid" ? theme.colors.successSoft : theme.colors.surfaceMuted, borderRadius: 12, padding: 12, marginTop: 10 }}>
+            <Text style={{ color: settlement.status === "no-tax" || settlement.status === "paid" ? theme.colors.success : settlement.status === "overdue" ? theme.colors.danger : theme.colors.textSecondary, fontWeight: "700" }}>{statusLabel[settlement.status]}</Text>
+          </View>
         </View>
         <Pressable accessibilityRole="button" onPress={() => openPayment()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę podatku</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => setPaymentDetailsOpen(true)} style={{ paddingVertical: 8 }}><Text style={action}>Szczegóły przelewu podatku</Text></Pressable>
           <Text style={{ color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700", marginTop: 18 }}>Wpłaty w okresie</Text>
-        {payments.length === 0 ? <Text style={muted}>Brak potwierdzonych wpłat.</Text> : payments.map((payment) => <View key={payment.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
+        {payments.length === 0 ? <Text style={{ ...ui.emptyState, color: theme.colors.textSecondary }}>Brak potwierdzonych wpłat.</Text> : payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{payment.paidAt}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{payment.amount} zł</Text></View>
           <View style={{ flexDirection: "row", gap: 18, marginTop: 6 }}><Text accessibilityRole="button" onPress={() => openPayment(payment)} style={action}>Popraw</Text><Text accessibilityRole="button" onPress={() => deletePayment(payment)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
         </View>)}
       </>}
       {!([2025, 2026] as number[]).includes(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Wybierz 2025 lub 2026.</Text> : null}
-      <Text style={{ ...muted, marginTop: 18 }}>Kwota podatku jest wyliczana z potwierdzonych przychodów i nie zmienia się po samym dodaniu wpłaty. Sprawdź indywidualne odliczenia i swoją sytuację podatkową przed zapłatą.</Text>
+      <View style={{ ...ui.emptyState, marginTop: 18, padding: 14 }}><Text style={muted}>ⓘ  Kwota podatku jest wyliczana z potwierdzonych przychodów i nie zmienia się po samym dodaniu wpłaty. Sprawdź indywidualne odliczenia i swoją sytuację podatkową przed zapłatą.</Text></View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
     <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
@@ -160,13 +163,13 @@ export function TaxScreen() {
   </View>;
 }
 
-function Metric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
-  return <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, paddingVertical: 6 }}><Text style={{ color: theme.colors.textSecondary, flex: 1 }}>{label}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: strong ? "700" : "500", textAlign: "right" }}>{value}</Text></View>;
+function Metric({ label, value, strong = false, positive = false }: { label: string; value: string; strong?: boolean; positive?: boolean }) {
+  return <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, paddingVertical: 6 }}><Text style={{ color: theme.colors.textSecondary, flex: 1 }}>{label}</Text><Text style={{ color: positive ? theme.colors.success : theme.colors.textPrimary, fontWeight: strong ? "700" : "500", textAlign: "right" }}>{value}</Text></View>;
 }
 
 const action = { color: theme.colors.primary, fontWeight: "600" as const, paddingVertical: 5 };
 const muted = { color: theme.colors.textSecondary, marginTop: 6, fontSize: 14 };
-const primaryButton = { backgroundColor: theme.colors.primary, minHeight: 48, borderRadius: 8, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 16, marginVertical: 8 };
+const primaryButton = ui.primaryButton;
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const, fontSize: 15 };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };

@@ -15,6 +15,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import type { Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
+import { ui } from "../theme/ui";
 import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
@@ -417,8 +418,9 @@ export function SettingsScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+      <View style={ui.page}>
+      <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
+        <Text style={{ color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700", marginBottom: 12 }}>Ustawienia</Text>
         <Text style={{ color: theme.colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 12 }}>
           Rozliczenie podatku
         </Text>
@@ -505,18 +507,12 @@ export function SettingsScreen() {
           </Text>
         ) : null}
         {document.properties.length === 0 ? (
-          <Text style={{ color: theme.colors.textSecondary, marginTop: 22 }}>
-            Nie dodano jeszcze mieszkań.
-          </Text>
+          <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Nie dodano jeszcze mieszkań.</Text></View>
         ) : (
           document.properties.map((property) => (
-            <View
+          <View
               key={property.id}
-              style={{
-                paddingVertical: 16,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.colors.divider,
-              }}
+              style={ui.card}
             >
               <View
                 style={{
@@ -588,9 +584,9 @@ export function SettingsScreen() {
           <Text style={sectionTitle}>Pozostałe rachunki</Text>
           <Pressable accessibilityRole="button" onPress={() => openBill()}><Text style={action}>＋ Dodaj</Text></Pressable>
         </View>
-        {document.recurringBills.map((bill) => {
+        {document.recurringBills.length === 0 ? <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Brak pozostałych rachunków. Dodaj rachunki, aby mieć zapisane terminy i dane płatności.</Text></View> : document.recurringBills.map((bill) => {
           const property = document.properties.find((item) => item.id === bill.propertyId);
-          return <View key={bill.id} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
+          return <View key={bill.id} style={[ui.card, { padding: 14 }]}>
             <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.name ?? "Mieszkanie"}</Text>
             <Text style={muted}>{bill.variableAmount ? "Kwotę sprawdź na bieżąco" : bill.expectedAmount ? `${bill.expectedAmount} zł` : "Kwota do sprawdzenia"}{bill.dueDay ? ` · termin ${bill.dueDay}. dzień` : ""}</Text>
             <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => openBillDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
@@ -812,10 +808,10 @@ const action = {
   fontWeight: "600" as const,
   paddingVertical: 5,
 };
-const modeButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 };
+const modeButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 };
 const modeText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
-const sectionTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const, marginTop: 22, marginBottom: 8 };
-const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 8, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8 };
+const sectionTitle = ui.sectionTitle;
+const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
 const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };

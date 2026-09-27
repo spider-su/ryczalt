@@ -46,10 +46,13 @@ function RentalApp() {
   }, []);
   return <NavigationContainer ref={navigationRef}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <Tabs.Navigator screenOptions={({ route }) => ({
+      headerShown: false,
       headerStyle: { backgroundColor: theme.colors.background },
       headerTintColor: theme.colors.textPrimary,
       tabBarActiveTintColor: theme.colors.primary,
-      tabBarStyle: { backgroundColor: theme.colors.surface },
+      tabBarInactiveTintColor: theme.colors.inactiveNavigation,
+      tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, paddingBottom: 5, elevation: 0 },
+      tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 1 },
       tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>
       <Tabs.Screen name="Pulpit" component={PulpitScreen} />
