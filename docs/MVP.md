@@ -4,7 +4,7 @@ This describes the implemented MVP and its remaining quality gates. Source code 
 
 ## Core user outcomes and acceptance
 
-1. **Configure apartments:** Settings supports apartment, expected rent/payment day, tenant, agreement end date/reminders, administrator portal and useful links. Guided setup/checklist is planned, not implemented.
+1. **Configure apartments:** Settings supports apartment, expected rent/payment day, tenant, agreement end date/reminders, administrator portal and useful links. Pulpit derives temporary guided setup from saved apartment data, requires only apartment name, expected rent and payment day, and reuses the existing editor. Tenant, agreement, portal and reminder enablement remain optional.
 2. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; OS notification dismissal does not erase tasks. Empty state is useful.
 3. **Check rent:** configure an expected rent schedule/day per apartment, open a contextual reminder, manually record actual receipt date and amount, support partial receipts and show remaining amount *to confirm*. No inferred arrears or auto-created income.
 4. **Review tax:** compute verified private-rental ryczałt using actual taxable receipts; support applicable settlement periods and deadlines, manual tax payments and outstanding balance. Corrected receipts/payments update the obligation and tasks.
