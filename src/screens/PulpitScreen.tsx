@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { deriveTasks, groupActiveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
+import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
 import { calculateSettlements, formatPln, moneyToGrosz } from "../domain/ryczaltTax";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
@@ -15,18 +14,15 @@ import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
-import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
+import { historicalTasks, primaryDashboardMetrics, rentDisplayState, upcomingTasks } from "../domain/rentalPresentation";
 
-type TaskView = "active" | "completed" | "dismissed";
 export function PulpitScreen() {
   const { document, update } = useRentalData();
   const { permission } = useReminders();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const [view, setView] = useState<TaskView>("active");
-  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(todayIsoDate().slice(0, 7));
-  const [chartPropertyId, setChartPropertyId] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [taskSectionY, setTaskSectionY] = useState(0);
   const [adminPickerVisible, setAdminPickerVisible] = useState(false);
   const [snoozeTask, setSnoozeTask] = useState<AssistantTask | null>(null);
   const [snoozeDate, setSnoozeDate] = useState(todayIsoDate());
@@ -41,6 +37,7 @@ export function PulpitScreen() {
   const [customTaskId, setCustomTaskId] = useState("");
   const tasks = useMemo(() => document ? deriveTasks(document) : [], [document]);
   const setup = useMemo(() => document ? deriveSetupProgress(document) : null, [document]);
+  const taskListRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const taskId = (route.params as { taskId?: string } | undefined)?.taskId;
@@ -55,26 +52,21 @@ export function PulpitScreen() {
 
   if (!document) return <View style={ui.page} />;
   const now = new Date();
-  const activeGroups = groupActiveTasks(tasks);
-  const attention = activeGroups.actionable;
-  const filteredTasks = tasks.filter((task) => task.status === (view === "completed" ? "completed" : "dismissed"));
-  const visibleUpcoming = upcomingExpanded ? activeGroups.upcoming : activeGroups.upcoming.slice(0, 3);
+  const attention = tasks.filter((task) => task.status === "needs-attention");
+  const history = historicalTasks(tasks);
   const settlements = [2025, 2026].includes(document.settings.taxYear) ? calculateSettlements({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: document.settings.taxYear,
     mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
   }) : [];
-  const outstandingTax = settlements.reduce((sum, item) => sum + item.outstandingGrosz, 0);
+  const selectedMonth = todayIsoDate().slice(0, 7);
   const monthIncome = document.incomeEntries.filter((entry) => entry.receivedAt.startsWith(selectedMonth))
     .reduce((sum, entry) => sum + moneyToGrosz(entry.amount), 0);
   const remainingRent = document.properties.reduce((sum, property) => {
     const amounts = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
     return sum + (amounts.remainingGrosz ?? 0);
   }, 0);
-  const sixMonths = Array.from({ length: 6 }, (_, index) => shiftMonth(todayIsoDate().slice(0, 7), index - 5));
-  const chart = sixMonths.map((month) => ({ month, total: document.incomeEntries
-    .filter((entry) => entry.receivedAt.startsWith(month) && (!chartPropertyId || entry.propertyId === chartPropertyId))
-    .reduce((sum, entry) => sum + moneyToGrosz(entry.amount), 0) }));
-  const maxChart = Math.max(1, ...chart.map((item) => item.total));
+  const upcoming = upcomingTasks(tasks, now);
+  const currentPeriod = settlements.find((item) => item.period === selectedMonth);
 
   const setState = (taskId: string, change: { snoozedUntil?: string; dismissedAt?: string; completedAt?: string }) => {
     void update((current) => ({ ...current, taskStates: setTaskState(current.taskStates, taskId, change) })).catch(() => undefined);
@@ -101,10 +93,6 @@ export function PulpitScreen() {
     }
   };
   const addIncome = () => navigation.navigate("Przychód", { quickAdd: true });
-  const openTax = () => {
-    const next = tasks.find((task) => task.type === "TAX_PAYMENT" && task.remainingGrosz);
-    navigation.navigate("Podatek", next?.period ? { period: next.period } : undefined);
-  };
   const openAdministration = (property?: Property) => {
     const linked = document.properties.filter((item) => item.administratorPortalUrl || document.propertyLinks.some((link) => link.propertyId === item.id && link.category === "ADMINISTRATION"));
     if (property) {
@@ -141,8 +129,6 @@ export function PulpitScreen() {
     { text: "Anuluj", style: "cancel" },
     { text: "Oznacz", onPress: () => setState(task.id, { completedAt: new Date().toISOString(), dismissedAt: undefined, snoozedUntil: undefined }) },
   ]);
-  const renderTask = (task: AssistantTask) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />;
-  const shiftSelectedMonth = (offset: number) => setSelectedMonth((month) => shiftMonth(month, offset));
   const openSetupAction = (action: SetupAction, propertyId?: string) => {
     const intent = setupActionIntent(action, propertyId);
     navigation.navigate(intent.screen, intent.params);
@@ -161,73 +147,49 @@ export function PulpitScreen() {
   </View>;
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={ui.content}>
+    <ScrollView ref={taskListRef} contentContainerStyle={ui.content}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
         <View><Text style={pageTitle}>Pulpit</Text><Text style={muted}>Dzień dobry</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Dodaj osobiste przypomnienie" onPress={openCustom} style={iconButton}><Text style={action}>＋</Text></Pressable>
       </View>
 
 
-      <View style={sectionHeader}>
-        <Text style={sectionTitle}>Przegląd miesiąca</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni miesiąc" onPress={() => shiftSelectedMonth(-1)}><Text style={action}>‹</Text></Pressable>
-          <Text style={smallLabel}>{monthLabel(selectedMonth)}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Następny miesiąc" onPress={() => shiftSelectedMonth(1)}><Text style={action}>›</Text></Pressable>
-        </View>
-      </View>
+      <Text style={{ ...sectionTitle, marginTop: 12 }}>{monthLabel(selectedMonth)}</Text>
       <View style={kpiGrid}>
-        <Kpi label="Otrzymano" value={formatPln(monthIncome)} />
-        <Kpi label="Do potwierdzenia" value={formatPln(remainingRent)} />
-        <Kpi label="Podatek do zapłaty" value={formatPln(outstandingTax)} />
-        <Kpi label="Sprawy do sprawdzenia" value={String(attention.length)} />
+        {primaryDashboardMetrics(compactPln(monthIncome), compactPln(remainingRent), currentPeriod ? `${compactPln(currentPeriod.outstandingGrosz)} · ${new Date(`${currentPeriod.dueDate}T12:00:00`).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}` : "—").map((metric) => <Kpi key={metric.label} label={metric.label} value={metric.value} />)}
       </View>
-      <Text style={smallLabel}>Wpływy z ostatnich 6 miesięcy</Text>
-      <View style={chartFilter}>{[{ id: null, name: "Wszystkie" }, ...document.properties.map((property) => ({ id: property.id, name: property.name }))].map((item) =>
-        <Pressable key={item.id ?? "all"} accessibilityRole="button" accessibilityState={{ selected: chartPropertyId === item.id }} onPress={() => setChartPropertyId(item.id)} style={[filterButton, chartPropertyId === item.id && selectedFilter]}><Text style={filterText}>{item.name}</Text></Pressable>)}</View>
-      <View accessibilityLabel="Wykres potwierdzonych wpływów z sześciu miesięcy" style={chartContainer}>
-        {chart.map((item) => <View key={item.month} style={barColumn}>
-          <Text style={barValue}>{item.total ? formatPln(item.total).replace(" zł", "") : "–"}</Text>
-          <View style={barTrack}><View style={[barFill, { height: `${item.total ? Math.max(4, item.total / maxChart * 100) : 0}%` }]} /></View>
-          <Text style={barMonth}>{item.month.slice(5)}</Text>
-        </View>)}
-      </View>
+      <Pressable accessibilityRole="button" onPress={() => taskListRef.current?.scrollTo({ y: taskSectionY, animated: true })} style={attentionSummary}>
+        <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{attention.length ? `${attention.length} ${attention.length === 1 ? "sprawa wymaga" : "sprawy wymagają"} uwagi` : "Nie ma spraw wymagających uwagi"}</Text>
+        <Text style={action}>Pokaż</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={addIncome} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Ustawienia ›</Text></Pressable></View>
       {!document.properties.length ? <View style={emptyRow}><Text style={emptyText}>Dodaj mieszkanie, aby zobaczyć czynsz i terminy.</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Dodaj mieszkanie</Text></Pressable></View> : document.properties.map((property) => {
         const amount = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
-        const nextTask = tasks.filter((task) => task.propertyId === property.id && task.status !== "completed" && task.status !== "dismissed").sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0];
+        const paymentState = rentDisplayState(amount.expectedGrosz, amount.confirmedGrosz, amount.remainingGrosz);
         const links = document.propertyLinks.filter((link) => link.propertyId === property.id);
         return <View key={property.id} style={[ui.card, propertyRow]}>
           <View style={propertyHeader}><View style={{ flex: 1 }}><Text style={propertyName}>{property.name}</Text>{property.tenantName ? <Text style={muted}>{property.tenantName}</Text> : null}</View>
             <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { propertyId: property.id })}><Text style={action}>Edytuj</Text></Pressable></View>
-          {amount.expectedGrosz === null ? <Text style={muted}>Oczekiwany czynsz za {selectedMonth} nieustalony</Text> : <>
-            <OverviewMetric label="Oczekiwano" amount={amount.expectedGrosz} />
-            <OverviewMetric label="Otrzymano" amount={amount.confirmedGrosz} />
-            <OverviewMetric label="Do potwierdzenia" amount={amount.remainingGrosz ?? 0} />
-          </>}
-          {amount.unallocatedGrosz > 0 ? <Text style={muted}>Nadwyżka ponad prognozowane czynsze: {formatPln(amount.unallocatedGrosz)}</Text> : null}
+          {paymentState.kind === "unknown" ? <Text style={muted}>Oczekiwany czynsz nieustalony</Text>
+            : paymentState.kind === "paid" ? <View style={propertyPaymentState}><Text style={paidLabel}>✓ {monthLabel(selectedMonth)} opłacony</Text><Text style={metricValue}>{formatPln(paymentState.expectedGrosz)}</Text></View>
+              : paymentState.kind === "partial" ? <View style={{ marginTop: 8 }}><Text style={muted}>Częściowo opłacone · {formatPln(paymentState.confirmedGrosz)} / {formatPln(paymentState.expectedGrosz)}</Text><Text style={metricValue}>Pozostało {formatPln(paymentState.remainingGrosz)}</Text></View>
+                : <View style={{ marginTop: 8 }}><Text style={muted}>Do potwierdzenia</Text><Text style={metricValue}>{formatPln(paymentState.remainingGrosz)}</Text>{property.expectedPaymentDay ? <Text style={muted}>Termin: {property.expectedPaymentDay}. {new Intl.DateTimeFormat("pl-PL", { month: "long" }).format(new Date(`${selectedMonth}-01T12:00:00`))}</Text> : null}</View>}
           {property.rentalEndDate ? <Text style={muted}>Koniec umowy · {property.rentalEndDate}</Text> : null}
-          {nextTask ? <Text style={muted}>Następna sprawa · {nextTask.title}</Text> : null}
-          <View style={quickRow}>
-            <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód", { quickAdd: true, propertyId: property.id, rentalMonth: selectedMonth, expectedAmount: amount.remainingGrosz ? (amount.remainingGrosz / 100).toFixed(2) : undefined })}><Text style={action}>Dodaj wpłatę</Text></Pressable>
+          {property.administratorPortalUrl || links.length ? <View style={quickRow}>
             {property.administratorPortalUrl ? <Pressable accessibilityRole="link" onPress={() => openAdministration(property)}><Text style={action}>Otwórz panel administracji</Text></Pressable> : null}
             {links.map((link) => <Pressable key={link.id} accessibilityRole="link" onPress={() => void Linking.openURL(link.url)}><Text style={action}>{link.label}</Text></Pressable>)}
-          </View>
+          </View> : null}
         </View>;
       })}
 
-      <View style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text><Text style={muted}>Do sprawdzenia · {attention.length}</Text></View>
-      <View style={segmented}>{([["active", "Aktywne"], ["completed", "Zakończone"], ["dismissed", "Ukryte"]] as const).map(([key, label]) =>
-        <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: view === key }} onPress={() => setView(key)} style={[segment, view === key && selectedSegment]}><Text style={view === key ? selectedSegmentText : segmentText}>{label}</Text></Pressable>)}</View>
-      {view === "active" ? <>
-        {attention.length ? attention.map(renderTask) : <Text style={emptyText}>Brak spraw do sprawdzenia.</Text>}
-        {activeGroups.upcoming.length ? <>
-          <View style={sectionHeader}><Text style={sectionTitle}>Nadchodzące</Text><Text style={muted}>{activeGroups.upcoming.length}</Text></View>
-          {visibleUpcoming.map(renderTask)}
-          {activeGroups.upcoming.length > 3 ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: upcomingExpanded }} onPress={() => setUpcomingExpanded((expanded) => !expanded)} style={{ paddingVertical: 12 }}><Text style={action}>{upcomingExpanded ? "Pokaż mniej" : `Pokaż wszystkie (${activeGroups.upcoming.length})`}</Text></Pressable> : null}
-        </> : null}
-      </> : filteredTasks.length ? filteredTasks.map(renderTask) : <Text style={emptyText}>{view === "completed" ? "Brak zakończonych spraw." : "Brak ukrytych spraw."}</Text>}
+      <View onLayout={(event) => setTaskSectionY(event.nativeEvent.layout.y)} style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text></View>
+      {attention.length ? attention.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)
+        : <Text style={emptyText}>Wszystko na dziś załatwione.</Text>}
+      {upcoming.length ? <><Text style={sectionTitle}>Nadchodzące</Text>{upcoming.map((task) => <TaskRow key={task.id} task={task} compact onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)}</> : null}
+      {history.length ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: historyOpen }} onPress={() => setHistoryOpen((open) => !open)} style={historyLink}><Text style={action}>{historyOpen ? "Ukryj historię" : `Historia · ${history.length}`}</Text><Text style={action}>{historyOpen ? "⌃" : "›"}</Text></Pressable> : null}
+      {historyOpen ? history.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => {}} onDismiss={() => {}} onComplete={() => {}} />) : null}
 
       {setup?.showGuidance && setup.nextAction ? <SetupCard
         action={setup.nextAction.action}
@@ -239,22 +201,12 @@ export function PulpitScreen() {
       /> : null}
       {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
 
-      <Text style={sectionTitle}>Szybkie akcje</Text>
-      <View style={quickRow}>
-        <QuickAction label="Dodaj wpłatę" onPress={addIncome} />
-        <QuickAction label="Podatek" onPress={openTax} />
-        <QuickAction label="Administracja" onPress={() => openAdministration()} />
-      </View>
-      <View style={linkRow}>
-        <Text style={smallLabel}>Usługi podatkowe MF</Text>
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://www.podatki.gov.pl/mikrorachunek-podatkowy/")}><Text style={action}>Mikrorachunek</Text></Pressable>
-        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL("https://www.podatki.gov.pl/e-urzad-skarbowy/")}><Text style={action}>e-Urząd Skarbowy</Text></Pressable>
-      </View>
+
 
     </ScrollView>
 
     <Modal visible={Boolean(snoozeTask)} transparent animationType="fade" onRequestClose={() => setSnoozeTask(null)}>
-      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
+      <View style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
         <Text style={muted}>Termin zadania i zobowiązanie pozostają bez zmian.</Text>
         {snoozeOptions(now).map(({ days, until }) => <Pressable key={days} accessibilityRole="button" onPress={() => saveSnooze(until)} style={modalAction}><Text style={action}>{days === 1 ? "Jutro" : days === 3 ? "Za 3 dni" : "Za tydzień"} · {until.toLocaleDateString("pl-PL")}</Text></Pressable>)}
         <Text style={smallLabel}>Wybierz własną datę (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data przypomnienia" value={snoozeDate} onChangeText={setSnoozeDate} style={input} />
@@ -263,11 +215,11 @@ export function PulpitScreen() {
           if (!isValidCalendarDate(snoozeDate) || until <= new Date()) Alert.alert("Nieprawidłowa data", "Wybierz przyszłą datę przypomnienia.");
           else saveSnooze(until);
         }} style={primaryButton}><Text style={primaryText}>Ustaw przypomnienie</Text></Pressable>
-      </View></SafeAreaView>
+      </View></View>
     </Modal>
 
     <Modal visible={customOpen} animationType="slide" onRequestClose={() => setCustomOpen(false)}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={smallLabel}>Tytuł</Text><TextInput accessibilityLabel="Tytuł przypomnienia" value={customTitle} onChangeText={setCustomTitle} style={input} />
           <Text style={smallLabel}>Termin (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Termin przypomnienia" value={customDate} onChangeText={setCustomDate} style={input} />
@@ -282,31 +234,27 @@ export function PulpitScreen() {
             <Pressable accessibilityRole="button" onPress={() => Alert.alert("Usunąć przypomnienie?", customTitle, [{ text: "Anuluj", style: "cancel" }, { text: "Usuń", style: "destructive", onPress: () => { const id = customReminderId; void update((current) => deleteCustomReminder(current, id)).catch(() => undefined); setCustomOpen(false); } }])} style={destructiveButton}><Text style={dangerText}>Usuń przypomnienie</Text></Pressable></>
             : <Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={primaryButton}><Text style={primaryText}>Zapisz przypomnienie</Text></Pressable>}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </Modal>
 
     <Modal visible={adminPickerVisible} transparent animationType="fade" onRequestClose={() => setAdminPickerVisible(false)}>
-      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
+      <View style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
         {document.properties.filter((item) => item.administratorPortalUrl || document.propertyLinks.some((link) => link.propertyId === item.id && link.category === "ADMINISTRATION")).map((property) => <Pressable key={property.id} accessibilityRole="button" onPress={() => { setAdminPickerVisible(false); openAdministration(property); }} style={modalAction}><Text style={action}>{property.name}</Text></Pressable>)}
-      </View></SafeAreaView>
+      </View></View>
     </Modal>
   </View>;
 }
 
 function SetupCard({ action, label, propertyName, completed, total, onPress }: { action: SetupAction; label: string; propertyName?: string; completed: number; total: number; onPress: () => void }) {
-  const reminderSuggestion = action === "payment-reminder";
-  return <View accessibilityLabel="Konfiguracja mieszkania" style={setupCard}>
-    <Text style={smallLabel}>{reminderSuggestion ? "Podstawy gotowe" : `${completed} z ${total} podstawowych kroków`}</Text>
-    <Text style={setupTitle}>{reminderSuggestion ? label : propertyName ? `${propertyName} — ${label.toLocaleLowerCase("pl-PL")}` : label}</Text>
-    <Pressable accessibilityRole="button" onPress={onPress} style={secondaryButton}><Text style={buttonText}>{label}</Text></Pressable>
-  </View>;
+  const context = action === "payment-reminder" ? label : propertyName ? `${propertyName} — ${label.toLocaleLowerCase("pl-PL")}` : label;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${completed} z ${total} kroków konfiguracji: ${context}`} onPress={onPress} style={setupReminderRow}>
+    <Text style={{ color: theme.colors.textSecondary, flex: 1 }}>{context}</Text><Text style={actionStyle}>›</Text>
+  </Pressable>;
 }
-function OverviewMetric({ label, amount }: { label: string; amount: number }) { return <View style={metricRow}><Text style={muted}>{label}</Text><Text style={metricValue}>{formatPln(amount)}</Text></View>; }
 function Kpi({ label, value }: { label: string; value: string }) { return <View style={kpi}><Text style={kpiLabel}>{label}</Text><Text style={kpiValue}>{value}</Text></View>; }
-function QuickAction({ label, onPress }: { label: string; onPress: () => void }) { return <Pressable accessibilityRole="button" onPress={onPress} style={quickButton}><Text style={quickText}>{label}</Text></Pressable>; }
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) { return <View style={modalHeader}><Text style={modalTitle}>{title}</Text><Pressable accessibilityRole="button" onPress={onClose}><Text style={action}>Zamknij</Text></Pressable></View>; }
-function shiftMonth(month: string, offset: number) { const [year, number] = month.split("-").map(Number); const date = new Date(year!, number! - 1 + offset, 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; }
 function monthLabel(month: string) { const [year, number] = month.split("-").map(Number); return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(year!, number! - 1, 1)); }
+function compactPln(amountGrosz: number) { return formatPln(amountGrosz).replace(/,00(?= zł)/, ""); }
 
 const pageTitle = { color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700" as const };
 const setupCard = { ...ui.card, marginTop: 14 };
@@ -316,35 +264,26 @@ const muted = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 4 };
 const smallLabel = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
 const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 13 };
 const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 12 };
-const segmented = { flexDirection: "row" as const, padding: 4, backgroundColor: theme.colors.surfaceMuted, borderRadius: 13, gap: 4, marginBottom: 8 };
-const segment = { flex: 1, minHeight: 38, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 10 };
-const selectedSegment = { backgroundColor: theme.colors.surface };
-const segmentText = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
-const selectedSegmentText = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "700" as const };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
 const quickRow = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginVertical: 8 };
-const quickButton = { flexGrow: 1, minWidth: 96, minHeight: 44, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 9 };
-const quickText = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "700" as const, textAlign: "center" as const };
-const linkRow = { flexDirection: "row" as const, flexWrap: "wrap" as const, alignItems: "center" as const, gap: 12, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
-const kpiGrid = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginVertical: 9 };
-const kpi = { width: "48%" as const, minHeight: 86, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 16, padding: 13, justifyContent: "space-between" as const, elevation: 1 };
+const kpiGrid = { flexDirection: "row" as const, gap: 6, marginVertical: 9 };
+const kpi = { flex: 1, minHeight: 72, backgroundColor: theme.colors.surface, borderColor: theme.colors.borderSubtle, borderWidth: 1, borderRadius: 16, padding: 9, justifyContent: "space-between" as const, elevation: 1 };
 const kpiLabel = { color: theme.colors.textSecondary, fontSize: 12 };
-const kpiValue = { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" as const, marginTop: 6 };
+const kpiValue = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "700" as const, marginTop: 6 };
 const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
 const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
 const selectedFilter = { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.primary };
 const filterText = { color: theme.colors.textPrimary, fontSize: 11 };
-const chartContainer = { height: 145, borderWidth: 1, borderColor: theme.colors.borderSubtle, backgroundColor: theme.colors.surface, borderRadius: 16, flexDirection: "row" as const, alignItems: "stretch" as const, justifyContent: "space-around" as const, marginBottom: 10, paddingTop: 8 };
-const barColumn = { flex: 1, alignItems: "center" as const, justifyContent: "flex-end" as const, paddingHorizontal: 2 };
-const barValue = { color: theme.colors.textMuted, fontSize: 9, height: 18, textAlign: "center" as const };
-const barTrack = { height: 98, width: "55%" as const, backgroundColor: theme.colors.surfaceMuted, justifyContent: "flex-end" as const, borderRadius: 6, overflow: "hidden" as const };
-const barFill = { width: "100%" as const, backgroundColor: theme.colors.primary, minHeight: 0 };
-const barMonth = { color: theme.colors.textSecondary, fontSize: 10, marginVertical: 6 };
 const propertyRow = { paddingVertical: 14, marginTop: 5 };
 const propertyHeader = { flexDirection: "row" as const, alignItems: "flex-start" as const, justifyContent: "space-between" as const, gap: 12, marginBottom: 4 };
 const propertyName = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const };
-const metricRow = { flexDirection: "row" as const, justifyContent: "space-between" as const, paddingVertical: 2 };
 const metricValue = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "600" as const };
+const paidLabel = { color: theme.colors.success, fontWeight: "700" as const, fontSize: 14 };
+const propertyPaymentState = { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, marginTop: 8 };
+const attentionSummary = { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, minHeight: 48, paddingHorizontal: 14, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, marginVertical: 6 };
+const historyLink = { minHeight: 48, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingHorizontal: 4 };
+const setupReminderRow = { minHeight: 44, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingHorizontal: 4 };
+const actionStyle = { color: theme.colors.primary, fontWeight: "700" as const };
 const emptyRow = { gap: 7, marginTop: 4 };
 const iconButton = { width: 42, height: 42, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 14, backgroundColor: theme.colors.accentSoft };
 const modalBackdrop = { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: "center" as const, padding: 18 };

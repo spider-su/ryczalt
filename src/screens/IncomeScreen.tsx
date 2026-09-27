@@ -12,7 +12,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   createId,
   todayIsoDate,
@@ -23,10 +22,11 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
 import { entriesForTaxYear } from "../domain/rentalHistory";
-import { formatPln, moneyToGrosz } from "../domain/ryczaltTax";
+import { formatPln, moneyToGrosz, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 import { summarizeRentMonth } from "../domain/reminders";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
-import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
+import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
+import { rentDisplayState } from "../domain/rentalPresentation";
 import {
   isNonnegativeMoney,
   isPositiveMoney,
@@ -322,21 +322,12 @@ export function IncomeScreen() {
             marginTop: 12,
           }}
         >
-          <Text style={{ color: theme.colors.textSecondary }}>Rok:</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setSelectedTaxYear(taxYear - 1)}
-          >
-            <Text style={action}>‹</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok" disabled={taxYear <= Math.min(...SUPPORTED_TAX_YEARS)} onPress={() => setSelectedTaxYear(taxYear - 1)}>
+            <Text style={[action, taxYear <= Math.min(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>‹</Text>
           </Pressable>
-          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>
-            {taxYear}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setSelectedTaxYear(taxYear + 1)}
-          >
-            <Text style={action}>›</Text>
+          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{taxYear}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Następny rok" disabled={taxYear >= Math.max(...SUPPORTED_TAX_YEARS)} onPress={() => setSelectedTaxYear(taxYear + 1)}>
+            <Text style={[action, taxYear >= Math.max(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>›</Text>
           </Pressable>
           {taxYear !== configuredTaxYear ? (
             <Pressable
@@ -367,25 +358,24 @@ export function IncomeScreen() {
         ListHeaderComponent={
           <View>
             <View style={ui.card}>
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Roczna ewidencja wpływów · {taxYear}</Text>
-              <Text style={{ color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700", marginTop: 8 }}>{formatPln(annualIncomeGrosz)}</Text>
+              <Text style={{ color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" }}>{formatPln(annualIncomeGrosz)}</Text>
+              <Text style={muted}>potwierdzonych wpływów · {taxYear}</Text>
             </View>
-            <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 18, marginBottom: 4 }}>Czynsz do potwierdzenia · {rentalMonth}</Text>
+            <Text style={screenSection}>DO POTWIERDZENIA</Text>
             {properties.map((property) => {
               const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
-              return <View key={property.id} style={ui.card}>
-                <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{property.name} · {rentalMonth}</Text>
-                {summary.status === "unknown" ? <Text style={muted}>Oczekiwany czynsz nieustalony</Text> : <>
-                  <Text style={muted}>Oczekiwano {formatPln(summary.expectedGrosz)}</Text>
-                  <Text style={muted}>Potwierdzono {formatPln(summary.confirmedGrosz)}</Text>
-                  {summary.status === "complete" ? <Text style={muted}>Wpłata potwierdzona</Text> : <Text style={muted}>Pozostało do potwierdzenia {formatPln(summary.remainingGrosz)}</Text>}
-                </>}
-                {summary.unallocatedGrosz > 0 ? <Text style={muted}>Nadwyżka ponad prognozowane czynsze: {formatPln(summary.unallocatedGrosz)}</Text> : null}
-                <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)}><Text style={action}>Sprawdź wpłatę</Text></Pressable>
+              const state = rentDisplayState(summary.expectedGrosz, summary.confirmedGrosz, summary.remainingGrosz);
+              return <View key={property.id} style={[ui.card, { padding: 14 }]}>
+                <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{property.name}</Text>
+                {state.kind === "unknown" ? <Text style={muted}>Czynsz {rentalMonth} nieustalony</Text>
+                  : state.kind === "paid" ? <Text style={paidText}>✓ Opłacone · {formatPln(state.expectedGrosz)}</Text>
+                    : state.kind === "partial" ? <><Text style={muted}>Częściowo opłacone · {formatPln(state.confirmedGrosz)} / {formatPln(state.expectedGrosz)}</Text><Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>Pozostało {formatPln(state.remainingGrosz)}</Text></>
+                      : <Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPln(state.remainingGrosz)} do potwierdzenia</Text>}
+                {state.kind !== "paid" ? <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)} style={secondaryAction}><Text style={action}>Potwierdź wpłatę</Text></Pressable> : null}
               </View>;
             })}
-            <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 18, marginBottom: 4 }}>Potwierdzone wpłaty</Text>
-            <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź otrzymaną wpłatę</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
+            <Text style={screenSection}>POTWIERDZONE WPŁATY</Text>
           </View>
         }
         ListEmptyComponent={
@@ -401,13 +391,14 @@ export function IncomeScreen() {
           onEdit={() => openEdit(item)}
           onRemove={() => remove(item)}
         />}
+        ListFooterComponent={<IncomeHistoryChart entries={document.incomeEntries} properties={properties} />}
       />
       <Modal
         visible={modalOpen}
         animationType="slide"
         onRequestClose={() => setModalOpen(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
             style={{
               padding: 18,
@@ -524,7 +515,7 @@ export function IncomeScreen() {
               </Text>
             </Pressable>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
     </View>
   );
@@ -536,6 +527,9 @@ const primaryText = {
   fontWeight: "700" as const,
   fontSize: 15,
 };
+const screenSection = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5, marginTop: 18, marginBottom: 8 };
+const paidText = { color: theme.colors.success, fontWeight: "700" as const, marginTop: 7 };
+const secondaryAction = { minHeight: 40, justifyContent: "center" as const, marginTop: 6 };
 const muted = { color: theme.colors.textSecondary, marginTop: 5, fontSize: 14 };
 const action = {
   color: theme.colors.primary,

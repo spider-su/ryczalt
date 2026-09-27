@@ -1,32 +1,32 @@
-# Roadmap — proposed milestones, not published releases
+# Roadmap — delivery history and proposed milestones
 
-This roadmap describes the **target sequence**, not a statement that versions/tags/builds have shipped. Check Git tags and release records before assigning public version numbers. As of 2026-09-27, `package.json` and `app.json` identify 0.1.0; no Git tags are present.
+The product priority is confirmed income → ryczałt calculation → payment deadline → annual settlement readiness. Milestones 0.1–0.5 are the historical delivery sequence and are retained below; they are not app versions or evidence of a published release. Check Git tags and release records before assigning public version numbers. As of 2026-09-27, `package.json` and `app.json` identify 0.1.0; no Git tags are present.
 
 | Milestone | Scope | Exit condition |
 |---|---|---|
-| 0.1 — Rental foundation | Standalone Expo app, apartment CRUD, manually confirmed partial receipts, tenant snapshots, local validation and serialized writes | Implemented and merged |
-| 0.2 — Tax foundation | Verified Polish private-rental tax rules, periods, deadlines, exact arithmetic, manual tax payments, outstanding balances | Implemented with tested tax examples and corrections |
-| 0.3 — Apartment lifecycle | Effective-dated/period-correct expected rent, payment day, optional agreement end date, administrator links, fixed/variable recurring bills and reminder preferences | Implemented; historical expectations and apartment overview are covered by tests |
-| 0.4 — Personal assistant MVP | Pulpit, persistent actionable tasks, native local notifications + Web fallback, snooze, smart completion, guided setup, quick actions, one-time/monthly/yearly personal reminders and light stats | **Functional scope complete**; validation is covered by domain/migration tests and CI. Native delivery/release readiness remains 0.5 work. |
-| 0.5 — Private beta/release readiness | Physical-device notification tests, upgrade/migration check, accessibility and privacy review, supported payment-detail verification, signing and distribution preparation | In progress; outstanding evidence and limitations are tracked in [RELEASES](RELEASES.md) and [PRIVATE_BETA_ANDROID_CHECKLIST](PRIVATE_BETA_ANDROID_CHECKLIST.md) |
+| 0.1 — Rental foundation | Standalone Expo app, apartment CRUD, manually confirmed partial receipts, tenant snapshots, local validation and serialized writes | Delivered |
+| 0.2 — Tax foundation | Verified Polish private-rental tax rules, periods, deadlines, exact arithmetic, manual tax payments, outstanding balances | Delivered with tested tax examples and corrections |
+| 0.3 — Apartment lifecycle | Effective-dated/period-correct expected rent, payment day, optional agreement end date, administrator links, fixed/variable recurring bills and reminder preferences | Delivered; historical expectations and apartment overview are covered by tests |
+| 0.4 — Personal assistant MVP | Pulpit, persistent actionable tasks, native local notifications + Web fallback, snooze, smart completion, guided setup, quick actions, one-time/monthly/yearly personal reminders and light stats | Functional scope delivered; no claim of physical-device or release readiness |
+| 0.5 — Private beta/release readiness | Physical-device notification tests, upgrade/migration check, accessibility and privacy review, supported payment-detail verification, signing and distribution preparation | In progress; evidence and gaps are tracked in [RELEASES](RELEASES.md) and [PRIVATE_BETA_ANDROID_CHECKLIST](PRIVATE_BETA_ANDROID_CHECKLIST.md) |
+| 0.6 — Tax-product completeness | Year-to-date rental tax summary; clear progress against the applicable PLN 100,000 threshold (or confirmed joint-property threshold); annual taxable-income summary; annual tax due/paid/difference; supported-year update checklist; user-facing wording reviewed against current Polish rules | Annual figures reconcile to confirmed receipts and payments in deterministic tests; supported-year rules/review process documented; wording reviewed; no electronic filing |
+| 0.7 — Data safety + annual settlement | Local JSON export and import/restore; annual/PIT-28 verification summary; restore/migration tests; privacy documentation | Export/restore round-trip and invalid-input behavior tested; summary reconciles to the tax engine; user can verify figures against Twój e-PIT/PIT-28; privacy limitations documented |
+| 1.0 — Small-landlord public release | A dependable, focused tax/payment assistant for landlords with a few flats | **A landlord can manage a full rental tax year without Excel and without losing records.** Release checks, support expectations, privacy and distribution readiness are complete. |
 
-**Dependencies:** tax reminders consume the tax engine; Pulpit consumes authoritative income/tax/bill projections. Expected-vs-received history depends on a period-safe expected-rent model. Do not duplicate engines to accelerate UI delivery.
+**Dependencies:** tax reminders consume the tax engine; Pulpit consumes authoritative income/tax/bill projections; the annual summary reuses the same verified tax engine and supported-year rules. Do not duplicate calculation engines to accelerate UI delivery.
 
-**Parked next phase:** PIT-28 annual summary, manual JSON backup/import/export and Investory integration. These are not implied by 0.4/0.5.
+**Feature freeze:** do not expand generic reminders, personal task management or broad landlord-management workflows. Add them only on explicit request and demonstrated user demand, and only when they do not displace the tax/payment roadmap.
 
-## Deferred beyond the current beta-readiness pass
+## Later or optional
 
-These are not part of the current 0.4 functional scope. Items that are required for a particular beta distribution remain 0.5 gates as described above; the list below covers broader or later work:
+These items are lower priority than 0.6–1.0 and require separate product evidence/decisions:
 
-- JSON backup/export and restore; cloud or Investory backup.
+- Investory integration; cloud sync or backup.
+- Spouse/shared access, bank feeds, OCR, tenant communication, deposits, documents/e-signatures, maintenance workflows, property valuation/ROI and full expense accounting.
 - Encrypted storage and a formal security program (`SECURITY.md`); current local-storage/privacy limitations are recorded in [RELEASES](RELEASES.md).
-- Tax-year support after 2026, with annual source review, rules update, regression examples, and release checklist.
-- Dependency automation (Dependabot/Renovate), full lint coverage, and broader unit/integration coverage beyond current CI.
+- Dependency automation (Dependabot/Renovate), full lint coverage and broader unit/integration coverage beyond current CI.
 - Typed navigation cleanup, including `navigationRef as any`; replace `Math.random()` IDs if still relevant.
 - Contributor documentation and app/release version metadata cleanup.
 - URL allow-listing or scheme hardening while property links remain user-configurable.
-- Full production release setup, signing, store distribution and support process.
 
-**Separate product decisions:** deposits, tenant history/rotation, bank feeds, cloud sync, OCR, tenant communication, widgets, property valuation and full expense accounting. Competitors may offer them; that alone is not a reason to add them.
-
-The milestones above are proposals. `CHANGELOG.md` records delivered changes; `RELEASES.md` records current verification and published-release policy.
+The future milestones are plans, not implementation claims. `CHANGELOG.md` records delivered changes; `RELEASES.md` records current verification and published-release policy.

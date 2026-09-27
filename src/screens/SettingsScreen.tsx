@@ -11,7 +11,6 @@ import {
   View,
   Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { PaymentDetail } from "../components/PaymentDetail";
@@ -23,11 +22,10 @@ import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isRentalMonth, isValidCalenda
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
-import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 import type { SetupAction } from "../domain/setupProgress";
 import { setupActionField } from "../navigation/setupIntent";
 import { makeBillPayment } from "../domain/billPayment";
-import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
+import { settingsSections } from "../domain/rentalPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
   expectedPaymentDay: string;
@@ -69,6 +67,7 @@ export function SettingsScreen() {
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(blankDraft);
   const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [billEditing, setBillEditing] = useState<RecurringBill | null>(null);
   const [billModalOpen, setBillModalOpen] = useState(false);
@@ -84,20 +83,24 @@ export function SettingsScreen() {
   const [linkCategory, setLinkCategory] = useState<PropertyLink["category"]>("UTILITY");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
 
+  useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
+
   useEffect(() => {
     if (!document) return;
     setTaxRecipient(document.settings.taxRecipientName ?? "");
     setTaxAccount(document.settings.taxMicroAccount ?? "");
-    const params = route.params as { propertyId?: string; billId?: string; period?: string; setupAction?: SetupAction } | undefined;
+    const params = route.params as { propertyId?: string; billId?: string; period?: string; setupAction?: SetupAction; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     const bill = params?.billId ? document.recurringBills.find((item) => item.id === params.billId) : undefined;
-    if (params?.setupAction === "apartment" && !params.propertyId) openProperty(undefined, params.setupAction);
-    else if (property) openProperty(property, params?.setupAction);
+    if (params?.settingsSection) setActiveSection(params.settingsSection);
+    if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction); }
+    else if (property) { setActiveSection("properties"); openProperty(property, params?.setupAction); }
     if (bill) {
+      setActiveSection("bills");
       setBillPaymentPeriod(params?.period && isRentalMonth(params.period) ? params.period : todayIsoDate().slice(0, 7));
       setBillForDetails(bill);
     }
-    if (params?.propertyId || params?.billId || params?.period || params?.setupAction) navigation.setParams({ propertyId: undefined, billId: undefined, period: undefined, setupAction: undefined });
+    if (params?.propertyId || params?.billId || params?.period || params?.setupAction || params?.settingsSection) navigation.setParams({ propertyId: undefined, billId: undefined, period: undefined, setupAction: undefined, settingsSection: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, route.params]);
@@ -330,8 +333,8 @@ export function SettingsScreen() {
       Alert.alert("Zapisano", "Dane płatności podatku zostały zapisane.");
     } catch { /* The provider reports persistence failure. */ }
   };
-  const toggleReminderCategory = (category: keyof RentalDocument["settings"]["reminderCategories"], enabled: boolean) => {
-    updateTaxSettings((settings) => ({ ...settings, reminderCategories: { ...settings.reminderCategories, [category]: enabled } }));
+  const toggleReminderCategory = (category: keyof RentalDocument["settings"]["reminderCategories"]) => {
+    updateTaxSettings((settings) => ({ ...settings, reminderCategories: { ...settings.reminderCategories, [category]: !settings.reminderCategories[category] } }));
   };
   const openBill = (bill?: RecurringBill) => {
     setBillEditing(bill ?? null);
@@ -425,18 +428,26 @@ export function SettingsScreen() {
   return (
       <View style={ui.page}>
       <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
+        {activeSection === null ? <>
         <Text style={{ color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700", marginBottom: 12 }}>Ustawienia</Text>
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 12 }}>
-          Rozliczenie podatku
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginVertical: 10 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok podatkowy" disabled={document.settings.taxYear <= Math.min(...SUPPORTED_TAX_YEARS)} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))} hitSlop={8}>
-            <Text style={[action, document.settings.taxYear <= Math.min(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>‹</Text>
-          </Pressable>
-          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Rok {document.settings.taxYear}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Następny rok podatkowy" disabled={document.settings.taxYear >= Math.max(...SUPPORTED_TAX_YEARS)} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} hitSlop={8}>
-            <Text style={[action, document.settings.taxYear >= Math.max(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>›</Text>
-          </Pressable>
+        {settingsSections.map((section) => {
+          const summary = section.id === "properties" ? `${document.properties.length} mieszkań`
+            : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
+              : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
+                : section.id === "notifications" ? `${Object.values(document.settings.reminderCategories).filter(Boolean).length} kategorii${permission === "granted" ? " · lokalne ON" : ""}`
+                : section.id === "bills" ? `${document.recurringBills.length} rachunków` : "Dane lokalne na tym urządzeniu";
+          return <Pressable key={section.id} accessibilityRole="button" onPress={() => setActiveSection(section.id)} style={categoryRow}>
+            <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={muted}>{summary}</Text></View><Text style={action}>›</Text>
+          </Pressable>;
+        })}
+        </> : <>
+        <Pressable accessibilityRole="button" onPress={() => setActiveSection(null)} style={settingsBack}><Text style={action}>‹ Ustawienia</Text></Pressable>
+        <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 12 }}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
+        {activeSection === "tax" ? <>
+        <View style={{ flexDirection: "row", gap: 14, alignItems: "center", marginVertical: 10 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok podatkowy" disabled={document.settings.taxYear <= 2025} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}><Text style={[action, document.settings.taxYear <= 2025 && { opacity: 0.4 }]}>‹</Text></Pressable>
+          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{document.settings.taxYear}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Następny rok podatkowy" disabled={document.settings.taxYear >= 2026} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))}><Text style={[action, document.settings.taxYear >= 2026 && { opacity: 0.4 }]}>›</Text></Pressable>
         </View>
         <Text style={muted}>Częstotliwość wpłat ryczałtu</Text>
         <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
@@ -457,39 +468,31 @@ export function SettingsScreen() {
             </Pressable>
           ))}
         </View>
-        <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <Text style={{ ...muted, flex: 1 }}>Limit 200 000 zł dla małżonków (warunki ustawowe spełnione)</Text>
-          <Switch value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
-            if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
-            Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
-              { text: "Anuluj", style: "cancel" },
-              { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
-            ]);
-          }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} />
-        </View>
+        <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
+          if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
+          Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
+            { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
+          ]);
+        }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
         <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
+        </> : null}
+        {activeSection === "notifications" ? <>
         <Text style={sectionTitle}>Powiadomienia lokalne</Text>
         <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : permission === "unavailable" ? "Powiadomienia urządzenia są niedostępne w przeglądarce; przypomnienia pozostają widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
         {([
           ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
-        ] as const).map(([category, label]) => <View key={category} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={(enabled) => toggleReminderCategory(category, enabled)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
+        ] as const).map(([category, label]) => <View key={category} style={notificationRow}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
         {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{task.dueAt.toLocaleDateString("pl-PL")} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
-        <Text style={sectionTitle}>Dane płatności podatku</Text>
+        </> : null}
+        {activeSection === "payment" ? <>
         <Text style={muted}>Wpisz dane z własnego mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
         <Text style={fieldLabel}>Odbiorca</Text><TextInput accessibilityLabel="Odbiorca podatku" value={taxRecipient} onChangeText={setTaxRecipient} placeholder="Urząd skarbowy" style={inputStyle} />
         <Text style={fieldLabel}>Mikrorachunek podatkowy</Text><TextInput accessibilityLabel="Mikrorachunek podatkowy" value={taxAccount} onChangeText={setTaxAccount} keyboardType="number-pad" placeholder="26 cyfr" style={inputStyle} />
         <Pressable accessibilityRole="button" onPress={() => void saveTaxPaymentSettings()} style={secondaryButton}><Text style={modeText}>Zapisz dane płatności</Text></Pressable>
-        <Text
-          style={{
-            color: theme.colors.textPrimary,
-            fontSize: 24,
-            fontWeight: "700",
-          }}
-        >
-          Mieszkania
-        </Text>
+        </> : null}
+        {activeSection === "properties" ? <>
         <Text
           style={{
             color: theme.colors.textSecondary,
@@ -497,7 +500,7 @@ export function SettingsScreen() {
             marginBottom: 16,
           }}
         >
-          Dane najemcy są zapisane przy mieszkaniu.
+          Dane najmu i najemcy zapisane przy mieszkaniu.
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -588,8 +591,9 @@ export function SettingsScreen() {
             </View>
           ))
         )}
-        <View style={{ marginTop: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={sectionTitle}>Pozostałe rachunki</Text>
+        </> : null}
+        {activeSection === "bills" ? <>
+        <View style={{ marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}>
           <Pressable accessibilityRole="button" onPress={() => openBill()}><Text style={action}>＋ Dodaj</Text></Pressable>
         </View>
         {document.recurringBills.length === 0 ? <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Brak pozostałych rachunków. Dodaj rachunki, aby mieć zapisane terminy i dane płatności.</Text></View> : document.recurringBills.map((bill) => {
@@ -600,6 +604,9 @@ export function SettingsScreen() {
             <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => openBillDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
           </View>;
         })}
+        </> : null}
+        {activeSection === "data" ? <View style={ui.card}><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Dane są zapisane lokalnie na tym urządzeniu.</Text><Text style={muted}>Aplikacja nie ma obecnie funkcji eksportu ani przywracania kopii zapasowej. W przypadku problemów z odczytem dostępny jest ekran odzyskiwania danych.</Text></View> : null}
+        </>}
       </ScrollView>
       <Modal
         visible={modalOpen}
@@ -609,7 +616,7 @@ export function SettingsScreen() {
           setEditing(null);
         }}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
             style={{
               padding: 18,
@@ -676,7 +683,7 @@ export function SettingsScreen() {
               propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
               setSetupFocus(null);
             } : undefined}>
-              <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>Przypominaj, aby sprawdzić wpłatę</Text><Switch value={draft.paymentReminderEnabled} onValueChange={(paymentReminderEnabled) => setDraft((current) => ({ ...current, paymentReminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Przypominaj, aby sprawdzić wpłatę" accessibilityState={{ checked: draft.paymentReminderEnabled }} /></View>
+              <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Przypominaj, aby sprawdzić wpłatę</Text><Switch value={draft.paymentReminderEnabled} onValueChange={(paymentReminderEnabled) => setDraft((current) => ({ ...current, paymentReminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Przypominaj o czynszu" accessibilityState={{ checked: draft.paymentReminderEnabled }} /></View>
             </View>
             {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
             <Text style={sectionTitle}>Administracja</Text>
@@ -703,10 +710,10 @@ export function SettingsScreen() {
               </Text>
             </Pressable>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
       <Modal visible={billModalOpen} animationType="slide" onRequestClose={() => setBillModalOpen(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>{billEditing ? "Edytuj rachunek" : "Nowy rachunek"}</Text><Text accessibilityRole="button" onPress={() => setBillModalOpen(false)} style={action}>Zamknij</Text></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
             <Text style={fieldLabel}>Mieszkanie</Text>
@@ -717,14 +724,14 @@ export function SettingsScreen() {
             {billFields("Tytuł płatności", "paymentTitle")}
             {billFields("Oczekiwana kwota (zł)", "expectedAmount", "decimal-pad")}
             {billFields("Dzień terminu płatności (1–31)", "dueDay", "number-pad")}
-            <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>Kwota zmienna, sprawdzaj ją na bieżąco</Text><Switch value={billDraft.variableAmount} onValueChange={(variableAmount) => setBillDraft((current) => ({ ...current, variableAmount }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Kwota zmienna, sprawdzaj ją na bieżąco" accessibilityState={{ checked: billDraft.variableAmount }} /></View>
-            <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>Przypominaj o rachunku</Text><Switch value={billDraft.reminderEnabled} onValueChange={(reminderEnabled) => setBillDraft((current) => ({ ...current, reminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Przypominaj o rachunku" accessibilityState={{ checked: billDraft.reminderEnabled }} /></View>
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Kwota zmienna, sprawdzaj ją na bieżąco</Text><Switch value={billDraft.variableAmount} onValueChange={(variableAmount) => setBillDraft((current) => ({ ...current, variableAmount }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Kwota zmienna" accessibilityState={{ checked: billDraft.variableAmount }} /></View>
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Przypominaj o rachunku</Text><Switch value={billDraft.reminderEnabled} onValueChange={(reminderEnabled) => setBillDraft((current) => ({ ...current, reminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Przypominaj o rachunku" accessibilityState={{ checked: billDraft.reminderEnabled }} /></View>
             <Pressable accessibilityRole="button" onPress={() => void saveBill()} style={primaryButton}><Text style={primaryText}>Zapisz rachunek</Text></Pressable>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
       <Modal visible={Boolean(billForDetails)} animationType="slide" onRequestClose={() => setBillForDetails(null)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>{billForDetails?.name ?? "Szczegóły płatności"}</Text><Text accessibilityRole="button" onPress={() => setBillForDetails(null)} style={action}>Zamknij</Text></View>
           {billForDetails ? <ScrollView contentContainerStyle={{ padding: 20 }}>
             {(() => {
@@ -746,7 +753,7 @@ export function SettingsScreen() {
               </>;
             })()}
           </ScrollView> : null}
-        </SafeAreaView>
+        </View>
       </Modal>
     </View>
   );
@@ -819,6 +826,10 @@ const action = {
 const modeButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 };
 const modeText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
 const sectionTitle = ui.sectionTitle;
+const categoryRow = { minHeight: 72, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 14, marginBottom: 9 };
+const categoryLabel = { color: theme.colors.textPrimary, fontWeight: "700" as const, fontSize: 15 };
+const settingsBack = { minHeight: 40, justifyContent: "center" as const, marginBottom: 6 };
+const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };

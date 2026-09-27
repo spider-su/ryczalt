@@ -1,28 +1,35 @@
-# MVP — personal landlord assistant
+# MVP — private-rental tax and payment assistant
 
-This document defines the functional MVP acceptance scope. The 0.1–0.4 user-facing flows are implemented in the current assistant line; physical-device verification, signing and distribution remain separate 0.5 readiness work. No public release is implied.
+This document defines the functional MVP acceptance scope. The 0.1–0.4 user-facing flows are implemented in the current product line; physical-device verification, signing and distribution remain separate 0.5 readiness work. No public release is implied.
 
-## Core user outcomes and acceptance
+## Core acceptance: rent → tax → deadline
 
-1. **Configure apartments:** Settings supports apartment, expected rent/payment day, tenant, agreement end date/reminders, administrator portal and useful links. Pulpit derives temporary setup guidance from saved apartment data, shows one next action, and reuses the existing Settings editor. Required completion is based on apartment name, expected rent and payment day; tenant, agreement date and portal stay optional. An optional rent-reminder suggestion never turns itself on.
-2. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; OS notification dismissal does not erase tasks. Empty state is useful.
-3. **Check rent:** configure an expected rent schedule/day per apartment, open a contextual reminder, manually record actual receipt date and amount, support partial receipts and show remaining amount *to confirm*. No inferred arrears or auto-created income.
-4. **Review tax:** compute verified private-rental ryczałt using actual taxable receipts; support applicable settlement periods and deadlines, manual tax payments and outstanding balance. Corrected receipts/payments update the obligation and tasks.
-5. **Remember dates:** local reminders for rent checks, tax, recurring bills and optional rental agreement end date (default 30/7-day options). End date replaces tenancy start as primary visible agreement field; indefinite agreements supported. Preserve legacy start date.
-6. **Handle recurring apartment bills:** support fixed and variable recurring obligations. Fixed amounts may be prefilled and partial payments leave the period task open until the expected total is confirmed; variable obligations remind the user to verify the current amount. Opening a task preserves its bill period through manual confirmation.
-7. **Use relevant services:** user-supplied per-apartment administrator portal and optional categorized utility links; open externally without credentials, scraping or implicit completion.
-8. **Use small personal reminders:** create one-time, monthly or yearly reminders with a title, optional apartment and note. Monthly dates clamp to the target month's last day; a yearly February 29 reminder occurs on February 28 in non-leap years and returns to February 29 in leap years. Completion, dismissal and snooze apply to one occurrence. Do not become a generic task manager.
-9. **Understand the month:** compact confirmed income, amount left to check, tax remaining and attention count; six-month income history and per-apartment totals. No ROI or valuation.
-10. **Act quickly:** Pulpit quick actions prefill apartment/month/remaining expected rent but require manual confirmation. Snooze alters reminder time, not legal/payment due date.
+The user records actual rent receipts after checking their bank, sees the ryczałt calculated from confirmed taxable receipts, and sees the tax due date and amount remaining after manually confirmed tax payments. Expected rent, reminders or external links never create financial records or imply payment. This workflow is P0; apartment setup and reminders support it.
+
+## User outcomes and acceptance
+
+1. **Confirm rental income:** record actual receipt date and amount, allow partial/corrected receipts, and keep expected rent separate. Do not infer arrears or create income automatically.
+2. **Calculate and pay tax:** calculate from confirmed taxable receipts; show applicable settlement period, obligation, due date, manually confirmed payments and outstanding amount. Corrections update calculations and tasks.
+3. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; dismissing an OS notification does not erase a task. Empty state is useful.
+4. **Configure the rental context:** apartment, expected rent/payment day, current tenant/contact, optional agreement end date, administrator portal and useful links. Guided setup reuses Settings and keeps optional fields optional; it never creates financial records or enables reminders without user choice.
+5. **Support the core with reminders:** local reminders for rent checks, tax, recurring bills and agreement end dates; small one-time/monthly/yearly personal reminders. Month-end and leap-day behavior is deterministic. Keep this a support function, not a generic task manager.
+6. **Handle recurring bills:** support fixed and variable obligations. Fixed partial payments leave the period task open until the expected total is confirmed; variable bills prompt the user to verify the current amount. Task navigation preserves the bill period through confirmation.
+7. **Use relevant services:** user-supplied administrator and utility links open externally without credentials, scraping or implied completion.
+8. **Show a light overview:** confirmed income, amount to check, tax remaining and attention count; six-month trend and apartment split. No ROI or valuation.
+9. **Act quickly:** quick actions preserve apartment/month/remaining expected rent and require manual confirmation. Snooze changes reminder time, not legal/payment due date.
+
+## Next acceptance phase
+
+Annual tax/PIT-28 verification readiness and local JSON backup/restore are near-term priorities, not current MVP functionality. The annual summary must show confirmed taxable receipts, tax due, tax paid and difference for supported years, and help users verify figures against Twój e-PIT/PIT-28. Backup/restore must validate data before import and preserve existing records. See [ROADMAP](ROADMAP.md) milestones 0.6–0.7. Electronic PIT-28 submission remains out of scope.
 
 ## Important rental-history rule
 
-A current apartment default rent must not rewrite previous months. Before historical expected-vs-received statistics are treated as authoritative, introduce an effective-date or period-specific expected-rent model so a later rent change preserves older expectations.
+A current apartment default rent must not rewrite previous months. The implemented effective-month rent schedule preserves older expectations when rent changes; regression tests cover period-specific expected rent.
 
 ## Quality and scope constraints
 
 Expo/React Native/TypeScript, local-first AsyncStorage, runtime validation and versioned migrations. Native local notifications where supported; useful in-app fallback on Web and denied permission. Do not promise guaranteed OS delivery. Preserve historic tenant snapshots, confirmed receipts and tax payments across upgrades. PLN money represented as decimal strings and computed exactly.
 
-Not in this MVP: PIT-28, JSON backup/import/export, Investory integration, banking integration, automatic confirmations, tenant communication, cloud backend/auth/sync, OCR, property valuation, home-screen widgets, deposit management or comprehensive contract management.
+Not in the current MVP: annual/PIT-28 verification summary and JSON backup/restore (next acceptance phase), Investory integration, banking integration, automatic confirmations, electronic PIT-28 filing, tenant communication, cloud backend/auth/sync, OCR, property valuation, home-screen widgets, deposit management or comprehensive contract management.
 
 See [USER_FLOWS](USER_FLOWS.md) for scenarios, [COMPETITIVE_ANALYSIS](COMPETITIVE_ANALYSIS.md) for validated patterns and [ROADMAP](ROADMAP.md) for implementation order.

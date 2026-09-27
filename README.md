@@ -1,8 +1,8 @@
 # Ryczałt
 
-**Twój osobisty asystent najmu.** Ryczałt is a local-first Expo mobile application for Polish private landlords: see what needs attention, record money actually received, review rental tax and open useful property-related services. The product direction is a lightweight personal assistant, **not** a full property-management platform.
+**Prosty asystent ryczałtu z najmu prywatnego.** Potwierdź otrzymany czynsz, sprawdź należny podatek i pilnuj terminu płatności — bez arkusza i bez dostępu do banku. Ryczałt is a local-first Expo app for Polish landlords with a few apartments. The user confirms receipts and tax payments manually; the app calculates from those confirmed records.
 
-> **Implementation status:** the local-first assistant, guided setup and one-time/monthly/yearly personal reminders are implemented. See [the roadmap](docs/ROADMAP.md) for scope and [release readiness](docs/RELEASES.md) for current verification limits. Roadmap milestones do not imply published app versions.
+> **Implementation status:** confirmed rental income, tax calculations and payment status, guided setup, and one-time/monthly/yearly reminders are implemented. The tax screen already shows cumulative revenue and the applicable threshold; the fuller annual/PIT-28 verification summary and JSON backup/restore are upcoming, not implemented. The app does not connect to a bank or file PIT-28 electronically. See [the roadmap](docs/ROADMAP.md) and [release readiness](docs/RELEASES.md). Roadmap milestones do not imply published app versions.
 
 ## Documentation
 

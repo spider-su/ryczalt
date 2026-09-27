@@ -1,6 +1,6 @@
 # Competitive patterns — what we adopt and what we do not
 
-This document captures product patterns observed in comparable landlord/rental products so implementation can reuse established ideas without copying a competitor's UI, wording or scope.
+This document captures product patterns observed in comparable landlord/rental products so implementation can reuse established ideas without copying a competitor's UI, wording or scope. Ryczałt's differentiation is a **Polish private-rental tax/payment assistant for landlords with a few flats**, not breadth as a generic landlord-management app.
 
 ## Closest reference patterns
 
@@ -56,7 +56,7 @@ Relevant patterns:
 - clear paid/partial/outstanding financial state;
 - property-level reporting.
 
-**Adopt:** one-time personal reminders, optional property association, clear partial vs confirmed state, compact trend chart. Monthly/yearly custom reminder recurrence remains a possible future extension, not current functionality.
+**Adopt:** one-time/monthly/yearly personal reminders, optional property association, clear partial vs confirmed state, compact trend chart. All three reminder cadences are implemented; keep them small and subordinate to rent confirmation, tax calculation and deadlines.
 
 **Do not adopt:** payment processing, bank feeds, US-specific tax/accounting workflows or large reporting surface.
 
@@ -69,7 +69,7 @@ Relevant patterns:
 5. **Partial receipts are first-class.** Remaining amount changes the same task rather than creating unrelated reminders.
 6. **Rent expectations need history.** A new rent amount must not alter previous months.
 7. **Bills have two useful modes.** Fixed = known expected amount; variable = remind user to verify amount, usually via a portal.
-8. **Custom reminders stay deliberately small.** Current reminders are one-time with an optional apartment; recurrence is not implemented. Avoid a generic task-management feature set.
+8. **Custom reminders stay deliberately small.** One-time, monthly and yearly reminders with optional apartment are implemented. Avoid expanding into a generic task-management feature set without explicit user demand.
 9. **External links are a shortcut, not integration.** Open administration/utility/tax services without scraping credentials or treating navigation as completion.
 10. **Statistics stay light.** Confirmed income, remaining amount to check, outstanding tax, attention count, short monthly trend and apartment split.
 
