@@ -18,7 +18,7 @@ Actual taxable receipts → verified tax engine calculates obligation for the re
 
 ## 3. Check administration/utility bill
 
-Configured recurring bill and apartment → if fixed, show expected amount; if variable, prompt to verify current amount → optional administrator/utility portal link → user checks bill and pays externally → explicit payment confirmation if tracking exists, otherwise clearly labeled “Oznacz jako załatwione” without fabricating a bank transaction. Opening link does not resolve task.
+Configured recurring bill and apartment → if fixed, show expected amount and total confirmed payments for the task's bill period; a partial payment leaves the remaining amount and task actionable. If variable, prompt to verify the current amount. Opening a Pulpit task or notification carries its bill period into the confirmation screen; each manually confirmed payment is recorded against that period, while its actual paid date remains today's date. Opening a link or dismissing a task does not create a payment.
 
 ## 4. Agreement expiration
 
