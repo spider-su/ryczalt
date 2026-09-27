@@ -14,6 +14,7 @@ export type Settlement = {
   obligationGrosz: number;
   cumulativeTaxGrosz: number;
   paidGrosz: number;
+  creditAppliedGrosz: number;
   outstandingGrosz: number;
   overpaidGrosz: number;
   dueDate: string;
@@ -121,7 +122,7 @@ export function calculateSettlements(args: {
     const dueDate = paymentDeadline(taxYear, index, mode);
     const paidGrosz = paymentTotals[index]!;
     return { period, revenueGrosz, cumulativeRevenueGrosz, obligationGrosz,
-      cumulativeTaxGrosz, paidGrosz, outstandingGrosz: unpaidByPeriod.get(index) ?? 0,
+      cumulativeTaxGrosz, paidGrosz, creditAppliedGrosz: creditUsedGrosz, outstandingGrosz: unpaidByPeriod.get(index) ?? 0,
       overpaidGrosz, dueDate, status: "due" as const };
   });
   return settlements.map((settlement, index) => {

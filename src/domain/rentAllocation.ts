@@ -9,7 +9,10 @@ export type RentAllocation = {
 
 /**
  * Derive rent coverage without changing confirmed receipt records or their tax dates.
- * Receipts cover the oldest open rent month first, then later projected months.
+ * Explicit receipts cover their selected month first, then the oldest open
+ * month that had fallen due by the receipt date. Unspecified receipts cover
+ * the oldest open month due by their receipt date. Excess stays unallocated;
+ * this avoids silently treating an overpayment as future rent.
  */
 export function allocateRentReceipts(
   property: Property,
@@ -39,11 +42,13 @@ export function allocateRentReceipts(
 
   for (const entry of receipts) {
     let remaining = moneyToGrosz(entry.amount);
-    const targetMonth = validMonth(entry.rentalMonth) ?? entry.receivedAt.slice(0, 7);
     const months = [...expectedByMonth.keys()].sort();
-    const relevant = validMonth(entry.rentalMonth)
-      ? [...months.filter((month) => month === targetMonth), ...months.filter((month) => month > targetMonth), ...months.filter((month) => month < targetMonth)]
-      : [...months.filter((month) => month <= targetMonth), ...months.filter((month) => month > targetMonth)];
+    const receivedMonth = entry.receivedAt.slice(0, 7);
+    const explicitMonth = validMonth(entry.rentalMonth);
+    const historicalMonths = months.filter((month) => month <= receivedMonth && month !== explicitMonth);
+    const relevant = explicitMonth
+      ? [...months.filter((month) => month === explicitMonth), ...historicalMonths]
+      : historicalMonths;
     for (const month of relevant) {
       if (remaining <= 0) break;
       const expected = expectedByMonth.get(month)!;

@@ -14,6 +14,8 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { PaymentDetail } from "../components/PaymentDetail";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import type { Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
@@ -616,7 +618,7 @@ export function SettingsScreen() {
           setEditing(null);
         }}
       >
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
             style={{
               padding: 18,
@@ -710,10 +712,10 @@ export function SettingsScreen() {
               </Text>
             </Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
       <Modal visible={billModalOpen} animationType="slide" onRequestClose={() => setBillModalOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>{billEditing ? "Edytuj rachunek" : "Nowy rachunek"}</Text><Text accessibilityRole="button" onPress={() => setBillModalOpen(false)} style={action}>Zamknij</Text></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
             <Text style={fieldLabel}>Mieszkanie</Text>
@@ -728,10 +730,10 @@ export function SettingsScreen() {
             <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Przypominaj o rachunku</Text><Switch value={billDraft.reminderEnabled} onValueChange={(reminderEnabled) => setBillDraft((current) => ({ ...current, reminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Przypominaj o rachunku" accessibilityState={{ checked: billDraft.reminderEnabled }} /></View>
             <Pressable accessibilityRole="button" onPress={() => void saveBill()} style={primaryButton}><Text style={primaryText}>Zapisz rachunek</Text></Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
       <Modal visible={Boolean(billForDetails)} animationType="slide" onRequestClose={() => setBillForDetails(null)}>
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>{billForDetails?.name ?? "Szczegóły płatności"}</Text><Text accessibilityRole="button" onPress={() => setBillForDetails(null)} style={action}>Zamknij</Text></View>
           {billForDetails ? <ScrollView contentContainerStyle={{ padding: 20 }}>
             {(() => {
@@ -753,7 +755,7 @@ export function SettingsScreen() {
               </>;
             })()}
           </ScrollView> : null}
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

@@ -11,6 +11,9 @@ import type { TaxPayment } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { PaymentDetail } from "../components/PaymentDetail";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
+import { taxPaymentPrompt } from "../domain/rentalPresentation";
 
 const statusLabel = { "no-tax": "Brak podatku do zapłaty", due: "Do zapłaty", partial: "Częściowo zapłacono", paid: "Zapłacono", overdue: "Po terminie" } as const;
 
@@ -52,6 +55,7 @@ export function TaxScreen() {
     : settlements.length - 1, settlements.length - 1);
   const settlement = settlements[activeIndex];
   const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
+  const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const openPayment = (payment?: TaxPayment) => {
     setEditing(payment ?? null);
     setPaymentDraft(payment ? { amount: payment.amount, paidAt: payment.paidAt } : { amount: "", paidAt: todayIsoDate() });
@@ -115,13 +119,15 @@ export function TaxScreen() {
           <Metric label="Przychód" value={formatPln(settlement.revenueGrosz)} />
           <Metric label="Ryczałt" value={formatPln(settlement.obligationGrosz)} strong />
           <Metric label="Zapłacono" value={formatPln(settlement.paidGrosz)} />
+          {settlement.creditAppliedGrosz > 0 ? <Metric label="Wykorzystana nadpłata" value={formatPln(settlement.creditAppliedGrosz)} /> : null}
           <View style={dueAmount}><Text style={dueLabel}>{settlement.overpaidGrosz ? "NADPŁATA" : "DO ZAPŁATY"}</Text><Text style={dueValue}>{formatPln(settlement.overpaidGrosz || settlement.outstandingGrosz)}</Text></View>
           <Text style={{ color: settlement.status === "overdue" ? theme.colors.danger : theme.colors.textSecondary, fontWeight: "600", marginTop: 10 }}>Termin · {settlement.dueDate}</Text>
           <Text style={taxContext}>Rocznie: {formatPln(settlement.cumulativeRevenueGrosz)} / {formatPln(document.settings.jointSpouseThreshold ? 20_000_000 : 10_000_000)}</Text>
-          {settlement.status === "no-tax" || settlement.status === "paid" || settlement.status === "overdue" ? <Text style={{ color: settlement.status === "overdue" ? theme.colors.danger : theme.colors.success, fontWeight: "700", marginTop: 8 }}>{statusLabel[settlement.status]}</Text> : null}
+          {settlement.status === "overdue" ? <Text style={{ color: theme.colors.danger, fontWeight: "700", marginTop: 8 }}>{statusLabel[settlement.status]}</Text> : null}
         </View>
-        <Pressable accessibilityRole="button" onPress={() => openPayment()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę podatku</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><Text style={action}>Dane do przelewu podatku</Text><Text style={action}>›</Text></Pressable>
+        {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={() => openPayment()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę podatku</Text></Pressable>
+          : <Text style={{ color: theme.colors.success, fontWeight: "700", paddingVertical: 12 }}>✓ {paymentPrompt?.status}</Text>}
+        {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><Text style={action}>Dane do przelewu podatku</Text><Text style={action}>›</Text></Pressable> : null}
           {payments.length ? <Text style={{ color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700", marginTop: 18 }}>Wpłaty w okresie</Text> : null}
         {payments.length === 0 ? <Text style={{ ...ui.emptyState, color: theme.colors.textSecondary }}>Brak potwierdzonych wpłat.</Text> : payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{payment.paidAt}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{payment.amount} zł</Text></View>
@@ -133,7 +139,7 @@ export function TaxScreen() {
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
     <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>{editing ? "Popraw wpłatę podatku" : "Potwierdź wpłatę podatku"}</Text><Text accessibilityRole="button" onPress={() => setModalOpen(false)} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
           <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ?? ""}</Text>
@@ -141,10 +147,10 @@ export function TaxScreen() {
           <Text style={fieldLabel}>Data wpłaty (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data wpłaty" value={paymentDraft.paidAt} onChangeText={(paidAt) => setPaymentDraft((current) => ({ ...current, paidAt }))} placeholder="2026-10-20" style={inputStyle} />
           <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : editing ? "Zapisz poprawki" : "Potwierdź wpłatę podatku"}</Text></Pressable>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
     <Modal visible={paymentDetailsOpen} animationType="slide" onRequestClose={() => setPaymentDetailsOpen(false)}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Dane przelewu</Text><Text accessibilityRole="button" onPress={() => setPaymentDetailsOpen(false)} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <PaymentDetail label="Odbiorca" value={taxPaymentDetails.recipientName} onCopy={() => void copyDetail(taxPaymentDetails.recipientName, "Odbiorca")} />
@@ -155,7 +161,7 @@ export function TaxScreen() {
           {missingTaxDetails.length ? <Pressable accessibilityRole="button" onPress={() => { setPaymentDetailsOpen(false); navigation.navigate("Ustawienia", { settingsSection: "payment" }); }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 12 }}>Skonfiguruj lub popraw: {missingTaxDetails.join(", ")} w Ustawieniach ›</Text></Pressable> : null}
           <Text style={{ ...muted, marginTop: 16 }}>Kod QR nie jest generowany, aby nie podać niekompletnych lub niezgodnych z bankiem danych. Sprawdź rachunek przed zleceniem przelewu.</Text>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
   </View>;
 }

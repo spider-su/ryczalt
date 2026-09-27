@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
 import { calculateSettlements, formatPln, moneyToGrosz } from "../domain/ryczaltTax";
@@ -14,7 +15,8 @@ import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
-import { historicalTasks, primaryDashboardMetrics, rentDisplayState, upcomingTasks } from "../domain/rentalPresentation";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
+import { attentionSummary as getAttentionSummary, historicalTasks, primaryDashboardMetrics, rentDisplayState, upcomingTasks } from "../domain/rentalPresentation";
 
 export function PulpitScreen() {
   const { document, update } = useRentalData();
@@ -53,6 +55,7 @@ export function PulpitScreen() {
   if (!document) return <View style={ui.page} />;
   const now = new Date();
   const attention = tasks.filter((task) => task.status === "needs-attention");
+  const attentionPresentation = getAttentionSummary(attention.length);
   const history = historicalTasks(tasks);
   const settlements = [2025, 2026].includes(document.settings.taxYear) ? calculateSettlements({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: document.settings.taxYear,
@@ -158,10 +161,9 @@ export function PulpitScreen() {
       <View style={kpiGrid}>
         {primaryDashboardMetrics(compactPln(monthIncome), compactPln(remainingRent), currentPeriod ? `${compactPln(currentPeriod.outstandingGrosz)} · ${new Date(`${currentPeriod.dueDate}T12:00:00`).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}` : "—").map((metric) => <Kpi key={metric.label} label={metric.label} value={metric.value} />)}
       </View>
-      <Pressable accessibilityRole="button" onPress={() => taskListRef.current?.scrollTo({ y: taskSectionY, animated: true })} style={attentionSummary}>
-        <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{attention.length ? `${attention.length} ${attention.length === 1 ? "sprawa wymaga" : "sprawy wymagają"} uwagi` : "Nie ma spraw wymagających uwagi"}</Text>
-        <Text style={action}>Pokaż</Text>
-      </Pressable>
+      {attentionPresentation.interactive ? <Pressable accessibilityRole="button" accessibilityLabel={`${attentionPresentation.label}. ${attentionPresentation.action}`} onPress={() => taskListRef.current?.scrollTo({ y: taskSectionY, animated: true })} style={attentionSummary}>
+        <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{attentionPresentation.label}</Text><Text style={action}>{attentionPresentation.action}</Text>
+      </Pressable> : <View accessibilityRole="text" style={attentionSummary}><Text style={{ color: theme.colors.success, fontWeight: "700" }}>{attentionPresentation.label}</Text></View>}
       <Pressable accessibilityRole="button" onPress={addIncome} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Ustawienia ›</Text></Pressable></View>
@@ -206,7 +208,7 @@ export function PulpitScreen() {
     </ScrollView>
 
     <Modal visible={Boolean(snoozeTask)} transparent animationType="fade" onRequestClose={() => setSnoozeTask(null)}>
-      <View style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
+      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
         <Text style={muted}>Termin zadania i zobowiązanie pozostają bez zmian.</Text>
         {snoozeOptions(now).map(({ days, until }) => <Pressable key={days} accessibilityRole="button" onPress={() => saveSnooze(until)} style={modalAction}><Text style={action}>{days === 1 ? "Jutro" : days === 3 ? "Za 3 dni" : "Za tydzień"} · {until.toLocaleDateString("pl-PL")}</Text></Pressable>)}
         <Text style={smallLabel}>Wybierz własną datę (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data przypomnienia" value={snoozeDate} onChangeText={setSnoozeDate} style={input} />
@@ -215,11 +217,11 @@ export function PulpitScreen() {
           if (!isValidCalendarDate(snoozeDate) || until <= new Date()) Alert.alert("Nieprawidłowa data", "Wybierz przyszłą datę przypomnienia.");
           else saveSnooze(until);
         }} style={primaryButton}><Text style={primaryText}>Ustaw przypomnienie</Text></Pressable>
-      </View></View>
+      </View></SafeAreaView>
     </Modal>
 
     <Modal visible={customOpen} animationType="slide" onRequestClose={() => setCustomOpen(false)}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background }}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
+      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={smallLabel}>Tytuł</Text><TextInput accessibilityLabel="Tytuł przypomnienia" value={customTitle} onChangeText={setCustomTitle} style={input} />
           <Text style={smallLabel}>Termin (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Termin przypomnienia" value={customDate} onChangeText={setCustomDate} style={input} />
@@ -234,13 +236,13 @@ export function PulpitScreen() {
             <Pressable accessibilityRole="button" onPress={() => Alert.alert("Usunąć przypomnienie?", customTitle, [{ text: "Anuluj", style: "cancel" }, { text: "Usuń", style: "destructive", onPress: () => { const id = customReminderId; void update((current) => deleteCustomReminder(current, id)).catch(() => undefined); setCustomOpen(false); } }])} style={destructiveButton}><Text style={dangerText}>Usuń przypomnienie</Text></Pressable></>
             : <Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={primaryButton}><Text style={primaryText}>Zapisz przypomnienie</Text></Pressable>}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
 
     <Modal visible={adminPickerVisible} transparent animationType="fade" onRequestClose={() => setAdminPickerVisible(false)}>
-      <View style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
+      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
         {document.properties.filter((item) => item.administratorPortalUrl || document.propertyLinks.some((link) => link.propertyId === item.id && link.category === "ADMINISTRATION")).map((property) => <Pressable key={property.id} accessibilityRole="button" onPress={() => { setAdminPickerVisible(false); openAdministration(property); }} style={modalAction}><Text style={action}>{property.name}</Text></Pressable>)}
-      </View></View>
+      </View></SafeAreaView>
     </Modal>
   </View>;
 }

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useEffect } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +28,7 @@ import { formatPln, moneyToGrosz, SUPPORTED_TAX_YEARS } from "../domain/ryczaltT
 import { summarizeRentMonth } from "../domain/reminders";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
-import { rentDisplayState } from "../domain/rentalPresentation";
+import { rentConfirmationGroups, rentDisplayState } from "../domain/rentalPresentation";
 import {
   isNonnegativeMoney,
   isPositiveMoney,
@@ -361,19 +363,24 @@ export function IncomeScreen() {
               <Text style={{ color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" }}>{formatPln(annualIncomeGrosz)}</Text>
               <Text style={muted}>potwierdzonych wpływów · {taxYear}</Text>
             </View>
-            <Text style={screenSection}>DO POTWIERDZENIA</Text>
-            {properties.map((property) => {
-              const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
-              const state = rentDisplayState(summary.expectedGrosz, summary.confirmedGrosz, summary.remainingGrosz);
-              return <View key={property.id} style={[ui.card, { padding: 14 }]}>
-                <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{property.name}</Text>
-                {state.kind === "unknown" ? <Text style={muted}>Czynsz {rentalMonth} nieustalony</Text>
-                  : state.kind === "paid" ? <Text style={paidText}>✓ Opłacone · {formatPln(state.expectedGrosz)}</Text>
+            {(() => {
+              const rentStates = properties.map((property) => {
+                const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
+                return { property, summary, state: summary.status === "unknown" ? { kind: "unknown" as const } : rentDisplayState(summary.expectedGrosz, summary.confirmedGrosz, summary.remainingGrosz) };
+              });
+              const { pending, allPaid } = rentConfirmationGroups(rentStates);
+              return pending.length ? <>
+                <Text style={screenSection}>DO POTWIERDZENIA</Text>
+                {pending.map(({ property, summary, state }) => <View key={property.id} style={[ui.card, { padding: 14 }]}>
+                  <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{property.name}</Text>
+                  {state.kind === "unknown" ? <Text style={muted}>Czynsz {rentalMonth} nieustalony</Text>
                     : state.kind === "partial" ? <><Text style={muted}>Częściowo opłacone · {formatPln(state.confirmedGrosz)} / {formatPln(state.expectedGrosz)}</Text><Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>Pozostało {formatPln(state.remainingGrosz)}</Text></>
-                      : <Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPln(state.remainingGrosz)} do potwierdzenia</Text>}
-                {state.kind !== "paid" ? <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)} style={secondaryAction}><Text style={action}>Potwierdź wpłatę</Text></Pressable> : null}
-              </View>;
-            })}
+                    : state.kind === "unpaid" ? <Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPln(state.remainingGrosz)} do potwierdzenia</Text> : null}
+                  {summary.unallocatedGrosz > 0 ? <Text style={muted}>Nieprzypisana nadwyżka: {formatPln(summary.unallocatedGrosz)}</Text> : null}
+                  <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)} style={secondaryAction}><Text style={action}>Potwierdź wpłatę</Text></Pressable>
+                </View>)}
+              </> : allPaid ? <Text style={successState}>✓ Wszystkie czynsze za {new Intl.DateTimeFormat("pl-PL", { month: "long" }).format(new Date(`${rentalMonth}-15T12:00:00`))} są potwierdzone.</Text> : null;
+            })()}
             <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
             <Text style={screenSection}>POTWIERDZONE WPŁATY</Text>
           </View>
@@ -398,7 +405,7 @@ export function IncomeScreen() {
         animationType="slide"
         onRequestClose={() => setModalOpen(false)}
       >
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
             style={{
               padding: 18,
@@ -511,11 +518,11 @@ export function IncomeScreen() {
                   ? "Zapisywanie…"
                   : editing
                     ? "Zapisz poprawki"
-                    : "Potwierdź otrzymanie wpłaty"}
+                    : "Potwierdź wpłatę"}
               </Text>
             </Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -528,7 +535,7 @@ const primaryText = {
   fontSize: 15,
 };
 const screenSection = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5, marginTop: 18, marginBottom: 8 };
-const paidText = { color: theme.colors.success, fontWeight: "700" as const, marginTop: 7 };
+const successState = { color: theme.colors.success, fontWeight: "700" as const, paddingVertical: 12 };
 const secondaryAction = { minHeight: 40, justifyContent: "center" as const, marginTop: 6 };
 const muted = { color: theme.colors.textSecondary, marginTop: 5, fontSize: 14 };
 const action = {
