@@ -13,6 +13,13 @@ describe("notificationDataToIntent", () => {
 
   it("ignores malformed or unknown notification payloads", () => {
     expect(notificationDataToIntent({ category: "rent", propertyId: "p1" })).toBeNull();
+    expect(notificationDataToIntent({ category: "rent", propertyId: " ", period: "2026-13" })).toBeNull();
+    expect(notificationDataToIntent({ category: "tax", period: "2026-Q5" })).toBeNull();
+    expect(notificationDataToIntent({ category: "bill", billId: "" })).toBeNull();
+    expect(notificationDataToIntent({ category: "agreement", propertyId: "" })).toBeNull();
+    expect(notificationDataToIntent({ category: "custom", taskId: "" })).toBeNull();
+    expect(notificationDataToIntent({ category: "rent", propertyId: "p1", period: "2026-09", expectedAmount: "<script>" }))
+      .toEqual({ screen: "Przychód", params: { quickAdd: true, propertyId: "p1", rentalMonth: "2026-09" } });
     expect(notificationDataToIntent({ category: "unknown" })).toBeNull();
   });
 });

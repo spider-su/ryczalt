@@ -161,7 +161,9 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
         const fireAt = addDays(task.dueAt, -days);
         if (fireAt <= now || fireAt > cutoff) return [];
         const key = `${task.id}:${days}`;
-        return [{ key, signature: `${task.title}|${task.detail}|${fireAt.getTime()}`, title: days ? `Umowa najmu kończy się za ${days} dni` : "Umowa najmu kończy się dzisiaj", body: task.detail, fireAt,
+        const title = days ? `Umowa najmu kończy się za ${days} dni` : "Umowa najmu kończy się dzisiaj";
+        const body = "Otwórz Ryczałt, aby sprawdzić szczegóły terminu.";
+        return [{ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
           data: { category: routeCategory, propertyId: task.propertyId, taskId: task.id } }];
       });
     }
@@ -169,8 +171,14 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
     if (!fireAt || fireAt <= now) return [];
     if (task.status !== "snoozed" && task.type !== "CUSTOM_REMINDER" && fireAt > cutoff) return [];
     const key = task.id;
-    const title = task.title;
-    const body = task.detail;
+    const displayText = {
+      TENANT_PAYMENT_CHECK: ["Sprawdź wpłatę czynszu", "Otwórz Ryczałt, aby sprawdzić status wpłaty."],
+      TAX_PAYMENT: ["Sprawdź płatność podatku", "Otwórz Ryczałt, aby sprawdzić status płatności."],
+      RECURRING_BILL: ["Sprawdź płatność rachunku", "Otwórz Ryczałt, aby sprawdzić szczegóły rachunku."],
+      CUSTOM_REMINDER: ["Masz przypomnienie", "Otwórz Ryczałt, aby zobaczyć szczegóły."],
+      RENTAL_AGREEMENT_END: ["Sprawdź termin umowy najmu", "Otwórz Ryczałt, aby sprawdzić szczegóły terminu."],
+    } as const;
+    const [title, body] = displayText[task.type];
     return [{ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
       data: { category: routeCategory, propertyId: task.propertyId, period: task.period,
         billId: task.type === "RECURRING_BILL" ? task.id.split(":")[1] : undefined,

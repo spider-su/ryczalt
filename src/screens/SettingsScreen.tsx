@@ -64,7 +64,7 @@ export function SettingsScreen() {
     if (params?.propertyId || params?.billId) navigation.setParams({ propertyId: undefined, billId: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document]);
+  }, [document, route.params]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>

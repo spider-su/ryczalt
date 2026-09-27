@@ -5,7 +5,7 @@ import { missingPaymentDetails } from "./paymentDetails";
 import { isValidPolishBankAccount } from "./rentalValidation";
 import { supportsLocalNotifications } from "../notifications/support";
 import { summarizeRentMonth } from "./reminders";
-import { taskNotificationPlan } from "./tasks";
+import { deriveTasks, taskNotificationPlan } from "./tasks";
 
 const fixture = (): RentalDocument => ({
   schemaVersion: 3,
@@ -66,6 +66,68 @@ describe("task reminders and payment details", () => {
     ], cancel, schedule);
     expect(cancel).toHaveBeenCalledWith("rent-duplicate");
     expect(schedule).not.toHaveBeenCalledWith(rent);
+  });
+
+  it("uses generic lock-screen text and keeps each category switch independent", async () => {
+    const doc = fixture();
+    doc.properties[0]!.rentalEndDate = "2026-09-15";
+    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-08-05", propertyId: "p1", note: "Szczegóły poufne" }];
+    doc.incomeEntries = [{ id: "taxable", propertyId: "p1", receivedAt: "2026-07-10", rentalMonth: "2026-07", amount: "3000.00", taxableAmount: "3000.00" }];
+    const now = new Date(2026, 7, 1, 8);
+    const plan = taskNotificationPlan(doc, now);
+    expect(plan.map((item) => item.key)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^TENANT_PAYMENT_CHECK:/), expect.stringMatching(/^RENTAL_AGREEMENT_END:/),
+      expect.stringMatching(/^TAX_PAYMENT:/), expect.stringMatching(/^RECURRING_BILL:/), expect.stringMatching(/^CUSTOM_REMINDER:/),
+    ]));
+    for (const reminder of plan) {
+      expect(`${reminder.title} ${reminder.body}`).not.toMatch(/Parkowa|Prąd|Sprawdź licznik|3000|1000|poufne/);
+    }
+
+    const keyCategory: Record<string, keyof RentalDocument["settings"]["reminderCategories"]> = {
+      "TENANT_PAYMENT_CHECK:": "rent",
+      "RENTAL_AGREEMENT_END:": "agreements",
+      "TAX_PAYMENT:": "tax",
+      "RECURRING_BILL:": "bills",
+      "CUSTOM_REMINDER:": "custom",
+    };
+    for (const [prefix, category] of Object.entries(keyCategory)) {
+      const switchedOff = structuredClone(doc);
+      switchedOff.settings.reminderCategories[category] = false;
+      const after = taskNotificationPlan(switchedOff, now);
+      expect(after.some((item) => item.key.startsWith(prefix))).toBe(false);
+      expect(taskNotificationPlan(doc, now).some((item) => item.key.startsWith(prefix))).toBe(true);
+      expect(deriveTasks(switchedOff, now).some((task) => task.id.startsWith(prefix))).toBe(true);
+    }
+
+    const sourceSwitchesOff = structuredClone(doc);
+    sourceSwitchesOff.properties[0]!.paymentReminderEnabled = false;
+    sourceSwitchesOff.recurringBills[0]!.reminderEnabled = false;
+    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:p1:"))).toBe(false);
+    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("RECURRING_BILL:b1:"))).toBe(false);
+    expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("TENANT_PAYMENT_CHECK:p1:"))).toBe(true);
+    expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("RECURRING_BILL:b1:"))).toBe(true);
+    sourceSwitchesOff.properties[0]!.paymentReminderEnabled = true;
+    sourceSwitchesOff.recurringBills[0]!.reminderEnabled = true;
+    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:p1:"))).toBe(true);
+    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("RECURRING_BILL:b1:"))).toBe(true);
+
+    const active = taskNotificationPlan(doc, now);
+    const rentKey = "TENANT_PAYMENT_CHECK:p1:2026-08";
+    const rent = active.find((item) => item.key === rentKey)!;
+    const cancel = vi.fn(async () => undefined);
+    const schedule = vi.fn(async () => undefined);
+    await reconcileReminderSchedule(active.filter((item) => item.key !== rentKey), [
+      { identifier: "rent-id", reminderKey: `ryczalt:${rentKey}`, signature: rent.signature },
+    ], cancel, schedule);
+    expect(cancel).toHaveBeenCalledWith("rent-id");
+    cancel.mockClear();
+    schedule.mockClear();
+    await reconcileReminderSchedule(active, [], cancel, schedule);
+    await reconcileReminderSchedule(active, active.map((item, index) => ({
+      identifier: `scheduled-${index}`, reminderKey: `ryczalt:${item.key}`, signature: item.signature,
+    })), cancel, schedule);
+    expect(schedule).toHaveBeenCalledTimes(active.length);
+    expect(cancel).not.toHaveBeenCalled();
   });
 
   it("keeps web usable without OS reminders and validates copied payment details", () => {
