@@ -1,11 +1,13 @@
+import { isRentalMonth } from "../domain/rentalValidation";
+
 export type NotificationIntent =
   | { screen: "Przychód"; params: { quickAdd: true; propertyId: string; rentalMonth: string; expectedAmount?: string } }
   | { screen: "Podatek"; params: { period: string } }
-  | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string } }
+  | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string; period?: string } }
   | { screen: "Pulpit"; params: { taskId: string } };
 
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
-const rentalMonth = (value: unknown): value is string => nonEmptyString(value) && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+const rentalMonth = (value: unknown): value is string => nonEmptyString(value) && isRentalMonth(value);
 const taxPeriod = (value: unknown): value is string => nonEmptyString(value) && /^\d{4}-(0[1-9]|1[0-2]|Q[1-4])$/.test(value);
 
 export function notificationDataToIntent(data: Record<string, unknown>): NotificationIntent | null {
@@ -18,8 +20,11 @@ export function notificationDataToIntent(data: Record<string, unknown>): Notific
   }
   if (data.category === "tax" && taxPeriod(data.period))
     return { screen: "Podatek", params: { period: data.period } };
-  if (data.category === "bill" && nonEmptyString(data.billId))
-    return { screen: "Ustawienia", params: { billId: data.billId } };
+  if (data.category === "bill" && nonEmptyString(data.billId)) {
+    if (data.period === undefined) return { screen: "Ustawienia", params: { billId: data.billId } };
+    if (!rentalMonth(data.period)) return null;
+    return { screen: "Ustawienia", params: { billId: data.billId, period: data.period } };
+  }
   if (data.category === "agreement" && nonEmptyString(data.propertyId))
     return { screen: "Ustawienia", params: { propertyId: data.propertyId } };
   if (data.category === "custom" && nonEmptyString(data.taskId))

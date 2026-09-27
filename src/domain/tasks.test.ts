@@ -15,6 +15,42 @@ function document(): RentalDocument {
 }
 
 describe("personal assistant tasks", () => {
+  const billTask = (doc: RentalDocument, period = "2026-09") => deriveTasks(doc, new Date(2026, 8, 26, 12)).find((item) => item.id === `RECURRING_BILL:power:${period}`)!;
+
+  it("resolves fixed recurring bills only when period payments cover the expected amount", () => {
+    const doc = document();
+    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, expectedAmount: "600.00" }];
+    expect(billTask(doc)).toMatchObject({ status: "needs-attention", expectedGrosz: 60_000, confirmedGrosz: 0, remainingGrosz: 60_000 });
+    doc.billPayments = [{ id: "b1", billId: "power", period: "2026-09", paidAt: "2026-09-12", amount: "200.00" }];
+    expect(billTask(doc)).toMatchObject({ status: "needs-attention", confirmedGrosz: 20_000, remainingGrosz: 40_000 });
+    expect(billTask(doc).detail).toContain("pozostało 400,00 zł");
+    doc.billPayments.push({ id: "b2", billId: "power", period: "2026-09", paidAt: "2026-09-18", amount: "400.00" });
+    expect(billTask(doc)).toMatchObject({ status: "completed", remainingGrosz: 0 });
+    doc.billPayments[1]!.amount = "500.00";
+    expect(billTask(doc)).toMatchObject({ status: "completed", remainingGrosz: 0, confirmedGrosz: 70_000 });
+    doc.billPayments.splice(1, 1);
+    expect(billTask(doc)).toMatchObject({ status: "needs-attention", remainingGrosz: 40_000 });
+  });
+
+  it("counts only payments for the target fixed-bill period", () => {
+    const doc = document();
+    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, expectedAmount: "600.00" }];
+    doc.billPayments = [{ id: "b1", billId: "power", period: "2026-08", paidAt: "2026-08-18", amount: "600.00" }];
+    expect(billTask(doc)).toMatchObject({ status: "needs-attention", confirmedGrosz: 0, remainingGrosz: 60_000 });
+  });
+
+  it("keeps variable bills amount-free and resolves them after one payment in the target period", () => {
+    const doc = document();
+    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, variableAmount: true, expectedAmount: "600.00" }];
+    expect(billTask(doc)).toMatchObject({ status: "needs-attention" });
+    expect(billTask(doc).expectedGrosz).toBeUndefined();
+    expect(billTask(doc).detail).toContain("Sprawdź bieżącą kwotę.");
+    doc.billPayments = [{ id: "b1", billId: "power", period: "2026-08", paidAt: "2026-08-18", amount: "650.00" }];
+    expect(billTask(doc).status).toBe("needs-attention");
+    doc.billPayments[0]!.period = "2026-09";
+    expect(billTask(doc).status).toBe("completed");
+  });
+
   it("uses explicit rent-rate history and does not invent historical expectations", () => {
     const doc = document();
     expect(expectedRentForMonth(doc.properties[0]!, "2026-08", new Date(2026, 8, 26))).toBe(250_000);
@@ -73,5 +109,12 @@ describe("personal assistant tasks", () => {
     const plan = taskNotificationPlan(doc, now);
     expect(plan.some((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-09")).toBe(false);
     expect(plan.some((item) => item.key === "RECURRING_BILL:electricity:2026-09")).toBe(false);
+  });
+
+  it("includes the bill month in the scheduled notification payload", () => {
+    const doc = document();
+    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: true }];
+    const notification = taskNotificationPlan(doc, new Date(2026, 8, 26, 12)).find((item) => item.key === "RECURRING_BILL:power:2026-10");
+    expect(notification?.data).toMatchObject({ category: "bill", billId: "power", period: "2026-10" });
   });
 });
