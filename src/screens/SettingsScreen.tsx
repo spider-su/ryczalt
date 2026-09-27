@@ -25,6 +25,8 @@ import { PropertyList } from "../components/settings/PropertyList";
 import { RecurringBillList } from "../components/settings/RecurringBillList";
 import { blankPropertyDraft, PropertyEditorModal, type PropertyDraft } from "../components/settings/PropertyEditorModal";
 import { removePropertyData } from "../domain/rentalOperations";
+import type { SetupAction } from "../domain/setupProgress";
+import { setupActionField } from "../navigation/setupIntent";
 
 type BillDraft = { propertyId: string; name: string; recipientName: string; bankAccount: string; paymentTitle: string; expectedAmount: string; dueDay: string; reminderEnabled: boolean; variableAmount: boolean };
 const emptyBillDraft: BillDraft = { propertyId: "", name: "", recipientName: "", bankAccount: "", paymentTitle: "", expectedAmount: "", dueDay: "", reminderEnabled: false, variableAmount: false };
@@ -36,6 +38,7 @@ export function SettingsScreen() {
   const navigation = useNavigation<any>();
   const [editing, setEditing] = useState<Property | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
   const [draft, setDraft] = useState<PropertyDraft>(blankPropertyDraft);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -56,12 +59,13 @@ export function SettingsScreen() {
     if (!document) return;
     setTaxRecipient(document.settings.taxRecipientName ?? "");
     setTaxAccount(document.settings.taxMicroAccount ?? "");
-    const params = route.params as { propertyId?: string; billId?: string } | undefined;
+    const params = route.params as { propertyId?: string; billId?: string; setupAction?: SetupAction } | undefined;
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     const bill = params?.billId ? document.recurringBills.find((item) => item.id === params.billId) : undefined;
-    if (property) openProperty(property);
+    if (params?.setupAction === "apartment" && !params.propertyId) openProperty(undefined, params.setupAction);
+    else if (property) openProperty(property, params?.setupAction);
     if (bill) setBillForDetails(bill);
-    if (params?.propertyId || params?.billId) navigation.setParams({ propertyId: undefined, billId: undefined });
+    if (params?.propertyId || params?.billId || params?.setupAction) navigation.setParams({ propertyId: undefined, billId: undefined, setupAction: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, route.params]);
@@ -76,8 +80,9 @@ export function SettingsScreen() {
       <ActivityIndicator style={{ flex: 1 }} />
     );
 
-  const openProperty = (property?: Property) => {
+  const openProperty = (property?: Property, focus?: SetupAction) => {
     setEditing(property ?? null);
+    setSetupFocus(focus ?? null);
     setLinkDrafts(property ? document.propertyLinks.filter((link) => link.propertyId === property.id) : []);
     setLinkLabel(""); setLinkUrl(""); setLinkCategory("UTILITY");
     setModalOpen(true);
@@ -177,6 +182,7 @@ export function SettingsScreen() {
           : [...current.properties, property],
       }));
       setEditing(null);
+      setSetupFocus(null);
       setModalOpen(false);
     } catch {
       /* The provider reports the save failure. */
@@ -425,9 +431,10 @@ export function SettingsScreen() {
       </ScrollView>
       <PropertyEditorModal
         visible={modalOpen} editing={editing} draft={draft} setDraft={setDraft} saving={saving}
-        onClose={() => { setModalOpen(false); setEditing(null); }} onSave={() => void save()}
+        onClose={() => { setModalOpen(false); setEditing(null); setSetupFocus(null); }} onSave={() => void save()}
         linkDrafts={linkDrafts} setLinkDrafts={setLinkDrafts} linkLabel={linkLabel} setLinkLabel={setLinkLabel}
         linkUrl={linkUrl} setLinkUrl={setLinkUrl} linkCategory={linkCategory} setLinkCategory={setLinkCategory} onAddLink={addPropertyLink}
+        focusField={setupFocus ? setupActionField(setupFocus) : undefined} onFocusHandled={() => setSetupFocus(null)}
       />
       <Modal visible={billModalOpen} animationType="slide" onRequestClose={() => setBillModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
