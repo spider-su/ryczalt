@@ -28,8 +28,9 @@ import { formatPln, moneyToGrosz, SUPPORTED_TAX_YEARS } from "../domain/ryczaltT
 import { summarizeRentMonth } from "../domain/reminders";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
-import { rentConfirmationGroups, rentDisplayState } from "../domain/rentalPresentation";
+import { incomeSectionLabels, rentConfirmationGroups, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
 import {
+  compareDecimalStrings,
   isNonnegativeMoney,
   isPositiveMoney,
   isRentalMonth,
@@ -70,6 +71,7 @@ export function IncomeScreen() {
   const configuredTaxYear =
     document?.settings.taxYear ?? new Date().getFullYear();
   const taxYear = selectedTaxYear ?? configuredTaxYear;
+  const sectionLabels = incomeSectionLabels(rentalMonth, taxYear);
   const orderedEntries = useMemo(
     () => (document ? entriesForTaxYear(document.incomeEntries, taxYear) : []),
     [document, taxYear],
@@ -218,23 +220,46 @@ export function IncomeScreen() {
       );
       return;
     }
-    setSaving(true);
-    try {
-      await update((current) => ({
-        ...current,
-        incomeEntries: editing
-          ? current.incomeEntries.map((item) =>
-              item.id === editing.id ? entry : item,
-            )
-          : [...current.incomeEntries, entry],
-      }));
-      setModalOpen(false);
-      setEditing(null);
-    } catch {
-      /* The provider reports the save failure. */
-    } finally {
-      setSaving(false);
+    const persist = async () => {
+      setSaving(true);
+      try {
+        await update((current) => ({
+          ...current,
+          incomeEntries: editing
+            ? current.incomeEntries.map((item) =>
+                item.id === editing.id ? entry : item,
+              )
+            : [...current.incomeEntries, entry],
+        }));
+        setModalOpen(false);
+        setEditing(null);
+      } catch {
+        /* The provider reports the save failure. */
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const warnings: string[] = [];
+    if (compareDecimalStrings(amount, "100000") > 0) {
+      warnings.push(
+        `Kwota ${amount} zł jest bardzo wysoka. Sprawdź, czy nie ma pomyłki.`,
+      );
     }
+    const today = todayIsoDate();
+    if (draft.receivedAt > today) {
+      warnings.push(
+        `Data otrzymania ${draft.receivedAt} przypada w przyszłości. Sprawdź, czy wpłata została już otrzymana.`,
+      );
+    }
+    if (warnings.length) {
+      Alert.alert("Sprawdź wpłatę", warnings.join("\n\n"), [
+        { text: "Wróć do edycji", style: "cancel" },
+        { text: "Zapisz mimo to", onPress: () => void persist() },
+      ]);
+      return;
+    }
+    void persist();
   };
   const remove = (entry: IncomeEntry) => {
     if (deletingId) return;
@@ -369,20 +394,25 @@ export function IncomeScreen() {
                 return { property, summary, state: summary.status === "unknown" ? { kind: "unknown" as const } : rentDisplayState(summary.expectedGrosz, summary.confirmedGrosz, summary.remainingGrosz) };
               });
               const { pending, allPaid } = rentConfirmationGroups(rentStates);
-              return pending.length ? <>
-                <Text style={screenSection}>DO POTWIERDZENIA</Text>
-                {pending.map(({ property, summary, state }) => <View key={property.id} style={[ui.card, { padding: 14 }]}>
+              return <>
+                {pending.length ? <>
+                <Text style={screenSection}>{sectionLabels.currentRent}</Text>
+                {pending.map(({ property, state }) => <View key={property.id} style={[ui.card, { padding: 14 }]}>
                   <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{property.name}</Text>
                   {state.kind === "unknown" ? <Text style={muted}>Czynsz {rentalMonth} nieustalony</Text>
                     : state.kind === "partial" ? <><Text style={muted}>Częściowo opłacone · {formatPln(state.confirmedGrosz)} / {formatPln(state.expectedGrosz)}</Text><Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>Pozostało {formatPln(state.remainingGrosz)}</Text></>
                     : state.kind === "unpaid" ? <Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPln(state.remainingGrosz)} do potwierdzenia</Text> : null}
-                  {summary.unallocatedGrosz > 0 ? <Text style={muted}>Nieprzypisana nadwyżka: {formatPln(summary.unallocatedGrosz)}</Text> : null}
                   <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)} style={secondaryAction}><Text style={action}>Potwierdź wpłatę</Text></Pressable>
                 </View>)}
-              </> : allPaid ? <Text style={successState}>✓ Wszystkie czynsze za {new Intl.DateTimeFormat("pl-PL", { month: "long" }).format(new Date(`${rentalMonth}-15T12:00:00`))} są potwierdzone.</Text> : null;
+                </> : allPaid ? <Text style={successState}>✓ Wszystkie czynsze za {new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(`${rentalMonth}-15T12:00:00`))} są potwierdzone.</Text> : null}
+                {rentStates.flatMap(({ property, summary }) => {
+                  const warning = unallocatedRentWarning(summary.unallocatedGrosz);
+                  return warning ? [<Text key={property.id} style={muted}>{property.name} · {warning}</Text>] : [];
+                })}
+              </>;
             })()}
             <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
-            <Text style={screenSection}>POTWIERDZONE WPŁATY</Text>
+            <Text style={screenSection}>{sectionLabels.paymentHistory}</Text>
           </View>
         }
         ListEmptyComponent={

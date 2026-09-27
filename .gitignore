@@ -7,3 +7,4 @@
 *:Zone.Identifier
 .playwright-mcp/
 /android/
+/artifacts/emulator-e2e/
