@@ -1,4 +1,5 @@
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Property, PropertyLink } from "../../model/rental";
 import { theme } from "../../theme/theme";
@@ -35,11 +36,18 @@ type Props = {
   linkCategory: PropertyLink["category"];
   setLinkCategory: (value: PropertyLink["category"]) => void;
   onAddLink: () => void;
+  focusField?: string;
+  onFocusHandled?: () => void;
 };
 
 export function PropertyEditorModal(props: Props) {
   const { visible, editing, draft, setDraft } = props;
-  const field = (label: string, key: PropertyField, options: { keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad"; multiline?: boolean; placeholder?: string } = {}) => <View style={{ marginBottom: 14 }} key={key}>
+  const scrollRef = useRef<ScrollView>(null);
+  const focusLayout = (key: string) => props.focusField === key ? (event: any) => {
+    scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+    props.onFocusHandled?.();
+  } : undefined;
+  const field = (label: string, key: PropertyField, options: { keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad"; multiline?: boolean; placeholder?: string } = {}) => <View style={{ marginBottom: 14 }} key={key} onLayout={focusLayout(key)}>
     <Text style={fieldCaption}>{label}</Text>
     <TextInput accessibilityLabel={label} value={draft[key] ?? ""} onChangeText={(value) => setDraft((current) => ({ ...current, [key]: value }))}
       placeholder={options.placeholder} placeholderTextColor={theme.colors.textMuted} keyboardType={options.keyboardType ?? "default"} multiline={options.multiline}
@@ -49,7 +57,7 @@ export function PropertyEditorModal(props: Props) {
   return <Modal visible={visible} animationType="slide" onRequestClose={props.onClose}>
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View style={modalHeader}><Text style={modalTitle}>{editing ? "Edytuj mieszkanie" : "Nowe mieszkanie"}</Text><Pressable accessibilityRole="button" onPress={props.onClose}><Text style={action}>Zamknij</Text></Pressable></View>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
+      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
         {field("Nazwa mieszkania *", "name", { placeholder: "np. Mieszkanie przy Parkowej" })}
         {field("Adres", "address")}
         {field("Domyślny czynsz miesięczny (zł)", "defaultMonthlyRent", { keyboardType: "decimal-pad", placeholder: "np. 2500,00" })}
@@ -63,9 +71,13 @@ export function PropertyEditorModal(props: Props) {
           return <Pressable key={days} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} onPress={() => setDraft((current) => ({ ...current, rentalEndReminderDays: selected ? current.rentalEndReminderDays.filter((item) => item !== days) : [...current.rentalEndReminderDays, days].sort((a, b) => b - a) }))} style={[modeButton, selected && selectedMode]}><Text style={modeText}>{days === 0 ? "W dniu umowy" : `${days} dni`}</Text></Pressable>;
         })}</View>
         <Text style={sectionTitle}>Przypomnienie o czynszu</Text>
-        <Text style={fieldLabel}>Oczekiwany dzień płatności (1–31)</Text>
-        <TextInput accessibilityLabel="Oczekiwany dzień płatności" value={draft.expectedPaymentDay} onChangeText={(value) => setDraft((current) => ({ ...current, expectedPaymentDay: value }))} keyboardType="number-pad" placeholder="np. 10" style={inputStyle} />
-        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: draft.paymentReminderEnabled }} onPress={() => setDraft((current) => ({ ...current, paymentReminderEnabled: !current.paymentReminderEnabled }))} style={{ paddingVertical: 10 }}><Text style={muted}>{draft.paymentReminderEnabled ? "☑" : "□"} Przypominaj, aby sprawdzić wpłatę</Text></Pressable>
+        <View onLayout={focusLayout("expectedPaymentDay")}>
+          <Text style={fieldLabel}>Oczekiwany dzień płatności (1–31)</Text>
+          <TextInput accessibilityLabel="Oczekiwany dzień płatności" value={draft.expectedPaymentDay} onChangeText={(value) => setDraft((current) => ({ ...current, expectedPaymentDay: value }))} keyboardType="number-pad" placeholder="np. 10" style={inputStyle} />
+        </View>
+        <View onLayout={focusLayout("paymentReminderEnabled")}>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: draft.paymentReminderEnabled }} onPress={() => setDraft((current) => ({ ...current, paymentReminderEnabled: !current.paymentReminderEnabled }))} style={{ paddingVertical: 10 }}><Text style={muted}>{draft.paymentReminderEnabled ? "☑" : "□"} Przypominaj, aby sprawdzić wpłatę</Text></Pressable>
+        </View>
         {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Opóźnienie przypomnienia o czynszu" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
         <Text style={sectionTitle}>Administracja</Text>
         {field("Nazwa administratora", "administratorName")}
