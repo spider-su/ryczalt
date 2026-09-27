@@ -62,7 +62,7 @@ export function PulpitScreen() {
   const monthIncome = document.incomeEntries.filter((entry) => entry.receivedAt.startsWith(selectedMonth))
     .reduce((sum, entry) => sum + moneyToGrosz(entry.amount), 0);
   const remainingRent = document.properties.reduce((sum, property) => {
-    const amounts = rentMonthAmounts(document, property, selectedMonth, now);
+    const amounts = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
     return sum + (amounts.remainingGrosz ?? 0);
   }, 0);
   const upcoming = upcomingTasks(tasks, now);
@@ -166,7 +166,7 @@ export function PulpitScreen() {
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Ustawienia ›</Text></Pressable></View>
       {!document.properties.length ? <View style={emptyRow}><Text style={emptyText}>Dodaj mieszkanie, aby zobaczyć czynsz i terminy.</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Dodaj mieszkanie</Text></Pressable></View> : document.properties.map((property) => {
-        const amount = rentMonthAmounts(document, property, selectedMonth, now);
+        const amount = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
         const paymentState = rentDisplayState(amount.expectedGrosz, amount.confirmedGrosz, amount.remainingGrosz);
         const links = document.propertyLinks.filter((link) => link.propertyId === property.id);
         return <View key={property.id} style={[ui.card, propertyRow]}>
