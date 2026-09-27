@@ -30,6 +30,7 @@ import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
 import { incomeSectionLabels, rentConfirmationGroups, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
 import {
+  compareDecimalStrings,
   isNonnegativeMoney,
   isPositiveMoney,
   isRentalMonth,
@@ -219,23 +220,46 @@ export function IncomeScreen() {
       );
       return;
     }
-    setSaving(true);
-    try {
-      await update((current) => ({
-        ...current,
-        incomeEntries: editing
-          ? current.incomeEntries.map((item) =>
-              item.id === editing.id ? entry : item,
-            )
-          : [...current.incomeEntries, entry],
-      }));
-      setModalOpen(false);
-      setEditing(null);
-    } catch {
-      /* The provider reports the save failure. */
-    } finally {
-      setSaving(false);
+    const persist = async () => {
+      setSaving(true);
+      try {
+        await update((current) => ({
+          ...current,
+          incomeEntries: editing
+            ? current.incomeEntries.map((item) =>
+                item.id === editing.id ? entry : item,
+              )
+            : [...current.incomeEntries, entry],
+        }));
+        setModalOpen(false);
+        setEditing(null);
+      } catch {
+        /* The provider reports the save failure. */
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const warnings: string[] = [];
+    if (compareDecimalStrings(amount, "100000") > 0) {
+      warnings.push(
+        `Kwota ${amount} zł jest bardzo wysoka. Sprawdź, czy nie ma pomyłki.`,
+      );
     }
+    const today = todayIsoDate();
+    if (draft.receivedAt > today) {
+      warnings.push(
+        `Data otrzymania ${draft.receivedAt} przypada w przyszłości. Sprawdź, czy wpłata została już otrzymana.`,
+      );
+    }
+    if (warnings.length) {
+      Alert.alert("Sprawdź wpłatę", warnings.join("\n\n"), [
+        { text: "Wróć do edycji", style: "cancel" },
+        { text: "Zapisz mimo to", onPress: () => void persist() },
+      ]);
+      return;
+    }
+    void persist();
   };
   const remove = (entry: IncomeEntry) => {
     if (deletingId) return;
