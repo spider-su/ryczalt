@@ -2,17 +2,25 @@
 
 ## Positioning
 
-**Ryczałt — Twój osobisty asystent najmu.** A lightweight, local-first personal assistant for people managing a small number of private rental apartments in Poland.
+**Ryczałt — prosty asystent ryczałtu z najmu prywatnego.** A local-first tax and payment assistant for Polish landlords with a few apartments.
 
-**Daily promise:** open the app, see what needs attention, act in a few taps and close it. The app helps the landlord remember, check and complete tasks; it does not claim to know whether a bank transfer occurred.
+**Core promise:** “Potwierdzasz wpłatę, aplikacja liczy podatek i pilnuje terminu.” The main job is to answer: Did the rent arrive? How much tax do I owe? By when must I pay it? What figures should I verify at year end?
 
 ## Product pillars
 
-1. **Personal reminders:** persistent in-app tasks backed by local device notifications for tenant-payment checks, tax, recurring bills, agreement end dates and small personal reminders.
-2. **Confirmed financial facts:** actual receipt date and amount, partial payments, calculated tax and explicitly confirmed tax/bill payments.
-3. **Light statistics:** monthly confirmed income, expected rent still to check, outstanding tax, upcoming tasks and a short income history.
-4. **Useful links:** user-configured apartment administrator and utility portals, plus relevant official tax services. Opening a portal never means a payment was made.
-5. **Guided simplicity:** one-time setup should configure enough information for the app to derive recurring responsibilities automatically.
+1. **Confirmed rental income:** actual receipt date and amount, partial receipts and corrections are manually confirmed; expected rent never counts as income.
+2. **Correct ryczałt calculation:** calculate from confirmed taxable receipts using supported Polish rules, rates and thresholds.
+3. **Payment deadlines and status:** show the obligation, due date, confirmed tax payments and remaining amount.
+4. **Year-end readiness:** make annual income/tax figures clear and verifiable before the user compares or enters them in official tax services. Annual/PIT-28 verification is upcoming work; electronic filing is out of scope.
+
+## Priority levels
+
+- **P0 — Core reason to use the app:** confirmed rental income, ryczałt calculation, tax payment deadline and annual/PIT-28 readiness.
+- **P1 — Makes the core easier:** apartment and current tenant/contact, expected rent, reminders, tax payment details and local backup/restore.
+- **P2 — Convenience:** recurring bills, administrator/utility links, agreement reminders and light statistics.
+- **P3 — Only with demonstrated user demand:** cloud sync, spouse/shared access, bank feeds, document management, deposits, full expense accounting, tenant communication and maintenance workflows.
+
+Keep this hierarchy in roadmap and implementation decisions: supporting tasks should make the rent-to-tax workflow easier, not displace it.
 
 ## Product strategy: proven patterns, adapted
 
@@ -29,14 +37,14 @@ Patterns we intentionally adopt and adapt:
 - guided setup/checklist;
 - recurring fixed and variable apartment charges.
 
-Ryczałt should combine these patterns around a narrower promise: **remember what matters, show what needs attention, and let the landlord confirm reality manually**.
+Ryczałt adopts only patterns that support its tax/payment promise: **the landlord confirms what arrived; the app calculates tax and tracks the deadline**.
 
 Competitor layouts and flows are references, not templates. Do not copy proprietary text, branding, screen composition or feature complexity. See [COMPETITIVE_ANALYSIS](COMPETITIVE_ANALYSIS.md).
 
 ## UX principles
 
-- Pulpit is the intended daily landing screen; Przychód, Podatek and Ustawienia retain focused responsibilities.
-- Pulpit is an assistant, not a generic to-do app: most tasks are derived from apartment/tax/bill facts rather than manually created.
+- The rent → tax → deadline workflow is primary; the Pulpit and reminders support it.
+- Do not expand generic task/reminder management unless explicitly requested and supported by user demand.
 - Notifications lead to contextual actions; tasks remain visible if OS notifications are dismissed or unavailable.
 - Prefer “Sprawdź wpłatę” / “Do potwierdzenia” over asserting an unpaid tenant debt.
 - Expected rent is not taxable income; only actual confirmed receipts feed the tax calculation.
@@ -47,16 +55,17 @@ Competitor layouts and flows are references, not templates. Do not copy propriet
 
 ## Boundaries
 
-Not Investory (no portfolio analytics, valuations or retirement planning); not `ryczalt_it` (no JDG/VAT/KSeF accounting); not a full property manager (no tenant accounts, messaging, document repository or maintenance tickets). No backend, bank sync, auto payment confirmation or cloud push in the MVP.
+No backend, bank sync, automatic payment confirmation or cloud sync. Annual/PIT-28 verification summary and local JSON backup/restore are near-term roadmap priorities, not current functionality. Electronic PIT-28 submission is explicitly out of scope. Investory integration remains a later/optional idea.
 
-PIT-28 annual reporting, backup/import/export and Investory integration are **parked for a later phase**, not implied by the MVP or any unshipped milestone.
+Not Investory (no portfolio analytics, valuations or retirement planning); not `ryczalt_it` (no JDG/VAT/KSeF accounting); not a full property manager (no tenant accounts, messaging, document repository or maintenance tickets).
 
 ## Status
 
 - **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, rent history, recurring bills, agreement reminders, apartment links, local notification scheduling, one-time/monthly/yearly custom reminders and compact statistics.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
 - **Implemented:** guided setup derived from apartment configuration.
-- **Functional scope complete:** the 0.4 personal assistant includes recurring custom reminders. This does not establish private-beta readiness.
-- **Parked:** PIT-28, JSON backup/import/export and Investory integration.
+- **Functional scope complete:** 0.4 includes recurring custom reminders. This does not establish private-beta readiness.
+- **Upcoming:** year-to-date/annual tax summaries, annual/PIT-28 verification readiness, and local JSON backup/restore; see [ROADMAP](ROADMAP.md). These are not implemented yet.
+- **Later/optional:** Investory integration and P3 features without demonstrated user demand.
 
 See [MVP](MVP.md) for current acceptance scope and [ROADMAP](ROADMAP.md) for delivery state. Milestones are not published releases.

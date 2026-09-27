@@ -24,5 +24,6 @@ This file records **delivered and verified changes**, not roadmap promises.
 
 - Updated MVP, notification and user-flow documentation for recurring-bill partial payments and period-aware confirmation.
 - Documented the local-first product boundaries, architecture, data/migration contract, calculation expectations, competitive patterns and release gates.
+- Repositioned product and roadmap documentation around confirmed rent, tax calculation, payment deadlines, annual verification readiness and local backup/restore priorities; clarified that PIT-28 filing and backup/restore are not implemented.
 
 All entries remain **unreleased** until a versioned release is explicitly tagged. Proposed roadmap milestones are not app versions or published releases.

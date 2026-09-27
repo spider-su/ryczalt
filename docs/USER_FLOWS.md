@@ -1,6 +1,6 @@
 # Canonical user flows
 
-These are **target flows** for implementation and acceptance testing, not claims of currently available screens.
+These describe implemented flows except sections explicitly labeled **target future flow**; those sections are planned behavior, not claims about current screens.
 
 ## 0. Guided setup
 
@@ -31,6 +31,14 @@ User enters title, optional apartment, anchor date, note and recurrence: one-tim
 ## 6. Monthly apartment overview
 
 Select apartment/month → show expected rent for that period, confirmed receipts, remaining amount to check, nearby agreement/bill tasks and useful links → contextual quick actions open payment confirmation or external portal. Do not mix expected rent into confirmed-income statistics.
+
+## 7. Year-end review / PIT-28 verification — target future flow
+
+Confirmed receipts for the selected tax year → annual taxable-income summary → tax calculated under the supported rules → confirmed tax payments totaled → annual difference shown → user verifies the figures against Twój e-PIT/PIT-28. This summary is planned for milestone 0.6/0.7 and is not implemented yet. It supports verification and recordkeeping; the app does not submit an electronic return.
+
+## 8. Backup / restore — target future flow
+
+Export local data to JSON → user stores the file outside the app → after reinstall/device change, select the file to restore → validate schema, dates, references and monetary values before import → show outcome and preserve the existing document if validation fails. This is planned for milestone 0.7 and is not implemented yet. No cloud backup is implied.
 
 ## Cross-cutting behavior
 

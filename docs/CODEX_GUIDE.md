@@ -6,7 +6,7 @@ Use this document as the default context for implementation tasks in this reposi
 
 - **Implemented:** Pulpit and three supporting tabs; schema-v4 local persistence/migrations; confirmed income and tax/bill payments; effective-month rents; shared tax engine and task projection; local reminders; apartment links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
-- **Parked:** PIT-28, JSON backup/import/export and Investory integration.
+- **Upcoming priorities:** year-to-date/annual tax and PIT-28 verification summary, and local JSON backup/restore. These are not implemented. Investory integration remains later/optional.
 
 Source code and tests on the checked-out branch are authoritative; these labels should be revisited when code changes.
 
@@ -30,7 +30,7 @@ Do not reimplement something that already exists under a different name.
 
 ## 2. Product invariant
 
-**Ryczałt remembers; the user confirms.**
+**Ryczałt helps the user confirm income, calculate tax, meet the deadline and prepare annual figures. The user confirms real-world payments.**
 
 The app may derive what should be checked, calculate what can be calculated and schedule reminders, but it must not claim a real-world financial event occurred without explicit confirmation.
 
@@ -181,9 +181,13 @@ No competitor screen should be copied. Adapt only interaction patterns documente
 
 ## 10. Scope guardrails
 
-Park unless a task explicitly changes scope:
-- PIT-28 annual summary;
-- JSON backup/import/export;
+Product priority is confirmed income → ryczałt calculation → payment deadline → annual settlement readiness. Apartment setup, expected rent, reminders, tax payment details and local backup/restore support that job. Recurring bills, links, agreement reminders and light statistics are conveniences. Do not let them displace the core workflow.
+
+Do not implement upcoming features unless they are explicitly in scope for the task:
+- year-to-date/annual tax summary and PIT-28 verification readiness (upcoming 0.6/0.7; not electronic filing);
+- local JSON backup/import/restore (upcoming 0.7; not cloud backup).
+
+Do not expand generic reminders or task management unless explicitly requested and supported by user demand. Keep these lower-priority ideas parked:
 - Investory integration;
 - bank synchronization;
 - OCR;
