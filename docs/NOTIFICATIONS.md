@@ -1,12 +1,12 @@
 # Tasks and local notifications — target design
 
-**Status:** rent, agreement, tax, recurring-bill and one-time custom reminders are projected from local records. In-app status is primary; local OS notifications are disposable projections. Guided setup and recurring custom reminders are not implemented.
+**Status:** rent, agreement, tax, recurring-bill and one-time/monthly/yearly custom reminder occurrences are projected from local records. In-app status is primary; local OS notifications are disposable projections. Guided setup is implemented. Device delivery still needs physical-device verification.
 
 ## Categories
 
 `TENANT_PAYMENT_CHECK`, `TAX_PAYMENT`, `RECURRING_BILL`, `RENTAL_AGREEMENT_END`, `CUSTOM_REMINDER`.
 
-Stable identity: category + source ID + relevant rental/tax/bill period or agreement event. Avoid duplicate instances after restart.
+Stable identity: category + source ID + relevant rental/tax/bill period or agreement event. Personal reminder occurrences use `CUSTOM_REMINDER:<id>:<YYYY-MM-DD>`; one-time reminders retain the legacy `CUSTOM_REMINDER:<id>` identity so existing completion/snooze state survives migration. Avoid duplicate instances after restart.
 
 ## Lifecycle
 
@@ -30,7 +30,7 @@ OS notification title/body use generic wording; never put tenant, property, bill
 
 Tax reminders are projected from the tax calculator and outstanding manually-paid balance; changing receipts or tax payments changes the next reconciliation. Rent expectations never enter taxable income. Payment QR generation is deferred: a reliable Polish banking format and compatibility claim have not been established. Payment-detail copy actions remain available.
 
-Custom reminders are one-time only. Monthly/yearly custom recurrence is planned, not implemented.
+Monthly/yearly reminder definitions are stored once and projected as the current period's occurrence plus the nearest next occurrence. Notifications are scheduled per occurrence through reconciliation, not OS repeating triggers. Snoozing or completing one occurrence does not change the anchor or the next occurrence. Month-end dates clamp to the month's last day; yearly February 29 uses February 28 in non-leap years.
 
 ## Anti-spam
 

@@ -1,6 +1,6 @@
 # MVP — personal landlord assistant
 
-The functional MVP target is the user-facing assistant experience described here; **this is not a list of features already shipped**. Current implementation is the three-tab rental foundation on PR #1; tax calculation, Pulpit, notifications, bills and links are not part of that baseline.
+This document defines the functional MVP acceptance scope. The 0.1–0.4 user-facing flows are implemented in the current assistant line; physical-device verification, signing and distribution remain separate 0.5 readiness work. No public release is implied.
 
 ## Core user outcomes and acceptance
 
@@ -11,7 +11,7 @@ The functional MVP target is the user-facing assistant experience described here
 5. **Remember dates:** local reminders for rent checks, tax, recurring bills and optional rental agreement end date (default 30/7-day options). End date replaces tenancy start as primary visible agreement field; indefinite agreements supported. Preserve legacy start date.
 6. **Handle recurring apartment bills:** support fixed and variable recurring obligations. Fixed amounts may be prefilled; variable obligations remind the user to verify the current amount in the relevant portal or bill.
 7. **Use relevant services:** user-supplied per-apartment administrator portal and optional categorized utility links; open externally without credentials, scraping or implicit completion.
-8. **Use small personal reminders:** one-time, monthly or yearly reminder with title, optional apartment and note. Do not become a generic task manager.
+8. **Use small personal reminders:** create one-time, monthly or yearly reminders with a title, optional apartment and note. Monthly dates clamp to the target month's last day; a yearly February 29 reminder occurs on February 28 in non-leap years and returns to February 29 in leap years. Completion, dismissal and snooze apply to one occurrence. Do not become a generic task manager.
 9. **Understand the month:** compact confirmed income, amount left to check, tax remaining and attention count; six-month income history and per-apartment totals. No ROI or valuation.
 10. **Act quickly:** Pulpit quick actions prefill apartment/month/remaining expected rent but require manual confirmation. Snooze alters reminder time, not legal/payment due date.
 

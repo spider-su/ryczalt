@@ -17,7 +17,7 @@ import {
 } from "../domain/rentalValidation";
 import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 
-export const RENTAL_DOCUMENT_SCHEMA_VERSION = 3;
+export const RENTAL_DOCUMENT_SCHEMA_VERSION = 4;
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
 export const DEFAULT_TAX_YEAR = Math.max(...SUPPORTED_TAX_YEARS);
 
@@ -81,12 +81,13 @@ export async function saveRentalDocument(
 function validateRentalDocument(data: unknown): RentalDocument {
   if (!isRecord(data))
     throw corrupted("Local rental document must be a JSON object.");
-  if (data.schemaVersion !== 1 && data.schemaVersion !== 2 && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
+  if (data.schemaVersion !== 1 && data.schemaVersion !== 2 && data.schemaVersion !== 3 && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
     throw new RentalStoreError(
       "UNSUPPORTED_VERSION",
       "Local rental document schema version is not supported.",
     );
   }
+  const reminderRecurrenceIsLegacy = data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION;
 
   const settings = data.settings;
   if (
@@ -127,7 +128,7 @@ function validateRentalDocument(data: unknown): RentalDocument {
   const recurringBills = data.recurringBills === undefined ? [] : validateArray(data.recurringBills, validateRecurringBill, "recurringBills");
   const billPayments = data.billPayments === undefined ? [] : validateArray(data.billPayments, validateBillPayment, "billPayments");
   const propertyLinks = data.propertyLinks === undefined ? [] : validateArray(data.propertyLinks, validatePropertyLink, "propertyLinks");
-  const customReminders = data.customReminders === undefined ? [] : validateArray(data.customReminders, validateCustomReminder, "customReminders");
+  const customReminders = migrateCustomReminders(data.customReminders, reminderRecurrenceIsLegacy);
   const taskStates = data.taskStates === undefined ? [] : validateArray(data.taskStates, validateTaskState, "taskStates");
 
   try {
@@ -203,9 +204,17 @@ function validatePropertyLink(value: unknown): PropertyLink {
   return { id: value.id, propertyId: value.propertyId, label: value.label, url: value.url, ...(optionalString(value.category) ? { category: value.category as PropertyLink["category"] } : {}) };
 }
 
-function validateCustomReminder(value: unknown): CustomReminder {
+function validateCustomReminder(value: unknown, migrateMissingRecurrence = false): CustomReminder {
   if (!isRecord(value) || !isStableId(value.id) || !isNonEmptyString(value.title) || !isNonEmptyString(value.dueDate)) throw corrupted("Custom reminder entry is invalid.");
-  return { id: value.id, title: value.title, dueDate: value.dueDate, ...(optionalString(value.propertyId) ? { propertyId: value.propertyId } : {}), ...(optionalString(value.note) ? { note: value.note } : {}) };
+  const recurrence = value.recurrence ?? (migrateMissingRecurrence ? "ONCE" : undefined);
+  if (recurrence !== "ONCE" && recurrence !== "MONTHLY" && recurrence !== "YEARLY") throw corrupted("Custom reminder recurrence is invalid.");
+  return { id: value.id, title: value.title, dueDate: value.dueDate, recurrence, ...(optionalString(value.propertyId) ? { propertyId: value.propertyId } : {}), ...(optionalString(value.note) ? { note: value.note } : {}) };
+}
+
+/** Legacy reminder records in schemas 1–3 lacked recurrence and mean ONCE. */
+function migrateCustomReminders(value: unknown, legacySchema: boolean): CustomReminder[] {
+  if (value === undefined) return [];
+  return validateArray(value, (reminder) => validateCustomReminder(reminder, legacySchema), "customReminders");
 }
 
 function validateTaskState(value: unknown): TaskState {

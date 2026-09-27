@@ -1,4 +1,5 @@
 import { calculateSettlements, formatPln, moneyToGrosz } from "./ryczaltTax";
+import { customReminderTaskId, recurrenceLabel, reminderOccurrenceDates } from "./customReminders";
 import { isRentalMonth } from "./rentalValidation";
 import type { Property, RentalDocument, TaskState } from "../model/rental";
 
@@ -128,12 +129,16 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
 
   {
     for (const reminder of document.customReminders) {
-      const dueAt = localDate(reminder.dueDate);
-      tasks.push(makeTask(document, now, {
-        id: `CUSTOM_REMINDER:${reminder.id}`, type: "CUSTOM_REMINDER", title: reminder.title,
-        detail: [reminder.note, reminder.propertyId ? document.properties.find((p) => p.id === reminder.propertyId)?.name : undefined].filter(Boolean).join(" · "),
-        propertyId: reminder.propertyId, dueAt, notificationAt: dueAt, resolved: false, manuallyCompletable: true,
-      }));
+      for (const date of reminderOccurrenceDates(reminder, now)) {
+        const dueAt = localDate(date);
+        const propertyName = reminder.propertyId ? document.properties.find((p) => p.id === reminder.propertyId)?.name : undefined;
+        const recurringContext = reminder.recurrence === "ONCE" ? undefined : recurrenceLabel(reminder.recurrence, reminder.dueDate);
+        tasks.push(makeTask(document, now, {
+          id: customReminderTaskId(reminder, date), type: "CUSTOM_REMINDER", title: reminder.title,
+          detail: [recurringContext, reminder.note, propertyName].filter(Boolean).join(" · "),
+          propertyId: reminder.propertyId, period: date, dueAt, notificationAt: dueAt, resolved: false, manuallyCompletable: true,
+        }));
+      }
     }
   }
   return tasks.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());

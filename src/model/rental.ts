@@ -31,12 +31,15 @@ export type PropertyLink = {
   category?: "ADMINISTRATION" | "UTILITY" | "TAX" | "OTHER";
 };
 
+export type ReminderRecurrence = "ONCE" | "MONTHLY" | "YEARLY";
+
 export type CustomReminder = {
   id: string;
   title: string;
   propertyId?: string;
   dueDate: string;
   note?: string;
+  recurrence: ReminderRecurrence;
 };
 
 export type TaskState = {
@@ -86,7 +89,7 @@ export type TaxPayment = {
 };
 
 export type RentalDocument = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   properties: Property[];
   incomeEntries: IncomeEntry[];
   taxPayments: TaxPayment[];

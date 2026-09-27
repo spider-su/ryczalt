@@ -7,7 +7,7 @@ import { deriveTasks, rentMonthAmounts, taskNotificationPlan } from "./tasks";
 const now = new Date(2026, 8, 26, 12);
 function document(): RentalDocument {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     properties: [{ id: "p1", name: "Parkowa", tenantName: "Anna", defaultMonthlyRent: "3000.00",
       rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
       expectedPaymentDay: 10, paymentReminderEnabled: true, rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
@@ -100,7 +100,7 @@ describe("assistant workflows across domain modules", () => {
   it("deletes apartment-linked obligations safely and detaches personal reminders", () => {
     const doc = document();
     doc.propertyLinks = [{ id: "link", propertyId: "p1", label: "Media", url: "https://utility.example.test" }];
-    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", propertyId: "p1", dueDate: "2026-10-01" }];
+    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", propertyId: "p1", dueDate: "2026-10-01", recurrence: "ONCE" }];
     doc.taskStates = [
       { taskId: "TENANT_PAYMENT_CHECK:p1:2026-09", dismissedAt: now.toISOString() },
       { taskId: "RECURRING_BILL:fixed:2026-09", snoozedUntil: now.toISOString() },

@@ -2,7 +2,7 @@
 
 **Twój osobisty asystent najmu.** Ryczałt is a local-first Expo mobile application for Polish private landlords: see what needs attention, record money actually received, review rental tax and open useful property-related services. The product direction is a lightweight personal assistant, **not** a full property-management platform.
 
-> **Implementation status:** PR #5 and its native-readiness follow-up are under review; the four-tab assistant MVP is not yet merged to `develop`. Guided setup and recurring custom reminders remain planned; real-device notification and release checks remain pending. Roadmap milestones do not imply published app versions.
+> **Implementation status:** the assistant MVP and guided setup are merged to `main` and `develop`. This branch adds monthly/yearly personal reminder recurrence and migrates existing reminders to one-time recurrence. Functional 0.4 scope is complete after this change; physical-device, signing and distribution checks remain 0.5 work. Roadmap milestones do not imply published app versions.
 
 ## Documentation
 
@@ -23,7 +23,7 @@
 
 Expo SDK 57, React Native 0.86, React 19, TypeScript, AsyncStorage, Vitest and ESLint. The versioned local document holds apartments, manually confirmed income and tax-payment records, recurring bills, and separately confirmed bill payments. It includes a local ryczałt calculation and settlement flow. Monetary values are PLN decimal strings; avoid floating-point money calculations.
 
-Local storage key: `pl.ryczalt.rental.localDocument.v1`; current schema is version 3. Schema versions 1 and 2 migrate directly to version 3 while retaining apartments, tenant snapshots, confirmed income/tax/bill payments, and existing reminder preferences. Version 3 includes effective-month rent rates, property links, one-time personal reminders and persisted task interaction state. Invalid/corrupt or unsupported documents produce errors, not silent resets. The app does not detect bank transfers or confirm income, tax, or bill payments automatically.
+Local storage key: `pl.ryczalt.rental.localDocument.v1`; current schema is version 4. Schema versions 1–3 migrate to version 4 while retaining apartments, tenant snapshots, confirmed income/tax/bill payments, and existing reminder preferences. Existing personal reminders become `ONCE`; new reminders may repeat monthly or yearly. Recurring occurrences and their task state are projected independently from the single saved reminder definition. Invalid/corrupt or unsupported documents produce errors, not silent resets. The app does not detect bank transfers or confirm income, tax, or bill payments automatically.
 
 Native reminders are opt-in, categorized, reconciled from current local data, and scheduled for 09:00 in device-local time. Web keeps in-app reminders/status but does not schedule OS notifications. Payment details support copy actions; a Polish-bank-compatible QR format is deliberately deferred pending reliable compatibility verification. See [notification behavior](docs/NOTIFICATIONS.md), [data model](docs/DATA_MODEL.md), and [tax rules](docs/TAX_RULES.md).
 

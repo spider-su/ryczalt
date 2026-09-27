@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 4,
+  "properties": [
+    { "id": "property-current", "name": "Parkowa 12", "defaultMonthlyRent": "3500.00", "rentSchedule": [{ "effectiveFrom": "2025-01", "amount": "3000.00" }, { "effectiveFrom": "2026-04", "amount": "3500.00" }], "tenantName": "Joanna Nowak", "expectedPaymentDay": 10, "paymentReminderEnabled": true, "rentalEndDate": "2026-12-31", "rentalEndReminderDays": [30, 7], "administratorPortalUrl": "https://admin.example.test" }
+  ],
+  "incomeEntries": [
+    { "id": "income-current", "propertyId": "property-current", "receivedAt": "2026-09-12", "amount": "3500.00", "taxableAmount": "3300.00", "rentalMonth": "2026-09", "tenantNameSnapshot": "Joanna Nowak" }
+  ],
+  "taxPayments": [{ "id": "tax-current", "period": "2026-09", "paidAt": "2026-10-19", "amount": "280.50" }],
+  "recurringBills": [{ "id": "bill-current", "propertyId": "property-current", "name": "Prąd", "reminderEnabled": true, "variableAmount": true, "dueDay": 20, "bankAccount": "61109010140000071219812874" }],
+  "billPayments": [{ "id": "bill-payment-current", "billId": "bill-current", "period": "2026-09", "paidAt": "2026-09-18", "amount": "220.00" }],
+  "propertyLinks": [{ "id": "link-current", "propertyId": "property-current", "label": "Dostawca energii", "url": "https://energy.example.test", "category": "UTILITY" }],
+  "customReminders": [{ "id": "reminder-current", "title": "Odczyt licznika", "propertyId": "property-current", "dueDate": "2026-10-05", "note": "Stan licznika", "recurrence": "ONCE" }],
+  "taskStates": [{ "taskId": "CUSTOM_REMINDER:reminder-current", "snoozedUntil": "2026-10-06T07:00:00.000Z" }],
+  "settings": { "taxYear": 2026, "settlementMode": "monthly", "jointSpouseThreshold": false, "quarterlyEligible": false, "reminderCategories": { "rent": true, "agreements": true, "tax": true, "bills": true, "custom": true }, "taxRecipientName": "Urząd Skarbowy", "taxMicroAccount": "61109010140000071219812874" }
+}

@@ -8,7 +8,8 @@ import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
 import { setupActionIntent } from "../navigation/setupIntent";
 import { recurringBillTaskIntent } from "../navigation/billIntent";
-import type { CustomReminder, Property } from "../model/rental";
+import type { CustomReminder, Property, ReminderRecurrence } from "../model/rental";
+import { deleteCustomReminder, findCustomReminderForTask, recurrenceLabel, saveCustomReminder } from "../domain/customReminders";
 import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { TaskRow } from "../components/pulpit/TaskRow";
@@ -30,6 +31,8 @@ export function PulpitScreen() {
   const [customDate, setCustomDate] = useState(todayIsoDate());
   const [customNote, setCustomNote] = useState("");
   const [customPropertyId, setCustomPropertyId] = useState("");
+  const [customReminderId, setCustomReminderId] = useState("");
+  const [customRecurrence, setCustomRecurrence] = useState<ReminderRecurrence>("ONCE");
   const [customTaskDone, setCustomTaskDone] = useState(false);
   const [customTaskId, setCustomTaskId] = useState("");
   const tasks = useMemo(() => document ? deriveTasks(document) : [], [document]);
@@ -38,9 +41,9 @@ export function PulpitScreen() {
   useEffect(() => {
     const taskId = (route.params as { taskId?: string } | undefined)?.taskId;
     if (!document || !taskId) return;
-    const reminder = document.customReminders.find((item) => `CUSTOM_REMINDER:${item.id}` === taskId);
+    const reminder = findCustomReminderForTask(document.customReminders, taskId);
     if (reminder) {
-      setCustomTaskId(taskId); setCustomTaskDone(false); setCustomTitle(reminder.title); setCustomDate(reminder.dueDate);
+      setCustomTaskId(taskId); setCustomReminderId(reminder.id); setCustomTaskDone(false); setCustomTitle(reminder.title); setCustomDate(reminder.dueDate); setCustomRecurrence(reminder.recurrence);
       setCustomNote(reminder.note ?? ""); setCustomPropertyId(reminder.propertyId ?? ""); setCustomOpen(true);
     }
     navigation.setParams({ taskId: undefined });
@@ -84,10 +87,12 @@ export function PulpitScreen() {
     else if (task.type === "RENTAL_AGREEMENT_END") navigation.navigate("Ustawienia", { propertyId: task.propertyId });
     else {
       setCustomTaskId(task.id);
+      const reminder = findCustomReminderForTask(document.customReminders, task.id);
+      setCustomReminderId(reminder?.id ?? "");
       setCustomTaskDone(task.status === "completed");
-      const reminder = document.customReminders.find((item) => `CUSTOM_REMINDER:${item.id}` === task.id);
       setCustomTitle(reminder?.title ?? task.title);
       setCustomDate(reminder?.dueDate ?? localIso(task.dueAt));
+      setCustomRecurrence(reminder?.recurrence ?? "ONCE");
       setCustomNote(reminder?.note ?? "");
       setCustomPropertyId(reminder?.propertyId ?? "");
       setCustomOpen(true);
@@ -112,19 +117,16 @@ export function PulpitScreen() {
   };
   const openCustom = () => {
     setCustomTaskDone(false); setCustomTaskId(""); setCustomTitle(""); setCustomDate(todayIsoDate()); setCustomNote("");
-    setCustomPropertyId(""); setCustomOpen(true);
+    setCustomPropertyId(""); setCustomReminderId(""); setCustomRecurrence("ONCE"); setCustomOpen(true);
   };
   const saveCustom = async () => {
     if (!customTitle.trim() || !isValidCalendarDate(customDate)) {
       Alert.alert("Sprawdź przypomnienie", "Wpisz tytuł i prawidłową datę RRRR-MM-DD."); return;
     }
-    const item: CustomReminder = { id: customTaskId ? customTaskId.replace("CUSTOM_REMINDER:", "") : createId("reminder"), title: customTitle.trim(), dueDate: customDate,
+    const item: CustomReminder = { id: customReminderId || createId("reminder"), title: customTitle.trim(), dueDate: customDate, recurrence: customRecurrence,
       ...(customPropertyId ? { propertyId: customPropertyId } : {}), ...(customNote.trim() ? { note: customNote.trim() } : {}) };
     try {
-      await update((current) => ({ ...current,
-        customReminders: customTaskId ? current.customReminders.map((reminder) => reminder.id === item.id ? item : reminder) : [...current.customReminders, item],
-        taskStates: customTaskId ? current.taskStates.filter((state) => state.taskId !== customTaskId) : current.taskStates,
-      }));
+      await update((current) => saveCustomReminder(current, item, customTaskId || undefined));
       setCustomOpen(false);
     } catch { /* The data provider surfaces save failures. */ }
   };
@@ -258,11 +260,15 @@ export function PulpitScreen() {
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={smallLabel}>Tytuł</Text><TextInput accessibilityLabel="Tytuł przypomnienia" value={customTitle} onChangeText={setCustomTitle} style={input} />
           <Text style={smallLabel}>Termin (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Termin przypomnienia" value={customDate} onChangeText={setCustomDate} style={input} />
+          <Text style={smallLabel}>Powtarzanie</Text><View style={chartFilter}>{([
+            ["ONCE", "Jednorazowo"], ["MONTHLY", "Co miesiąc"], ["YEARLY", "Co rok"],
+          ] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: customRecurrence === value }} onPress={() => setCustomRecurrence(value)} style={[filterButton, customRecurrence === value && selectedFilter]}><Text style={filterText}>{label}</Text></Pressable>)}</View>
+          {customRecurrence !== "ONCE" && isValidCalendarDate(customDate) ? <Text style={muted}>{recurrenceLabel(customRecurrence, customDate)}</Text> : null}
           <Text style={smallLabel}>Mieszkanie (opcjonalnie)</Text><View style={chartFilter}>{document.properties.map((property) => <Pressable key={property.id} accessibilityRole="radio" accessibilityState={{ checked: customPropertyId === property.id }} onPress={() => setCustomPropertyId(customPropertyId === property.id ? "" : property.id)} style={[filterButton, customPropertyId === property.id && selectedFilter]}><Text style={filterText}>{property.name}</Text></Pressable>)}</View>
           <Text style={smallLabel}>Notatka (opcjonalnie)</Text><TextInput accessibilityLabel="Notatka przypomnienia" value={customNote} onChangeText={setCustomNote} multiline style={[input, { minHeight: 88, textAlignVertical: "top" }]} />
           {customTaskId ? <><Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={secondaryButton}><Text style={buttonText}>Zapisz zmiany</Text></Pressable>
             {!customTaskDone ? <Pressable accessibilityRole="button" onPress={() => { setState(customTaskId, { completedAt: new Date().toISOString() }); setCustomOpen(false); }} style={secondaryButton}><Text style={buttonText}>Oznacz jako załatwione</Text></Pressable> : null}
-            <Pressable accessibilityRole="button" onPress={() => Alert.alert("Usunąć przypomnienie?", customTitle, [{ text: "Anuluj", style: "cancel" }, { text: "Usuń", style: "destructive", onPress: () => { const id = customTaskId.replace("CUSTOM_REMINDER:", ""); void update((current) => ({ ...current, customReminders: current.customReminders.filter((item) => item.id !== id), taskStates: current.taskStates.filter((item) => item.taskId !== customTaskId) })).catch(() => undefined); setCustomOpen(false); } }])} style={destructiveButton}><Text style={dangerText}>Usuń przypomnienie</Text></Pressable></>
+            <Pressable accessibilityRole="button" onPress={() => Alert.alert("Usunąć przypomnienie?", customTitle, [{ text: "Anuluj", style: "cancel" }, { text: "Usuń", style: "destructive", onPress: () => { const id = customReminderId; void update((current) => deleteCustomReminder(current, id)).catch(() => undefined); setCustomOpen(false); } }])} style={destructiveButton}><Text style={dangerText}>Usuń przypomnienie</Text></Pressable></>
             : <Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={primaryButton}><Text style={primaryText}>Zapisz przypomnienie</Text></Pressable>}
         </ScrollView>
       </View>
