@@ -1,4 +1,4 @@
-import type { IncomeEntry, Property } from "../model/rental";
+import type { IncomeEntry, Property, RentalDocument } from "../model/rental";
 import {
   isRentalMonth,
   RentalValidationError,
@@ -52,6 +52,26 @@ export function editIncomeEntry(
     ...(input.description?.trim()
       ? { description: input.description.trim() }
       : { description: undefined }),
+  };
+}
+
+export function removePropertyData(document: RentalDocument, propertyId: string): RentalDocument {
+  if (document.incomeEntries.some((entry) => entry.propertyId === propertyId))
+    throw new RentalValidationError("Properties with confirmed income history cannot be deleted.");
+  const billIds = new Set(document.recurringBills.filter((bill) => bill.propertyId === propertyId).map((bill) => bill.id));
+  return {
+    ...document,
+    properties: document.properties.filter((property) => property.id !== propertyId),
+    recurringBills: document.recurringBills.filter((bill) => bill.propertyId !== propertyId),
+    billPayments: document.billPayments.filter((payment) => !billIds.has(payment.billId)),
+    propertyLinks: document.propertyLinks.filter((link) => link.propertyId !== propertyId),
+    customReminders: document.customReminders.map((reminder) => reminder.propertyId === propertyId
+      ? { ...reminder, propertyId: undefined }
+      : reminder),
+    taskStates: document.taskStates.filter((state) =>
+      !state.taskId.startsWith(`TENANT_PAYMENT_CHECK:${propertyId}:`) &&
+      !state.taskId.startsWith(`RENTAL_AGREEMENT_END:${propertyId}:`) &&
+      ![...billIds].some((billId) => state.taskId.startsWith(`RECURRING_BILL:${billId}:`))),
   };
 }
 

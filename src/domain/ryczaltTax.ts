@@ -4,6 +4,7 @@ export const RYCZALT_RULES = {
   2025: { lowerLimitPln: 100_000, lowerRate: 85, upperRate: 125 },
   2026: { lowerLimitPln: 100_000, lowerRate: 85, upperRate: 125 },
 } as const;
+export const SUPPORTED_TAX_YEARS = Object.keys(RYCZALT_RULES).map(Number) as (keyof typeof RYCZALT_RULES)[];
 
 export type SettlementMode = "monthly" | "quarterly";
 export type Settlement = {

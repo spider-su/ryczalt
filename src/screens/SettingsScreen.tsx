@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,8 @@ import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isValidCalendarDate, isValidH
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
+import type { SetupAction } from "../domain/setupProgress";
+import { setupActionField } from "../navigation/setupIntent";
 
 type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
   expectedPaymentDay: string;
@@ -54,7 +56,9 @@ export function SettingsScreen() {
   const { permission, requestPermission } = useReminders();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const propertyEditorScrollRef = useRef<ScrollView>(null);
   const [editing, setEditing] = useState<Property | null>(null);
+  const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(blankDraft);
   const [saving, setSaving] = useState(false);
@@ -76,12 +80,13 @@ export function SettingsScreen() {
     if (!document) return;
     setTaxRecipient(document.settings.taxRecipientName ?? "");
     setTaxAccount(document.settings.taxMicroAccount ?? "");
-    const params = route.params as { propertyId?: string; billId?: string } | undefined;
+    const params = route.params as { propertyId?: string; billId?: string; setupAction?: SetupAction } | undefined;
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     const bill = params?.billId ? document.recurringBills.find((item) => item.id === params.billId) : undefined;
-    if (property) openProperty(property);
+    if (params?.setupAction === "apartment" && !params.propertyId) openProperty(undefined, params.setupAction);
+    else if (property) openProperty(property, params?.setupAction);
     if (bill) setBillForDetails(bill);
-    if (params?.propertyId || params?.billId) navigation.setParams({ propertyId: undefined, billId: undefined });
+    if (params?.propertyId || params?.billId || params?.setupAction) navigation.setParams({ propertyId: undefined, billId: undefined, setupAction: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document]);
@@ -96,8 +101,9 @@ export function SettingsScreen() {
       <ActivityIndicator style={{ flex: 1 }} />
     );
 
-  const openProperty = (property?: Property) => {
+  const openProperty = (property?: Property, focus?: SetupAction) => {
     setEditing(property ?? null);
+    setSetupFocus(focus ?? null);
     setLinkDrafts(property ? document.propertyLinks.filter((link) => link.propertyId === property.id) : []);
     setLinkLabel(""); setLinkUrl(""); setLinkCategory("UTILITY");
     setModalOpen(true);
@@ -197,6 +203,7 @@ export function SettingsScreen() {
           : [...current.properties, property],
       }));
       setEditing(null);
+      setSetupFocus(null);
       setModalOpen(false);
     } catch {
       /* The provider reports the save failure. */
@@ -258,7 +265,10 @@ export function SettingsScreen() {
       placeholder?: string;
     } = {},
   ) => (
-    <View style={{ marginBottom: 14 }} key={key}>
+    <View style={{ marginBottom: 14 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
+      propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+      setSetupFocus(null);
+    } : undefined}>
       <Text
         style={{
           color: theme.colors.textSecondary,
@@ -612,6 +622,7 @@ export function SettingsScreen() {
               onPress={() => {
                 setModalOpen(false);
                 setEditing(null);
+                setSetupFocus(null);
               }}
               accessibilityRole="button"
               style={action}
@@ -620,6 +631,7 @@ export function SettingsScreen() {
             </Text>
           </View>
           <ScrollView
+            ref={propertyEditorScrollRef}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: 20 }}
           >
@@ -643,8 +655,18 @@ export function SettingsScreen() {
               })}
             </View>
             <Text style={sectionTitle}>Przypomnienie o czynszu</Text>
-            <Text style={fieldLabel}>Oczekiwany dzień płatności (1–31)</Text><TextInput accessibilityLabel="Oczekiwany dzień płatności" value={draft.expectedPaymentDay} onChangeText={(value) => setDraft((current) => ({ ...current, expectedPaymentDay: value }))} keyboardType="number-pad" placeholder="np. 10" style={inputStyle} />
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: draft.paymentReminderEnabled }} onPress={() => setDraft((current) => ({ ...current, paymentReminderEnabled: !current.paymentReminderEnabled }))} style={{ paddingVertical: 10 }}><Text style={muted}>{draft.paymentReminderEnabled ? "☑" : "□"} Przypominaj, aby sprawdzić wpłatę</Text></Pressable>
+            <View onLayout={setupFocus === "payment-day" ? (event) => {
+              propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+              setSetupFocus(null);
+            } : undefined}>
+              <Text style={fieldLabel}>Oczekiwany dzień płatności (1–31)</Text><TextInput accessibilityLabel="Oczekiwany dzień płatności" value={draft.expectedPaymentDay} onChangeText={(value) => setDraft((current) => ({ ...current, expectedPaymentDay: value }))} keyboardType="number-pad" placeholder="np. 10" style={inputStyle} />
+            </View>
+            <View onLayout={setupFocus === "payment-reminder" ? (event) => {
+              propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
+              setSetupFocus(null);
+            } : undefined}>
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: draft.paymentReminderEnabled }} onPress={() => setDraft((current) => ({ ...current, paymentReminderEnabled: !current.paymentReminderEnabled }))} style={{ paddingVertical: 10 }}><Text style={muted}>{draft.paymentReminderEnabled ? "☑" : "□"} Przypominaj, aby sprawdzić wpłatę</Text></Pressable>
+            </View>
             {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
             <Text style={sectionTitle}>Administracja</Text>
             {field("Nazwa administratora", "administratorName")}

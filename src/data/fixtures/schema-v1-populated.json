@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "properties": [
+    {
+      "id": "property-old",
+      "name": "Parkowa 12",
+      "address": "ul. Parkowa 12",
+      "defaultMonthlyRent": "2500.00",
+      "tenantName": "Anna Kowalska",
+      "tenantSince": "2024-03-01"
+    }
+  ],
+  "incomeEntries": [
+    {
+      "id": "income-old",
+      "propertyId": "property-old",
+      "receivedAt": "2025-02-10",
+      "amount": "2500.00",
+      "taxableAmount": "2500.00",
+      "rentalMonth": "2025-02",
+      "tenantNameSnapshot": "Anna Kowalska"
+    }
+  ],
+  "taxPayments": [
+    { "id": "tax-old", "period": "2025-02", "paidAt": "2025-03-20", "amount": "212.50" }
+  ],
+  "settings": { "taxYear": 2025 }
+}

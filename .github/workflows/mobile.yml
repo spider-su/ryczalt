@@ -5,20 +5,40 @@ on:
     paths:
       - 'src/**'
       - 'App.tsx'
+      - 'assets/**'
+      - 'public/**'
+      - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
       - 'app.json'
       - 'eas.json'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'vitest.config.mts'
+      - '.gitignore'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
       - '.github/workflows/**'
   push:
-    branches: [main]
+    branches: [develop, main]
     paths:
       - 'src/**'
       - 'App.tsx'
+      - 'assets/**'
+      - 'public/**'
+      - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
       - 'app.json'
       - 'eas.json'
+      - 'tsconfig.json'
+      - 'eslint.config.mjs'
+      - 'vitest.config.mts'
+      - '.gitignore'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'docs/**'
       - '.github/workflows/**'
 
 permissions:
@@ -31,7 +51,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -41,3 +61,6 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run ci
+      - run: npx expo-doctor
+      - run: npx expo export --platform web
+      - run: npx expo prebuild --no-install --platform android

@@ -13,7 +13,7 @@ Taxable receipts are grouped by the actual receipt date, summed across apartment
 
 The payment deadline is the 20th day of the next month, or the month after quarter end, with December/fourth-quarter payments due in January. A deadline falling on a Saturday, Sunday, or Polish public holiday moves to the next working day. Quarterly settlement is shown only after the user confirms eligibility; the app does not independently establish eligibility from tax records. One statutory eligibility route uses a prior-year revenue ceiling of EUR 200,000. The PLN equivalent is year-specific (PLN 856,920 for 2025; PLN 851,720 for 2026), and the taxpayer must verify all conditions that apply to them.
 
-The engine does not calculate personal deductions or prepare PIT-28. Therefore the result is a recordkeeping estimate from the taxable amounts the user enters, not a complete tax return calculation.
+Implementation alignment: `RYCZALT_RULES` supports only 2025 and 2026, the settings/document validator accepts those supported years, and the settlement screen reports other years as unavailable. The `jointSpouseThreshold` setting is a user-confirmed condition, not an eligibility determination. The engine does not calculate personal deductions or prepare PIT-28. Therefore the result is a recordkeeping estimate from the taxable amounts the user enters, not a complete tax return calculation.
 
 ## Official sources
 

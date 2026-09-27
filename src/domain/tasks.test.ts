@@ -61,4 +61,17 @@ describe("personal assistant tasks", () => {
     doc.taxPayments = [{ id: "t1", period: "2026-01", paidAt: "2026-02-20", amount: "850.00" }];
     expect(deriveTasks(doc, new Date(2026, 8, 26)).find((task) => task.id === taxId)?.status).toBe("completed");
   });
+
+  it("keeps rent and bill tasks in-app while honoring their notification switches", () => {
+    const doc = document();
+    doc.properties[0]!.paymentReminderEnabled = false;
+    doc.recurringBills = [{ id: "electricity", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false }];
+    const now = new Date(2026, 8, 26, 12);
+    const tasks = deriveTasks(doc, now);
+    expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-09")).toBe(true);
+    expect(tasks.some((task) => task.id === "RECURRING_BILL:electricity:2026-09")).toBe(true);
+    const plan = taskNotificationPlan(doc, now);
+    expect(plan.some((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-09")).toBe(false);
+    expect(plan.some((item) => item.key === "RECURRING_BILL:electricity:2026-09")).toBe(false);
+  });
 });

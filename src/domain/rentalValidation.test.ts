@@ -122,4 +122,17 @@ describe("rental validation and operations", () => {
     };
     expect(() => validateRentalDocumentShape(document)).toThrow();
   });
+
+  it("rejects unsupported tax years, invalid rent effective periods, and malformed task state", () => {
+    const valid: RentalDocument = {
+      schemaVersion: 3, properties: [{ ...property, rentSchedule: [{ effectiveFrom: "2026-09", amount: "0.00" }] }],
+      incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], propertyLinks: [], customReminders: [],
+      taskStates: [{ taskId: "CUSTOM_REMINDER:r1", snoozedUntil: "2026-09-27T08:00:00.000Z" }],
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+    };
+    expect(() => validateRentalDocumentShape(valid)).not.toThrow();
+    expect(() => validateRentalDocumentShape({ ...valid, settings: { ...valid.settings, taxYear: 2027 } })).toThrow(/Tax year/);
+    expect(() => validateRentalDocumentShape({ ...valid, properties: [{ ...valid.properties[0]!, rentSchedule: [{ effectiveFrom: "2026-13", amount: "10.00" }] }] })).toThrow(/Rent schedule/);
+    expect(() => validateRentalDocumentShape({ ...valid, taskStates: [{ taskId: "not-a-task", dismissedAt: "2026-09-27" }] })).toThrow(/Task state/);
+  });
 });

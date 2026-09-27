@@ -4,7 +4,7 @@ The functional MVP target is the user-facing assistant experience described here
 
 ## Core user outcomes and acceptance
 
-1. **Complete setup once:** guided setup helps add an apartment, expected rent, payment day, current tenant, agreement end date/reminders and administrator portal. The setup checklist disappears when complete.
+1. **Configure apartments:** Settings supports apartment, expected rent/payment day, tenant, agreement end date/reminders, administrator portal and useful links. Pulpit derives temporary setup guidance from saved apartment data, shows one next action, and reuses the existing Settings editor. Required completion is based on apartment name, expected rent and payment day; tenant, agreement date and portal stay optional. An optional rent-reminder suggestion never turns itself on.
 2. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; OS notification dismissal does not erase tasks. Empty state is useful.
 3. **Check rent:** configure an expected rent schedule/day per apartment, open a contextual reminder, manually record actual receipt date and amount, support partial receipts and show remaining amount *to confirm*. No inferred arrears or auto-created income.
 4. **Review tax:** compute verified private-rental ryczałt using actual taxable receipts; support applicable settlement periods and deadlines, manual tax payments and outstanding balance. Corrected receipts/payments update the obligation and tasks.

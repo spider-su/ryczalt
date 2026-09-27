@@ -149,6 +149,8 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
   return deriveTasks(document, now).flatMap((task) => {
     const category = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bills", RENTAL_AGREEMENT_END: "agreements", CUSTOM_REMINDER: "custom" } as const)[task.type];
     if (!document.settings.reminderCategories[category]) return [];
+    if (task.type === "TENANT_PAYMENT_CHECK" && !document.properties.find((property) => property.id === task.propertyId)?.paymentReminderEnabled) return [];
+    if (task.type === "RECURRING_BILL" && !document.recurringBills.find((bill) => bill.id === task.id.split(":")[1])?.reminderEnabled) return [];
     const routeCategory = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bill", RENTAL_AGREEMENT_END: "agreement", CUSTOM_REMINDER: "custom" } as const)[task.type];
     const state = document.taskStates.find((item) => item.taskId === task.id);
     const activelySnoozed = Boolean(state?.snoozedUntil && new Date(state.snoozedUntil) > now);
@@ -159,7 +161,9 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
         const fireAt = addDays(task.dueAt, -days);
         if (fireAt <= now || fireAt > cutoff) return [];
         const key = `${task.id}:${days}`;
-        return [{ key, signature: `${task.title}|${task.detail}|${fireAt.getTime()}`, title: days ? `Umowa najmu kończy się za ${days} dni` : "Umowa najmu kończy się dzisiaj", body: task.detail, fireAt,
+        const title = days ? `Umowa najmu kończy się za ${days} dni` : "Umowa najmu kończy się dzisiaj";
+        const body = "Otwórz Ryczałt, aby sprawdzić szczegóły terminu.";
+        return [{ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
           data: { category: routeCategory, propertyId: task.propertyId, taskId: task.id } }];
       });
     }
@@ -167,8 +171,14 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
     if (!fireAt || fireAt <= now) return [];
     if (task.status !== "snoozed" && task.type !== "CUSTOM_REMINDER" && fireAt > cutoff) return [];
     const key = task.id;
-    const title = task.title;
-    const body = task.detail;
+    const displayText = {
+      TENANT_PAYMENT_CHECK: ["Sprawdź wpłatę czynszu", "Otwórz Ryczałt, aby sprawdzić status wpłaty."],
+      TAX_PAYMENT: ["Sprawdź płatność podatku", "Otwórz Ryczałt, aby sprawdzić status płatności."],
+      RECURRING_BILL: ["Sprawdź płatność rachunku", "Otwórz Ryczałt, aby sprawdzić szczegóły rachunku."],
+      CUSTOM_REMINDER: ["Masz przypomnienie", "Otwórz Ryczałt, aby zobaczyć szczegóły."],
+      RENTAL_AGREEMENT_END: ["Sprawdź termin umowy najmu", "Otwórz Ryczałt, aby sprawdzić szczegóły terminu."],
+    } as const;
+    const [title, body] = displayText[task.type];
     return [{ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
       data: { category: routeCategory, propertyId: task.propertyId, period: task.period,
         billId: task.type === "RECURRING_BILL" ? task.id.split(":")[1] : undefined,

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { calculateSettlements, formatPln } from "../domain/ryczaltTax";
+import { calculateSettlements, formatPln, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import type { TaxPayment } from "../model/rental";
 import { theme } from "../theme/theme";
+import { PaymentDetail } from "../components/PaymentDetail";
 
 const statusLabel = { "no-tax": "Brak podatku do zapłaty", due: "Do zapłaty", partial: "Częściowo zapłacono", paid: "Zapłacono", overdue: "Po terminie" } as const;
 
@@ -98,9 +99,9 @@ export function TaxScreen() {
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 36 }}>
       <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700" }}>Podatek</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 12 }}>
-        <Pressable accessibilityRole="button" onPress={() => changeYear(taxYear - 1)}><Text style={action}>‹</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={taxYear <= Math.min(...SUPPORTED_TAX_YEARS)} onPress={() => changeYear(taxYear - 1)}><Text style={[action, taxYear <= Math.min(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>‹</Text></Pressable>
         <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Rok {taxYear}</Text>
-        <Pressable accessibilityRole="button" onPress={() => changeYear(taxYear + 1)}><Text style={action}>›</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={taxYear >= Math.max(...SUPPORTED_TAX_YEARS)} onPress={() => changeYear(taxYear + 1)}><Text style={[action, taxYear >= Math.max(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>›</Text></Pressable>
         {taxYear !== document.settings.taxYear ? <Pressable accessibilityRole="button" onPress={() => changeYear(document.settings.taxYear)}><Text style={action}>Ustawiony</Text></Pressable> : null}
       </View>
       <Text style={muted}>Rozliczenie {document.settings.settlementMode === "monthly" ? "miesięczne" : "kwartalne"} · próg {document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł</Text>
@@ -161,13 +162,6 @@ export function TaxScreen() {
 
 function Metric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, paddingVertical: 6 }}><Text style={{ color: theme.colors.textSecondary, flex: 1 }}>{label}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: strong ? "700" : "500", textAlign: "right" }}>{value}</Text></View>;
-}
-
-function PaymentDetail({ label, value, onCopy }: { label: string; value?: string; onCopy: () => void }) {
-  return <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}>
-    <Text style={muted}>{label}</Text>
-    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 }}><Text selectable style={{ color: theme.colors.textPrimary, flex: 1 }}>{value || "Nie skonfigurowano"}</Text>{value ? <Pressable accessibilityRole="button" accessibilityLabel={`Kopiuj ${label}`} onPress={onCopy}><Text style={action}>Kopiuj</Text></Pressable> : null}</View>
-  </View>;
 }
 
 const action = { color: theme.colors.primary, fontWeight: "600" as const, paddingVertical: 5 };
