@@ -69,7 +69,16 @@ export function calculateSettlements(args: {
   );
   let cumulativeRevenueGrosz = 0;
   let previousTaxGrosz = 0;
-  return periods.map((period, index) => {
+  const paymentTotals = periods.map((period) => payments
+    .filter((payment) => payment.period === period)
+    .reduce((total, payment) => {
+      const next = total + moneyToGrosz(payment.amount);
+      if (!Number.isSafeInteger(next)) throw new Error("Tax payments are too large");
+      return next;
+    }, 0));
+  const unpaidByPeriod = new Map<number, number>();
+  let taxCreditGrosz = 0;
+  const settlements = periods.map((period, index) => {
     const periodEntries = entries.filter((entry) => {
       if (!entry.receivedAt.startsWith(`${taxYear}-`)) return false;
       const month = Number(entry.receivedAt.slice(5, 7));
@@ -93,27 +102,40 @@ export function calculateSettlements(args: {
     const cumulativeTaxGrosz = previousTaxGrosz + obligationGrosz;
     if (!Number.isSafeInteger(cumulativeTaxGrosz)) throw new Error("Calculated tax is too large");
     previousTaxGrosz = cumulativeTaxGrosz;
-    const paidGrosz = payments
-      .filter((payment) => payment.period === period)
-      .reduce((total, payment) => {
-        const next = total + moneyToGrosz(payment.amount);
-        if (!Number.isSafeInteger(next)) throw new Error("Tax payments are too large");
-        return next;
-      }, 0);
+    let outstandingGrosz = obligationGrosz;
+    const creditUsedGrosz = Math.min(taxCreditGrosz, outstandingGrosz);
+    taxCreditGrosz -= creditUsedGrosz;
+    outstandingGrosz -= creditUsedGrosz;
+    unpaidByPeriod.set(index, outstandingGrosz);
+
+    let remainingPaymentGrosz = paymentTotals[index]!;
+    for (let prior = 0; prior <= index && remainingPaymentGrosz > 0; prior += 1) {
+      const unpaid = unpaidByPeriod.get(prior) ?? 0;
+      const applied = Math.min(unpaid, remainingPaymentGrosz);
+      unpaidByPeriod.set(prior, unpaid - applied);
+      remainingPaymentGrosz -= applied;
+    }
+    const overpaidGrosz = remainingPaymentGrosz;
+    taxCreditGrosz += overpaidGrosz;
+    if (!Number.isSafeInteger(taxCreditGrosz)) throw new Error("Tax payments are too large");
     const dueDate = paymentDeadline(taxYear, index, mode);
-    const outstandingGrosz = Math.max(0, obligationGrosz - paidGrosz);
-    const overpaidGrosz = Math.max(0, paidGrosz - obligationGrosz);
-    const status: Settlement["status"] = obligationGrosz <= 0
+    const paidGrosz = paymentTotals[index]!;
+    return { period, revenueGrosz, cumulativeRevenueGrosz, obligationGrosz,
+      cumulativeTaxGrosz, paidGrosz, outstandingGrosz: unpaidByPeriod.get(index) ?? 0,
+      overpaidGrosz, dueDate, status: "due" as const };
+  });
+  return settlements.map((settlement, index) => {
+    const outstandingGrosz = unpaidByPeriod.get(index) ?? 0;
+    const status: Settlement["status"] = settlement.obligationGrosz <= 0
       ? "no-tax"
       : outstandingGrosz === 0
         ? "paid"
-        : paidGrosz > 0
+        : outstandingGrosz < settlement.obligationGrosz
           ? "partial"
-          : today > dueDate
+          : today > settlement.dueDate
             ? "overdue"
             : "due";
-    return { period, revenueGrosz, cumulativeRevenueGrosz, obligationGrosz,
-      cumulativeTaxGrosz, paidGrosz, outstandingGrosz, overpaidGrosz, dueDate, status };
+    return { ...settlement, outstandingGrosz, status };
   });
 }
 

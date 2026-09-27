@@ -78,6 +78,15 @@ export async function saveRentalDocument(
   );
 }
 
+export async function readRawRentalDocument(): Promise<string | null> {
+  return AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
+}
+
+/** Removes unreadable local data only after the user confirms an explicit reset. */
+export async function resetRentalDocument(): Promise<void> {
+  await AsyncStorage.removeItem(RENTAL_DOCUMENT_STORAGE_KEY);
+}
+
 function validateRentalDocument(data: unknown): RentalDocument {
   if (!isRecord(data))
     throw corrupted("Local rental document must be a JSON object.");

@@ -2,6 +2,7 @@ import { createNavigationContainerRef, NavigationContainer } from '@react-naviga
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -14,11 +15,14 @@ import { PulpitScreen } from './src/screens/PulpitScreen';
 import { RentalDataProvider } from './src/data/RentalDataProvider';
 import { ReminderProvider } from './src/notifications/ReminderProvider';
 import { notificationDataToIntent } from './src/navigation/notificationIntent';
+import { useRentalData } from './src/data/RentalDataProvider';
+import { LocalDataRecoveryScreen } from './src/screens/LocalDataRecoveryScreen';
 
 const Tabs = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef<any>();
 function RentalApp() {
   const { mode } = useTheme();
+  const { document, loadError, retryLoad, copyRawData, resetLocalData } = useRentalData();
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const openTarget = (response: Notifications.NotificationResponse, retry = 0) => {
@@ -44,6 +48,8 @@ function RentalApp() {
     void Notifications.getLastNotificationResponseAsync().then((response) => { if (response) openTarget(response); });
     return () => subscription.remove();
   }, []);
+  if (loadError) return <><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><LocalDataRecoveryScreen error={loadError} retryLoad={retryLoad} copyRawData={copyRawData} resetLocalData={resetLocalData} /></>;
+  if (!document) return <><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}><ActivityIndicator color={theme.colors.primary} /></View></>;
   return <NavigationContainer ref={navigationRef}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     <Tabs.Navigator screenOptions={({ route }) => ({
       headerShown: false,
