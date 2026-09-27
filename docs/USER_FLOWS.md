@@ -1,6 +1,10 @@
 # Canonical user flows
 
-These describe the implemented flows on `develop`. Guided setup/checklist is planned but not implemented.
+These describe the implemented flows on `develop`. Guided setup is implemented; recurring custom reminders remain planned.
+
+## 0. Guided setup
+
+No apartments → Pulpit offers one “Dodaj mieszkanie” action → the existing Settings property editor opens. With apartments present, progress is derived from apartment name, expected rent and expected payment day; Pulpit shows only the next useful required action. Optional tenant, agreement and administrator details do not block completion. A rent-reminder suggestion may be offered but never enables itself or requests permission automatically. Setup creates no income, tax-payment or bill-payment records.
 
 ## 1. Check monthly rent
 
@@ -35,4 +39,4 @@ Select apartment/month → show expected rent for that period, confirmed receipt
 - OS permission denied, Web or app restart: tasks still available in-app; reconcile native schedules where supported.
 - Deleting/renaming apartments and editing source records must not leave orphaned or duplicate reminders.
 - Quick actions should preserve context and require user confirmation before financial writes.
-- A future guided setup should be temporary and must not become a permanent dashboard section.
+- Guided setup is contextual and disappears when required apartment configuration is complete; it must not become a permanent dashboard section.
