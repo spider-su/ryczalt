@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
-import { calculateSettlements, formatPln, moneyToGrosz } from "../domain/ryczaltTax";
+import { calculateSettlements, formatPln, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
 import { setupActionIntent } from "../navigation/setupIntent";
@@ -69,7 +69,8 @@ export function PulpitScreen() {
     return sum + (amounts.remainingGrosz ?? 0);
   }, 0);
   const upcoming = upcomingTasks(tasks, now);
-  const currentPeriod = settlements.find((item) => item.period === selectedMonth);
+  const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
+  const currentPeriod = settlements.find((item) => item.period === currentPeriodKey);
 
   const setState = (taskId: string, change: { snoozedUntil?: string; dismissedAt?: string; completedAt?: string }) => {
     void update((current) => ({ ...current, taskStates: setTaskState(current.taskStates, taskId, change) })).catch(() => undefined);

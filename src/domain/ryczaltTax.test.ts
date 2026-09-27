@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, formatPln, moneyToGrosz, taxOnRevenue } from "./ryczaltTax";
+import { calculateSettlements, formatPln, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "./ryczaltTax";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
   id, propertyId, receivedAt, amount: taxableAmount, taxableAmount,
 });
 
 describe("Polish private-rental ryczałt", () => {
+  it("resolves monthly and quarterly settlement periods from the calendar month", () => {
+    expect(settlementPeriodForMonth("2026-09", "monthly")).toBe("2026-09");
+    expect(settlementPeriodForMonth("2026-01", "quarterly")).toBe("2026-Q1");
+    expect(settlementPeriodForMonth("2026-05", "quarterly")).toBe("2026-Q2");
+    expect(settlementPeriodForMonth("2026-08", "quarterly")).toBe("2026-Q3");
+    expect(settlementPeriodForMonth("2026-12", "quarterly")).toBe("2026-Q4");
+    expect(settlementPeriodForMonth("2026-13", "quarterly")).toBeNull();
+  });
+
   it("uses year-specific 8.5% and 12.5% bands with whole-zloty rounding", () => {
     expect(taxOnRevenue(50_000_00, 2026)).toBe(425_000);
     expect(taxOnRevenue(100_000_00, 2026)).toBe(850_000);

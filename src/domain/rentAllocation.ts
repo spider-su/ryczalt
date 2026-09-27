@@ -67,6 +67,7 @@ export function allocateRentReceipts(
 
 export function expectedRentForMonth(property: Property, month: string, now = new Date()): number | null {
   if (!isRentalMonth(month)) return null;
+  if (property.rentalEndDate && month > property.rentalEndDate.slice(0, 7)) return null;
   const rates = [...(property.rentSchedule ?? [])].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
   const applicable = rates.find((rate) => rate.effectiveFrom <= month);
   if (applicable) return moneyToGrosz(applicable.amount);

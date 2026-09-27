@@ -39,6 +39,14 @@ describe("personal assistant tasks", () => {
     expect(billTask(doc)).toMatchObject({ status: "needs-attention", confirmedGrosz: 0, remainingGrosz: 60_000 });
   });
 
+  it("does not generate rent tasks after the rental agreement end month", () => {
+    const doc = document();
+    doc.properties[0]!.rentalEndDate = "2026-10-15";
+    const tasks = deriveTasks(doc, new Date(2026, 8, 26, 12));
+    expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10")).toBe(true);
+    expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-11")).toBe(false);
+  });
+
   it("keeps variable bills amount-free and resolves them after one payment in the target period", () => {
     const doc = document();
     doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, variableAmount: true, expectedAmount: "600.00" }];
