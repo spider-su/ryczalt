@@ -5,11 +5,13 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   View,
   Linking,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { PaymentDetail } from "../components/PaymentDetail";
@@ -21,9 +23,11 @@ import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isRentalMonth, isValidCalenda
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
+import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 import type { SetupAction } from "../domain/setupProgress";
 import { setupActionField } from "../navigation/setupIntent";
 import { makeBillPayment } from "../domain/billPayment";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 
 type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
   expectedPaymentDay: string;
@@ -326,8 +330,8 @@ export function SettingsScreen() {
       Alert.alert("Zapisano", "Dane płatności podatku zostały zapisane.");
     } catch { /* The provider reports persistence failure. */ }
   };
-  const toggleReminderCategory = (category: keyof RentalDocument["settings"]["reminderCategories"]) => {
-    updateTaxSettings((settings) => ({ ...settings, reminderCategories: { ...settings.reminderCategories, [category]: !settings.reminderCategories[category] } }));
+  const toggleReminderCategory = (category: keyof RentalDocument["settings"]["reminderCategories"], enabled: boolean) => {
+    updateTaxSettings((settings) => ({ ...settings, reminderCategories: { ...settings.reminderCategories, [category]: enabled } }));
   };
   const openBill = (bill?: RecurringBill) => {
     setBillEditing(bill ?? null);
@@ -425,13 +429,13 @@ export function SettingsScreen() {
         <Text style={{ color: theme.colors.textPrimary, fontSize: 20, fontWeight: "700", marginBottom: 12 }}>
           Rozliczenie podatku
         </Text>
-        <Text style={muted}>Rok podatkowy: {document.settings.taxYear}</Text>
-        <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
-          <Pressable accessibilityRole="button" onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))} style={modeButton}>
-            <Text style={modeText}>− Rok</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginVertical: 10 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok podatkowy" disabled={document.settings.taxYear <= Math.min(...SUPPORTED_TAX_YEARS)} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))} hitSlop={8}>
+            <Text style={[action, document.settings.taxYear <= Math.min(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>‹</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} style={modeButton}>
-            <Text style={modeText}>+ Rok</Text>
+          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Rok {document.settings.taxYear}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Następny rok podatkowy" disabled={document.settings.taxYear >= Math.max(...SUPPORTED_TAX_YEARS)} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} hitSlop={8}>
+            <Text style={[action, document.settings.taxYear >= Math.max(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>›</Text>
           </Pressable>
         </View>
         <Text style={muted}>Częstotliwość wpłat ryczałtu</Text>
@@ -453,20 +457,23 @@ export function SettingsScreen() {
             </Pressable>
           ))}
         </View>
-        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} onPress={() => Alert.alert(
-          "Limit dla małżonków",
-          "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.",
-          [{ text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: !settings.jointSpouseThreshold })) }],
-        )} style={{ paddingVertical: 10 }}>
-          <Text style={muted}>{document.settings.jointSpouseThreshold ? "☑" : "□"} Limit 200 000 zł dla małżonków (warunki ustawowe spełnione)</Text>
-        </Pressable>
+        <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text style={{ ...muted, flex: 1 }}>Limit 200 000 zł dla małżonków (warunki ustawowe spełnione)</Text>
+          <Switch value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
+            if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
+            Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
+              { text: "Anuluj", style: "cancel" },
+              { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
+            ]);
+          }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} />
+        </View>
         <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
         <Text style={sectionTitle}>Powiadomienia lokalne</Text>
         <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : permission === "unavailable" ? "Powiadomienia urządzenia są niedostępne w przeglądarce; przypomnienia pozostają widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
         {([
           ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
-        ] as const).map(([category, label]) => <Pressable key={category} accessibilityRole="checkbox" accessibilityState={{ checked: document.settings.reminderCategories[category] }} onPress={() => toggleReminderCategory(category)} style={{ paddingVertical: 7 }}><Text style={muted}>{document.settings.reminderCategories[category] ? "☑" : "□"} {label}</Text></Pressable>)}
+        ] as const).map(([category, label]) => <View key={category} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={(enabled) => toggleReminderCategory(category, enabled)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
         {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{task.dueAt.toLocaleDateString("pl-PL")} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
         <Text style={sectionTitle}>Dane płatności podatku</Text>
@@ -602,7 +609,7 @@ export function SettingsScreen() {
           setEditing(null);
         }}
       >
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
           <View
             style={{
               padding: 18,
@@ -669,7 +676,7 @@ export function SettingsScreen() {
               propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
               setSetupFocus(null);
             } : undefined}>
-              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: draft.paymentReminderEnabled }} onPress={() => setDraft((current) => ({ ...current, paymentReminderEnabled: !current.paymentReminderEnabled }))} style={{ paddingVertical: 10 }}><Text style={muted}>{draft.paymentReminderEnabled ? "☑" : "□"} Przypominaj, aby sprawdzić wpłatę</Text></Pressable>
+              <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>Przypominaj, aby sprawdzić wpłatę</Text><Switch value={draft.paymentReminderEnabled} onValueChange={(paymentReminderEnabled) => setDraft((current) => ({ ...current, paymentReminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Przypominaj, aby sprawdzić wpłatę" accessibilityState={{ checked: draft.paymentReminderEnabled }} /></View>
             </View>
             {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
             <Text style={sectionTitle}>Administracja</Text>
@@ -696,10 +703,10 @@ export function SettingsScreen() {
               </Text>
             </Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
       <Modal visible={billModalOpen} animationType="slide" onRequestClose={() => setBillModalOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
           <View style={modalHeader}><Text style={modalTitle}>{billEditing ? "Edytuj rachunek" : "Nowy rachunek"}</Text><Text accessibilityRole="button" onPress={() => setBillModalOpen(false)} style={action}>Zamknij</Text></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
             <Text style={fieldLabel}>Mieszkanie</Text>
@@ -710,14 +717,14 @@ export function SettingsScreen() {
             {billFields("Tytuł płatności", "paymentTitle")}
             {billFields("Oczekiwana kwota (zł)", "expectedAmount", "decimal-pad")}
             {billFields("Dzień terminu płatności (1–31)", "dueDay", "number-pad")}
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: billDraft.variableAmount }} onPress={() => setBillDraft((current) => ({ ...current, variableAmount: !current.variableAmount }))} style={{ paddingVertical: 8 }}><Text style={muted}>{billDraft.variableAmount ? "☑" : "□"} Kwota zmienna, sprawdzaj ją na bieżąco</Text></Pressable>
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: billDraft.reminderEnabled }} onPress={() => setBillDraft((current) => ({ ...current, reminderEnabled: !current.reminderEnabled }))} style={{ paddingVertical: 8 }}><Text style={muted}>{billDraft.reminderEnabled ? "☑" : "□"} Przypominaj o rachunku</Text></Pressable>
+            <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>Kwota zmienna, sprawdzaj ją na bieżąco</Text><Switch value={billDraft.variableAmount} onValueChange={(variableAmount) => setBillDraft((current) => ({ ...current, variableAmount }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Kwota zmienna, sprawdzaj ją na bieżąco" accessibilityState={{ checked: billDraft.variableAmount }} /></View>
+            <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}><Text style={{ ...muted, flex: 1 }}>Przypominaj o rachunku</Text><Switch value={billDraft.reminderEnabled} onValueChange={(reminderEnabled) => setBillDraft((current) => ({ ...current, reminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Przypominaj o rachunku" accessibilityState={{ checked: billDraft.reminderEnabled }} /></View>
             <Pressable accessibilityRole="button" onPress={() => void saveBill()} style={primaryButton}><Text style={primaryText}>Zapisz rachunek</Text></Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
       <Modal visible={Boolean(billForDetails)} animationType="slide" onRequestClose={() => setBillForDetails(null)}>
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
           <View style={modalHeader}><Text style={modalTitle}>{billForDetails?.name ?? "Szczegóły płatności"}</Text><Text accessibilityRole="button" onPress={() => setBillForDetails(null)} style={action}>Zamknij</Text></View>
           {billForDetails ? <ScrollView contentContainerStyle={{ padding: 20 }}>
             {(() => {
@@ -739,7 +746,7 @@ export function SettingsScreen() {
               </>;
             })()}
           </ScrollView> : null}
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );

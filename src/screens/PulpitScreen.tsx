@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
+import { deriveTasks, groupActiveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
 import { calculateSettlements, formatPln, moneyToGrosz } from "../domain/ryczaltTax";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
@@ -14,6 +15,7 @@ import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 
 type TaskView = "active" | "completed" | "dismissed";
 export function PulpitScreen() {
@@ -22,6 +24,7 @@ export function PulpitScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const [view, setView] = useState<TaskView>("active");
+  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(todayIsoDate().slice(0, 7));
   const [chartPropertyId, setChartPropertyId] = useState<string | null>(null);
   const [adminPickerVisible, setAdminPickerVisible] = useState(false);
@@ -52,12 +55,10 @@ export function PulpitScreen() {
 
   if (!document) return <View style={ui.page} />;
   const now = new Date();
-  const attention = tasks.filter((task) => task.status === "needs-attention");
-  const filteredTasks = view === "active" ? tasks.filter((task) => ["needs-attention", "upcoming", "snoozed"].includes(task.status))
-    : tasks.filter((task) => task.status === (view === "completed" ? "completed" : "dismissed"));
-  const shownTasks = view === "active"
-    ? [...filteredTasks.filter((task) => task.status === "needs-attention"), ...filteredTasks.filter((task) => task.status !== "needs-attention").slice(0, 6)]
-    : filteredTasks;
+  const activeGroups = groupActiveTasks(tasks);
+  const attention = activeGroups.actionable;
+  const filteredTasks = tasks.filter((task) => task.status === (view === "completed" ? "completed" : "dismissed"));
+  const visibleUpcoming = upcomingExpanded ? activeGroups.upcoming : activeGroups.upcoming.slice(0, 3);
   const settlements = [2025, 2026].includes(document.settings.taxYear) ? calculateSettlements({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: document.settings.taxYear,
     mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
@@ -66,7 +67,7 @@ export function PulpitScreen() {
   const monthIncome = document.incomeEntries.filter((entry) => entry.receivedAt.startsWith(selectedMonth))
     .reduce((sum, entry) => sum + moneyToGrosz(entry.amount), 0);
   const remainingRent = document.properties.reduce((sum, property) => {
-    const amounts = rentMonthAmounts(document, property, selectedMonth, now);
+    const amounts = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
     return sum + (amounts.remainingGrosz ?? 0);
   }, 0);
   const sixMonths = Array.from({ length: 6 }, (_, index) => shiftMonth(todayIsoDate().slice(0, 7), index - 5));
@@ -140,6 +141,7 @@ export function PulpitScreen() {
     { text: "Anuluj", style: "cancel" },
     { text: "Oznacz", onPress: () => setState(task.id, { completedAt: new Date().toISOString(), dismissedAt: undefined, snoozedUntil: undefined }) },
   ]);
+  const renderTask = (task: AssistantTask) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />;
   const shiftSelectedMonth = (offset: number) => setSelectedMonth((month) => shiftMonth(month, offset));
   const openSetupAction = (action: SetupAction, propertyId?: string) => {
     const intent = setupActionIntent(action, propertyId);
@@ -193,7 +195,7 @@ export function PulpitScreen() {
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Ustawienia ›</Text></Pressable></View>
       {!document.properties.length ? <View style={emptyRow}><Text style={emptyText}>Dodaj mieszkanie, aby zobaczyć czynsz i terminy.</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Dodaj mieszkanie</Text></Pressable></View> : document.properties.map((property) => {
-        const amount = rentMonthAmounts(document, property, selectedMonth, now);
+        const amount = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
         const nextTask = tasks.filter((task) => task.propertyId === property.id && task.status !== "completed" && task.status !== "dismissed").sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0];
         const links = document.propertyLinks.filter((link) => link.propertyId === property.id);
         return <View key={property.id} style={[ui.card, propertyRow]}>
@@ -204,6 +206,7 @@ export function PulpitScreen() {
             <OverviewMetric label="Otrzymano" amount={amount.confirmedGrosz} />
             <OverviewMetric label="Do potwierdzenia" amount={amount.remainingGrosz ?? 0} />
           </>}
+          {amount.unallocatedGrosz > 0 ? <Text style={muted}>Nadwyżka ponad prognozowane czynsze: {formatPln(amount.unallocatedGrosz)}</Text> : null}
           {property.rentalEndDate ? <Text style={muted}>Koniec umowy · {property.rentalEndDate}</Text> : null}
           {nextTask ? <Text style={muted}>Następna sprawa · {nextTask.title}</Text> : null}
           <View style={quickRow}>
@@ -217,9 +220,14 @@ export function PulpitScreen() {
       <View style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text><Text style={muted}>Do sprawdzenia · {attention.length}</Text></View>
       <View style={segmented}>{([["active", "Aktywne"], ["completed", "Zakończone"], ["dismissed", "Ukryte"]] as const).map(([key, label]) =>
         <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: view === key }} onPress={() => setView(key)} style={[segment, view === key && selectedSegment]}><Text style={view === key ? selectedSegmentText : segmentText}>{label}</Text></Pressable>)}</View>
-      {shownTasks.length ? shownTasks.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)
-        : <Text style={emptyText}>{view === "active" ? "Wszystko na dziś załatwione." : view === "completed" ? "Brak zakończonych spraw." : "Brak ukrytych spraw."}</Text>}
-      {view === "active" && tasks.some((task) => task.status === "upcoming" || task.status === "snoozed") ? <Text style={muted}>Nadchodzące sprawy pozostają na liście; uśpione wrócą w wybranym terminie.</Text> : null}
+      {view === "active" ? <>
+        {attention.length ? attention.map(renderTask) : <Text style={emptyText}>Brak spraw do sprawdzenia.</Text>}
+        {activeGroups.upcoming.length ? <>
+          <View style={sectionHeader}><Text style={sectionTitle}>Nadchodzące</Text><Text style={muted}>{activeGroups.upcoming.length}</Text></View>
+          {visibleUpcoming.map(renderTask)}
+          {activeGroups.upcoming.length > 3 ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: upcomingExpanded }} onPress={() => setUpcomingExpanded((expanded) => !expanded)} style={{ paddingVertical: 12 }}><Text style={action}>{upcomingExpanded ? "Pokaż mniej" : `Pokaż wszystkie (${activeGroups.upcoming.length})`}</Text></Pressable> : null}
+        </> : null}
+      </> : filteredTasks.length ? filteredTasks.map(renderTask) : <Text style={emptyText}>{view === "completed" ? "Brak zakończonych spraw." : "Brak ukrytych spraw."}</Text>}
 
       {setup?.showGuidance && setup.nextAction ? <SetupCard
         action={setup.nextAction.action}
@@ -246,7 +254,7 @@ export function PulpitScreen() {
     </ScrollView>
 
     <Modal visible={Boolean(snoozeTask)} transparent animationType="fade" onRequestClose={() => setSnoozeTask(null)}>
-      <View style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
+      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
         <Text style={muted}>Termin zadania i zobowiązanie pozostają bez zmian.</Text>
         {snoozeOptions(now).map(({ days, until }) => <Pressable key={days} accessibilityRole="button" onPress={() => saveSnooze(until)} style={modalAction}><Text style={action}>{days === 1 ? "Jutro" : days === 3 ? "Za 3 dni" : "Za tydzień"} · {until.toLocaleDateString("pl-PL")}</Text></Pressable>)}
         <Text style={smallLabel}>Wybierz własną datę (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data przypomnienia" value={snoozeDate} onChangeText={setSnoozeDate} style={input} />
@@ -255,11 +263,11 @@ export function PulpitScreen() {
           if (!isValidCalendarDate(snoozeDate) || until <= new Date()) Alert.alert("Nieprawidłowa data", "Wybierz przyszłą datę przypomnienia.");
           else saveSnooze(until);
         }} style={primaryButton}><Text style={primaryText}>Ustaw przypomnienie</Text></Pressable>
-      </View></View>
+      </View></SafeAreaView>
     </Modal>
 
     <Modal visible={customOpen} animationType="slide" onRequestClose={() => setCustomOpen(false)}>
-      <View style={{ flex: 1, backgroundColor: theme.colors.background }}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={smallLabel}>Tytuł</Text><TextInput accessibilityLabel="Tytuł przypomnienia" value={customTitle} onChangeText={setCustomTitle} style={input} />
           <Text style={smallLabel}>Termin (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Termin przypomnienia" value={customDate} onChangeText={setCustomDate} style={input} />
@@ -274,13 +282,13 @@ export function PulpitScreen() {
             <Pressable accessibilityRole="button" onPress={() => Alert.alert("Usunąć przypomnienie?", customTitle, [{ text: "Anuluj", style: "cancel" }, { text: "Usuń", style: "destructive", onPress: () => { const id = customReminderId; void update((current) => deleteCustomReminder(current, id)).catch(() => undefined); setCustomOpen(false); } }])} style={destructiveButton}><Text style={dangerText}>Usuń przypomnienie</Text></Pressable></>
             : <Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={primaryButton}><Text style={primaryText}>Zapisz przypomnienie</Text></Pressable>}
         </ScrollView>
-      </View>
+      </SafeAreaView>
     </Modal>
 
     <Modal visible={adminPickerVisible} transparent animationType="fade" onRequestClose={() => setAdminPickerVisible(false)}>
-      <View style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
+      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
         {document.properties.filter((item) => item.administratorPortalUrl || document.propertyLinks.some((link) => link.propertyId === item.id && link.category === "ADMINISTRATION")).map((property) => <Pressable key={property.id} accessibilityRole="button" onPress={() => { setAdminPickerVisible(false); openAdministration(property); }} style={modalAction}><Text style={action}>{property.name}</Text></Pressable>)}
-      </View></View>
+      </View></SafeAreaView>
     </Modal>
   </View>;
 }

@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   createId,
   todayIsoDate,
@@ -25,6 +26,7 @@ import { entriesForTaxYear } from "../domain/rentalHistory";
 import { formatPln, moneyToGrosz } from "../domain/ryczaltTax";
 import { summarizeRentMonth } from "../domain/reminders";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
+import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import {
   isNonnegativeMoney,
   isPositiveMoney,
@@ -368,17 +370,21 @@ export function IncomeScreen() {
               <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Roczna ewidencja wpływów · {taxYear}</Text>
               <Text style={{ color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700", marginTop: 8 }}>{formatPln(annualIncomeGrosz)}</Text>
             </View>
+            <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 18, marginBottom: 4 }}>Czynsz do potwierdzenia · {rentalMonth}</Text>
             {properties.map((property) => {
               const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
               return <View key={property.id} style={ui.card}>
                 <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{property.name} · {rentalMonth}</Text>
                 {summary.status === "unknown" ? <Text style={muted}>Oczekiwany czynsz nieustalony</Text> : <>
-                  <Text style={muted}>Oczekiwano {formatPln(summary.expectedGrosz)} · potwierdzono {formatPln(summary.confirmedGrosz)}</Text>
+                  <Text style={muted}>Oczekiwano {formatPln(summary.expectedGrosz)}</Text>
+                  <Text style={muted}>Potwierdzono {formatPln(summary.confirmedGrosz)}</Text>
                   {summary.status === "complete" ? <Text style={muted}>Wpłata potwierdzona</Text> : <Text style={muted}>Pozostało do potwierdzenia {formatPln(summary.remainingGrosz)}</Text>}
                 </>}
+                {summary.unallocatedGrosz > 0 ? <Text style={muted}>Nadwyżka ponad prognozowane czynsze: {formatPln(summary.unallocatedGrosz)}</Text> : null}
                 <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)}><Text style={action}>Sprawdź wpłatę</Text></Pressable>
               </View>;
             })}
+            <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 18, marginBottom: 4 }}>Potwierdzone wpłaty</Text>
             <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź otrzymaną wpłatę</Text></Pressable>
           </View>
         }
@@ -401,7 +407,7 @@ export function IncomeScreen() {
         animationType="slide"
         onRequestClose={() => setModalOpen(false)}
       >
-        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={modalSafeAreaEdges}>
           <View
             style={{
               padding: 18,
@@ -518,7 +524,7 @@ export function IncomeScreen() {
               </Text>
             </Pressable>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
