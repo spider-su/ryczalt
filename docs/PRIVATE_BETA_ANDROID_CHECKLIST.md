@@ -18,7 +18,7 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | Launch with notification permission already granted in system settings on physical device | Not run |
 | Android startup creates reminder channel independently of permission | Passed on API 35 emulator with `POST_NOTIFICATIONS` denied; pre-granted system-settings state not verified |
 | Rent, tax, bill and agreement notifications arrive at expected time | Not run |
-| Custom one-time notification arrives; no recurrence | Not run |
+| One-time, monthly and yearly reminder notifications arrive for the correct occurrence | Not run |
 | Tap each notification opens the correct screen/context | Not run |
 | Snooze reschedules without changing original due date | Not run |
 | Confirm/correct/delete underlying record cancels or reopens schedule correctly | Domain tests only; OS cancellation not run |
