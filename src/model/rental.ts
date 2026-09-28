@@ -2,7 +2,6 @@
 export type Property = {
   id: string;
   name: string;
-  address?: string;
   defaultMonthlyRent?: string;
   rentSchedule?: RentRate[];
   tenantName?: string;
@@ -14,10 +13,7 @@ export type Property = {
   expectedPaymentDay?: number;
   paymentReminderEnabled?: boolean;
   paymentReminderDelayDays?: number;
-  administratorName?: string;
   administratorPortalUrl?: string;
-  administratorPhone?: string;
-  administratorEmail?: string;
   notes?: string;
 };
 
