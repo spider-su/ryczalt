@@ -28,7 +28,7 @@ A current apartment default rent must not rewrite previous months. The implement
 
 ## Quality and scope constraints
 
-Expo/React Native/TypeScript, local-first AsyncStorage, runtime validation and versioned migrations. Native local notifications where supported; useful in-app fallback on Web and denied permission. Do not promise guaranteed OS delivery. Preserve historic tenant snapshots, confirmed receipts and tax payments across upgrades. PLN money represented as decimal strings and computed exactly.
+Expo/React Native/TypeScript, local-first AsyncStorage and runtime validation with a fresh-install schema. Add schema migrations only when user installations need upgrades. Native local notifications where supported; useful in-app fallback on Web and denied permission. Do not promise guaranteed OS delivery. Preserve historic tenant snapshots, confirmed receipts and tax payments across future upgrades. PLN money represented as decimal strings and computed exactly.
 
 Not in the current MVP: annual/PIT-28 verification summary and JSON backup/restore (next acceptance phase), Investory integration, banking integration, automatic confirmations, electronic PIT-28 filing, tenant communication, cloud backend/auth/sync, OCR, property valuation, home-screen widgets, deposit management or comprehensive contract management.
 

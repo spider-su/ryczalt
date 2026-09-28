@@ -5,9 +5,9 @@ import { deriveTasks, taskNotificationPlan } from "./tasks";
 import { reconcileReminderSchedule } from "../notifications/reconcile";
 
 const document = (reminder: CustomReminder): RentalDocument => ({
-  schemaVersion: 7, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [],
-  propertyLinks: [], administrationSuggestions: [], customReminders: [reminder], taskStates: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
+  schemaVersion: 1, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [],
+  administrationSuggestions: [], customReminders: [reminder], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
     reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
 });
 
@@ -18,9 +18,9 @@ describe("custom reminder recurrence", () => {
     const reminder: CustomReminder = { id: "once", title: "Sprawdź licznik", dueDate: "2026-10-15", recurrence: "ONCE" };
     const doc = document(reminder);
     expect(reminderOccurrenceDates(reminder, new Date(2026, 9, 1))).toEqual(["2026-10-15"]);
-    expect(customReminderTaskId(reminder, reminder.dueDate)).toBe("CUSTOM_REMINDER:once");
-    doc.taskStates = [{ taskId: "CUSTOM_REMINDER:once", completedAt: "2026-10-15T08:00:00.000Z" }];
-    expect(deriveTasks(doc, new Date(2026, 9, 16)).find((task) => task.id === "CUSTOM_REMINDER:once")?.status).toBe("completed");
+    expect(customReminderTaskId(reminder, reminder.dueDate)).toBe("CUSTOM_REMINDER:once:2026-10-15");
+    doc.taskStates = [{ taskId: "CUSTOM_REMINDER:once:2026-10-15", completedAt: "2026-10-15T08:00:00.000Z" }];
+    expect(deriveTasks(doc, new Date(2026, 9, 16)).find((task) => task.id === "CUSTOM_REMINDER:once:2026-10-15")?.status).toBe("completed");
   });
 
   it("projects only the current and nearest upcoming monthly occurrences", () => {

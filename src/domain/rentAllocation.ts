@@ -1,6 +1,8 @@
 import type { IncomeEntry, Property } from "../model/rental";
 import { isRentalMonth } from "./rentalValidation";
 import { moneyToGrosz } from "./ryczaltTax";
+import { lifecycleForMonth } from "./apartmentLifecycle";
+import { apartmentTermsForMonth } from "./apartmentTerms";
 
 export type RentAllocation = {
   byMonth: ReadonlyMap<string, number>;
@@ -66,16 +68,19 @@ export function allocateRentReceipts(
 }
 
 export function expectedRentForMonth(property: Property, month: string, now = new Date()): number | null {
-  const ownerRentGrosz = ownerRentForMonth(property, month, now);
-  if (ownerRentGrosz === null) return null;
-  const tenantMediaGrosz = property.mediaPaidByTenant ? moneyToGrosz(property.mediaAmount ?? "0") : 0;
-  const expected = ownerRentGrosz + tenantMediaGrosz;
+  if (lifecycleForMonth(property, month) !== "ACTIVE") return null;
+  const scheduledOwnerRent = ownerRentForMonth(property, month, now);
+  if (scheduledOwnerRent === null) return null;
+  const terms = apartmentTermsForMonth(property, month);
+  if (!terms) return scheduledOwnerRent;
+  const expected = terms.ownerRentGrosz + (terms.mediaPaidByTenant ? terms.mediaAmountGrosz : 0);
   if (!Number.isSafeInteger(expected)) throw new Error("Expected rent is too large");
   return expected;
 }
 
 export function ownerRentForMonth(property: Property, month: string, now = new Date()): number | null {
   if (!isRentalMonth(month)) return null;
+  if (property.rentalStartDate && month < property.rentalStartDate.slice(0, 7)) return null;
   if (property.leaseEndDate && month > property.leaseEndDate.slice(0, 7)) return null;
   const rates = [...(property.rentSchedule ?? [])].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
   const applicable = rates.find((rate) => rate.effectiveFrom <= month);

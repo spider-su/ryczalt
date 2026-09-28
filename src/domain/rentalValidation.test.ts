@@ -108,7 +108,7 @@ describe("rental validation and operations", () => {
 
   it("rejects duplicate entry IDs and unknown property references in documents", () => {
     const document: RentalDocument = {
-      schemaVersion: 7,
+      schemaVersion: 1,
       properties: [property],
       incomeEntries: [
         entry("income-1", "2026-01-01"),
@@ -117,22 +117,22 @@ describe("rental validation and operations", () => {
       taxPayments: [],
       recurringBills: [],
       billPayments: [],
-      propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
-      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+      administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
     };
     expect(() => validateRentalDocumentShape(document)).toThrow();
   });
 
   it("rejects unsupported tax years, invalid rent effective periods, and malformed task state", () => {
     const valid: RentalDocument = {
-      schemaVersion: 7, properties: [{ ...property, rentSchedule: [{ effectiveFrom: "2026-09", amount: "0.00" }] }],
-      incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [],
-      taskStates: [{ taskId: "CUSTOM_REMINDER:r1", snoozedUntil: "2026-09-27T08:00:00.000Z" }],
-      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+      schemaVersion: 1, properties: [{ ...property, rentSchedule: [{ effectiveFrom: "2026-09", amount: "0.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] }],
+      incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+      taskStates: [{ taskId: "CUSTOM_REMINDER:r1:2026-10-15", snoozedUntil: "2026-09-27T08:00:00.000Z" }],
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
     };
     expect(() => validateRentalDocumentShape(valid)).not.toThrow();
     expect(() => validateRentalDocumentShape({ ...valid, settings: { ...valid.settings, taxYear: 2027 } })).toThrow(/Tax year/);
-    expect(() => validateRentalDocumentShape({ ...valid, properties: [{ ...valid.properties[0]!, rentSchedule: [{ effectiveFrom: "2026-13", amount: "10.00" }] }] })).toThrow(/Rent schedule/);
+    expect(() => validateRentalDocumentShape({ ...valid, properties: [{ ...valid.properties[0]!, rentSchedule: [{ effectiveFrom: "2026-13", amount: "10.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] }] })).toThrow(/Rent schedule/);
     expect(() => validateRentalDocumentShape({ ...valid, taskStates: [{ taskId: "not-a-task", dismissedAt: "2026-09-27" }] })).toThrow(/Task state/);
   });
 });

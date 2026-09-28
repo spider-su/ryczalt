@@ -4,12 +4,12 @@ import { deriveTasks, expectedRentForMonth, setTaskState, taskNotificationPlan }
 
 function document(): RentalDocument {
   return {
-    schemaVersion: 7,
+    schemaVersion: 1,
     properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 10,
-      rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
+      rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 10 }, { effectiveFrom: "2026-09", amount: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 10 }],
       leaseEndDate: "2026-12-31" }],
-    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
-    settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
+    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+    settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
   };
 }
@@ -19,6 +19,18 @@ describe("personal assistant tasks", () => {
     const withoutEnd = document();
     withoutEnd.properties = [{ id: "p-no-end", address: "Parkowa 2", paymentDay: 10 }];
     expect(deriveTasks(withoutEnd, new Date(2026, 8, 28)).some((task) => task.type === "RENTAL_AGREEMENT_END")).toBe(false);
+  });
+
+  it("uses the saved tax period when deriving reminders instead of recalculating it", () => {
+    const doc = document();
+    doc.incomeEntries = [{ id: "newer", propertyId: "p1", receivedAt: "2026-09-10", amount: "9000.00", taxableAmount: "9000.00" }];
+    doc.taxSettlementSnapshots = [{
+      period: "2026-09", revenue: "1000.00", taxableBase: "1000.00", cumulativeRevenue: "1000.00", cumulativeTax: "85.00",
+      obligation: "85.00", paid: "0.00", allocatedPaid: "0.00", creditApplied: "0.00", outstanding: "85.00", overpaid: "0.00",
+      dueDate: "2026-10-20", rulesYear: 2026, receiptIds: [], taxPaymentIds: [], savedAt: "2026-10-01T00:00:00.000Z",
+    }];
+    const task = deriveTasks(doc, new Date(2026, 9, 1)).find((item) => item.id === "TAX_PAYMENT:2026-09");
+    expect(task).toMatchObject({ expectedGrosz: 8500, remainingGrosz: 8500 });
   });
   const billTask = (doc: RentalDocument, period = "2026-09") => deriveTasks(doc, new Date(2026, 8, 26, 12)).find((item) => item.id === `RECURRING_BILL:power:${period}`)!;
 
@@ -107,7 +119,7 @@ describe("personal assistant tasks", () => {
   it("uses the target month expected rent for upcoming rent after a large September receipt", () => {
     const doc = document();
     doc.properties[0] = { ...doc.properties[0]!, address: "Reduta 26B", ownerRent: "2600.00",
-      rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00" }] };
+      rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00", mediaAmount: "0.00", taxableTreatment: "OWNER_RENT", paymentDay: 10 }] };
     doc.incomeEntries = [{ id: "sep-overpayment", propertyId: "p1", receivedAt: "2026-09-27", rentalMonth: "2026-09", amount: "10000.00", taxableAmount: "10000.00" }];
     const october = deriveTasks(doc, new Date(2026, 8, 27, 12)).find((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10");
     expect(october).toMatchObject({ title: "Sprawdź czynsz — Reduta 26B", expectedGrosz: 260_000, confirmedGrosz: 0, remainingGrosz: 260_000, status: "upcoming" });
@@ -115,9 +127,9 @@ describe("personal assistant tasks", () => {
 
   it("classifies upcoming, snoozed, dismissed and manually completed tasks without changing due dates", () => {
     const doc = document();
-    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-10-03", propertyId: "p1", recurrence: "ONCE" }];
+    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-10-15", propertyId: "p1", recurrence: "ONCE" }];
     const now = new Date(2026, 8, 26, 12);
-    const id = "CUSTOM_REMINDER:r1";
+    const id = "CUSTOM_REMINDER:r1:2026-10-15";
     expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("upcoming");
     doc.taskStates = setTaskState(doc.taskStates, id, { snoozedUntil: new Date(2026, 8, 27, 9).toISOString() });
     expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("snoozed");

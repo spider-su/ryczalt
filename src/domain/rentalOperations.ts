@@ -65,7 +65,6 @@ export function removePropertyData(document: RentalDocument, propertyId: string)
     properties: document.properties.filter((property) => property.id !== propertyId),
     recurringBills: document.recurringBills.filter((bill) => bill.propertyId !== propertyId),
     billPayments: document.billPayments.filter((payment) => !billIds.has(payment.billId)),
-    propertyLinks: document.propertyLinks.filter((link) => link.propertyId !== propertyId),
     customReminders: document.customReminders.map((reminder) => reminder.propertyId === propertyId
       ? { ...reminder, propertyId: undefined }
       : reminder),

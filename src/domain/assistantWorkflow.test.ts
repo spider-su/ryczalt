@@ -7,7 +7,7 @@ import { deriveTasks, rentMonthAmounts, taskNotificationPlan } from "./tasks";
 const now = new Date(2026, 8, 26, 12);
 function document(): RentalDocument {
   return {
-    schemaVersion: 7,
+    schemaVersion: 1,
     properties: [{ id: "p1", address: "Parkowa", tenantName: "Anna", ownerRent: "3000.00",
       rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
       paymentDay: 10, leaseEndDate: "2026-12-31" }],
@@ -16,8 +16,8 @@ function document(): RentalDocument {
       { id: "fixed", propertyId: "p1", name: "Czynsz administracyjny", dueDay: 5, expectedAmount: "600.00", reminderEnabled: true },
       { id: "variable", propertyId: "p1", name: "Prąd", dueDay: 15, variableAmount: true, reminderEnabled: true },
     ],
-    billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
-    settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
+    billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+    settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
   };
 }
@@ -99,22 +99,20 @@ describe("assistant workflows across domain modules", () => {
 
   it("deletes apartment-linked obligations safely and detaches personal reminders", () => {
     const doc = document();
-    doc.propertyLinks = [{ id: "link", propertyId: "p1", label: "Media", url: "https://utility.example.test" }];
     doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", propertyId: "p1", dueDate: "2026-10-01", recurrence: "ONCE" }];
     doc.taskStates = [
       { taskId: "TENANT_PAYMENT_CHECK:p1:2026-09", dismissedAt: now.toISOString() },
       { taskId: "RECURRING_BILL:fixed:2026-09", snoozedUntil: now.toISOString() },
-      { taskId: "CUSTOM_REMINDER:r1", dismissedAt: now.toISOString() },
+      { taskId: "CUSTOM_REMINDER:r1:2026-10-01", dismissedAt: now.toISOString() },
     ];
     doc.billPayments = [{ id: "bp", billId: "fixed", period: "2026-09", paidAt: "2026-09-20", amount: "600.00" }];
     const deleted = removePropertyData(doc, "p1");
     expect(deleted.properties).toHaveLength(0);
     expect(deleted.recurringBills).toHaveLength(0);
     expect(deleted.billPayments).toHaveLength(0);
-    expect(deleted.propertyLinks).toHaveLength(0);
     expect(deleted.customReminders[0]).toMatchObject({ id: "r1", title: "Sprawdź licznik" });
     expect(deleted.customReminders[0]?.propertyId).toBeUndefined();
-    expect(deleted.taskStates.map((state) => state.taskId)).toEqual(["CUSTOM_REMINDER:r1"]);
+    expect(deleted.taskStates.map((state) => state.taskId)).toEqual(["CUSTOM_REMINDER:r1:2026-10-01"]);
     expect(() => removePropertyData({ ...doc, incomeEntries: [{ id: "i", propertyId: "p1", receivedAt: "2026-01-01", amount: "1.00", taxableAmount: "1.00" }] }, "p1")).toThrow();
   });
 });

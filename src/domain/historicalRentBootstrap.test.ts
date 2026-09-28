@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { RentalDocument } from "../model/rental";
-import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "./historicalRentBootstrap";
+import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange, historicalTaxPaymentsForImportedRent } from "./historicalRentBootstrap";
 import { calculateSettlements } from "./ryczaltTax";
 import { rentMonthAmounts } from "./tasks";
 
-const doc = (): RentalDocument => ({ schemaVersion: 7, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [], settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 } });
-const property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, rentalStartDate: "2026-03-12", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-03", amount: "2500.00" }] };
+const doc = (): RentalDocument => ({ schemaVersion: 1, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 } });
+const property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, rentalStartDate: "2026-03-12", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-03", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }] };
 
 describe("historical rent bootstrap", () => {
   it("defaults to the rental start month through the last completed month", () => {
@@ -42,11 +42,29 @@ describe("historical rent bootstrap", () => {
   });
 
   it("uses the configured charges policy and keeps estimated imported receipts marked", () => {
-    const includeCharges = { ...property, taxableTreatment: "RENT_AND_CHARGES" as const };
+    const includeCharges = { ...property, taxableTreatment: "RENT_AND_CHARGES" as const, rentSchedule: property.rentSchedule.map((rate) => ({ ...rate, taxableTreatment: "RENT_AND_CHARGES" as const })) };
     const initial = doc();
     initial.properties = [includeCharges];
     const result = bootstrapHistoricalRentPayments({ document: initial, property: includeCharges, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
     expect(result.created[0]).toMatchObject({ amount: "3000.00", taxableAmount: "3000.00", receivedAt: "2026-03-12", source: "INITIAL_IMPORT" });
+  });
+
+  it("assumes historical tax was paid by default but allows the user to leave it unpaid", () => {
+    const initial = doc();
+    initial.properties = [property];
+    const result = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
+    expect(historicalTaxPaymentsForImportedRent(result.document, result.created)).toEqual([{ id: "initial-tax-2026-03", period: "2026-03", paidAt: "2026-04-20", amount: "213.00", source: "INITIAL_IMPORT" }]);
+    expect(historicalTaxPaymentsForImportedRent(result.document, result.created, false)).toEqual([]);
+  });
+
+  it("re-estimates an imported assumed payment when another apartment is imported for the same month", () => {
+    const initial = doc();
+    initial.properties = [property, { ...property, id: "second", address: "Druga 2" }];
+    const first = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
+    const firstTax = historicalTaxPaymentsForImportedRent(first.document, first.created);
+    const withFirstTax = { ...first.document, taxPayments: firstTax };
+    const second = bootstrapHistoricalRentPayments({ document: withFirstTax, property: { ...property, id: "second", address: "Druga 2" }, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
+    expect(historicalTaxPaymentsForImportedRent(second.document, second.created)).toEqual([{ ...firstTax[0], amount: "425.00" }]);
   });
 
   it("skips pre-existing months and the current or future months", () => {
@@ -60,11 +78,11 @@ describe("historical rent bootstrap", () => {
   });
 
   it("backdates the initial rent rate to the selected start when the rental start was not entered", () => {
-    const withoutStart = { ...property, rentalStartDate: undefined, rentSchedule: [{ effectiveFrom: "2026-09", amount: "2500.00" }] };
+    const withoutStart = { ...property, rentalStartDate: undefined, rentSchedule: [{ effectiveFrom: "2026-09", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }] };
     const initial = doc();
     initial.properties = [withoutStart];
     const result = bootstrapHistoricalRentPayments({ document: initial, property: withoutStart, startMonth: "2026-01", endMonth: "2026-08", today: "2026-09-28" });
-    expect(result.document.properties[0]?.rentSchedule).toEqual([{ effectiveFrom: "2026-01", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "2500.00" }]);
+    expect(result.document.properties[0]?.rentSchedule).toEqual([{ effectiveFrom: "2026-01", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }, { effectiveFrom: "2026-09", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }]);
     expect(result.document.properties[0]?.rentalStartDate).toBe("2026-01-01");
     expect(rentMonthAmounts(result.document.properties[0]!, result.document.incomeEntries, "2026-08", new Date(2026, 8, 28))).toMatchObject({ expectedGrosz: 300_000, confirmedGrosz: 300_000, remainingGrosz: 0 });
   });

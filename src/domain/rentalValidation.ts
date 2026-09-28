@@ -126,7 +126,7 @@ export function validateIncomeValues(
 export function validateRentalDocumentShape(
   document: RentalDocument,
 ): RentalDocument {
-  if (document.schemaVersion !== 7)
+  if (document.schemaVersion !== 1)
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
@@ -145,8 +145,6 @@ export function validateRentalDocumentShape(
     if (!property.address.trim()) throw new RentalValidationError("Property address is required.");
     if (![undefined, "ACTIVE", "PAUSED", "ARCHIVED"].includes(property.lifecycle)) throw new RentalValidationError("Apartment lifecycle is invalid.");
     if (property.rentalStartDate && !isValidCalendarDate(property.rentalStartDate)) throw new RentalValidationError("Rental start date is invalid.");
-    if (property.tenantSince && !isValidCalendarDate(property.tenantSince))
-      throw new RentalValidationError("Tenant start date is invalid.");
     if (
       property.ownerRent &&
       !isNonnegativeMoney(property.ownerRent)
@@ -165,8 +163,19 @@ export function validateRentalDocumentShape(
     const rentRateMonths = new Set<string>();
     for (const rate of property.rentSchedule ?? []) {
       if (!isRentalMonth(rate.effectiveFrom) || !isNonnegativeMoney(rate.amount) || rentRateMonths.has(rate.effectiveFrom)) throw new RentalValidationError("Rent schedule is invalid.");
+      if (rate.mediaAmount !== undefined && !isNonnegativeMoney(rate.mediaAmount)) throw new RentalValidationError("Rent schedule is invalid.");
+      if (rate.mediaPaidByTenant !== undefined && typeof rate.mediaPaidByTenant !== "boolean") throw new RentalValidationError("Rent schedule is invalid.");
+      if (rate.taxableTreatment !== undefined && !["OWNER_RENT", "RENT_AND_CHARGES"].includes(rate.taxableTreatment)) throw new RentalValidationError("Rent schedule is invalid.");
+      if (rate.paymentDay !== undefined && (!Number.isInteger(rate.paymentDay) || rate.paymentDay < 1 || rate.paymentDay > 31)) throw new RentalValidationError("Rent schedule is invalid.");
       rentRateMonths.add(rate.effectiveFrom);
     }
+    const lifecycleMonths = new Set<string>();
+    for (const rate of property.lifecycleSchedule ?? []) {
+      if (!isRentalMonth(rate.effectiveFrom) || !["ACTIVE", "PAUSED", "ARCHIVED"].includes(rate.lifecycle) || lifecycleMonths.has(rate.effectiveFrom)) throw new RentalValidationError("Apartment lifecycle schedule is invalid.");
+      lifecycleMonths.add(rate.effectiveFrom);
+    }
+    const archivedAt = property.lifecycleSchedule?.find((rate) => rate.lifecycle === "ARCHIVED")?.effectiveFrom;
+    if (archivedAt && property.lifecycleSchedule?.some((rate) => rate.effectiveFrom > archivedAt)) throw new RentalValidationError("Archived apartments cannot have later lifecycle changes.");
   }
   const administrationNames = new Set<string>();
   for (const administration of document.administrationSuggestions) {
@@ -192,7 +201,8 @@ export function validateRentalDocumentShape(
     if (
       !isSettlementPeriod(payment.period) ||
       !isValidCalendarDate(payment.paidAt) ||
-      !isPositiveMoney(payment.amount)
+      !isPositiveMoney(payment.amount) ||
+      (payment.source !== undefined && payment.source !== "MANUAL" && payment.source !== "INITIAL_IMPORT")
     ) {
       throw new RentalValidationError("Tax payment is invalid.");
     }
@@ -219,11 +229,6 @@ export function validateRentalDocumentShape(
     if (!billIds.has(payment.billId) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
       throw new RentalValidationError("Bill payment is invalid.");
   }
-  const linkIds = new Set<string>();
-  for (const link of document.propertyLinks) {
-    if (linkIds.has(link.id) || !propertyIds.has(link.propertyId) || !link.label.trim() || !isValidHttpsUrl(link.url) || ![undefined, "ADMINISTRATION", "UTILITY", "TAX", "OTHER"].includes(link.category)) throw new RentalValidationError("Property link is invalid.");
-    linkIds.add(link.id);
-  }
   const customIds = new Set<string>();
   for (const reminder of document.customReminders) {
     if (customIds.has(reminder.id) || !reminder.title.trim() || !isValidCalendarDate(reminder.dueDate) || (reminder.propertyId && !propertyIds.has(reminder.propertyId)) || !["ONCE", "MONTHLY", "YEARLY"].includes(reminder.recurrence)) throw new RentalValidationError("Custom reminder is invalid.");
@@ -234,6 +239,17 @@ export function validateRentalDocumentShape(
   for (const state of document.taskStates) {
     if (!validTaskId.test(state.taskId) || stateIds.has(state.taskId) || [state.snoozedUntil, state.dismissedAt, state.completedAt].some((value) => value !== undefined && (typeof value !== "string" || Number.isNaN(new Date(value).getTime()) || new Date(value).toISOString() !== value))) throw new RentalValidationError("Task state is invalid.");
     stateIds.add(state.taskId);
+  }
+  const apartmentPeriodIds = new Set<string>();
+  for (const snapshot of document.apartmentPeriods ?? []) {
+    const id = `${snapshot.propertyId}:${snapshot.month}`;
+    if (!propertyIds.has(snapshot.propertyId) || !isRentalMonth(snapshot.month) || apartmentPeriodIds.has(id) || (snapshot.ownerRent !== undefined && !isNonnegativeMoney(snapshot.ownerRent)) || (snapshot.expectedAmount !== undefined && !isNonnegativeMoney(snapshot.expectedAmount)) || typeof snapshot.expectedKnown !== "boolean" || !isNonnegativeMoney(snapshot.confirmedAmount) || !isNonnegativeMoney(snapshot.taxableAmount) || !isValidCalendarDate(snapshot.closedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId))) throw new RentalValidationError("Apartment period snapshot is invalid.");
+    apartmentPeriodIds.add(id);
+  }
+  const taxSnapshotPeriods = new Set<string>();
+  for (const snapshot of document.taxSettlementSnapshots ?? []) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(snapshot.period) || taxSnapshotPeriods.has(snapshot.period) || ![snapshot.revenue, snapshot.taxableBase, snapshot.cumulativeRevenue, snapshot.cumulativeTax, snapshot.obligation, snapshot.paid, snapshot.allocatedPaid, snapshot.creditApplied, snapshot.outstanding, snapshot.overpaid].every(isNonnegativeMoney) || !isValidCalendarDate(snapshot.dueDate) || !Number.isInteger(snapshot.rulesYear) || !isValidCalendarDate(snapshot.savedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId)) || !snapshot.taxPaymentIds.every((paymentId) => taxIds.has(paymentId))) throw new RentalValidationError("Tax settlement snapshot is invalid.");
+    taxSnapshotPeriods.add(snapshot.period);
   }
   if (document.settings.taxMicroAccount && !isValidPolishBankAccount(document.settings.taxMicroAccount))
     throw new RentalValidationError("Tax micro-account is invalid.");

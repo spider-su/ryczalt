@@ -8,20 +8,20 @@ import { deriveTasks, groupActiveTasks, rentMonthAmounts, taskNotificationPlan }
 const now = new Date(2026, 8, 27, 12);
 const reduta: Property = {
   id: "reduta", address: "Reduta 26B/44", ownerRent: "2700.00", mediaAmount: "500.00", mediaPaidByTenant: true, paymentDay: 10,
-  rentSchedule: [{ effectiveFrom: "2026-09", amount: "2700.00" }],
+  rentSchedule: [{ effectiveFrom: "2026-09", amount: "2700.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 10 }],
 };
 const other: Property = {
   id: "other", address: "Other", ownerRent: "1900.00", paymentDay: 10,
-  rentSchedule: [{ effectiveFrom: "2026-09", amount: "1900.00" }],
+  rentSchedule: [{ effectiveFrom: "2026-09", amount: "1900.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }],
 };
 const receipt = (id: string, amount: string, receivedAt = "2026-09-27", propertyId = reduta.id, rentalMonth?: string): IncomeEntry => ({
   id, propertyId, amount, receivedAt, rentalMonth, taxableAmount: amount,
 });
 function document(entries: IncomeEntry[]) {
   return {
-    schemaVersion: 7 as const, properties: [reduta, other], incomeEntries: entries, taxPayments: [], recurringBills: [],
-    billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
-    settings: { taxYear: 2026, settlementMode: "monthly" as const, jointSpouseThreshold: false, quarterlyEligible: false,
+    schemaVersion: 1 as const, properties: [reduta, other], incomeEntries: entries, taxPayments: [], recurringBills: [],
+    billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+    settings: { taxYear: 2026, settlementMode: "monthly" as const, jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
   };
 }
@@ -32,9 +32,19 @@ describe("rent receipt allocation", () => {
   });
 
   it("does not create expectations before a recorded rental start month", () => {
-    const startedInMarch = { ...reduta, rentalStartDate: "2026-03-12", rentSchedule: [{ effectiveFrom: "2026-03", amount: "2700.00" }] };
+    const startedInMarch = { ...reduta, rentalStartDate: "2026-03-12", rentSchedule: [{ effectiveFrom: "2026-03", amount: "2700.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 10 }] };
     expect(rentMonthAmounts(startedInMarch, [], "2026-02", now).expectedGrosz).toBeNull();
     expect(rentMonthAmounts(startedInMarch, [], "2026-03", now).expectedGrosz).toBe(320_000);
+  });
+
+  it("stops expectations during a paused month while preserving earlier and resumed periods", () => {
+    const apartment: Property = { ...reduta, lifecycle: "ACTIVE", lifecycleSchedule: [
+      { effectiveFrom: "2026-10", lifecycle: "PAUSED" },
+      { effectiveFrom: "2026-12", lifecycle: "ACTIVE" },
+    ] };
+    expect(rentMonthAmounts(apartment, [], "2026-09", now).expectedGrosz).toBe(320_000);
+    expect(rentMonthAmounts(apartment, [], "2026-10", now).expectedGrosz).toBeNull();
+    expect(rentMonthAmounts(apartment, [], "2026-12", now).expectedGrosz).toBe(320_000);
   });
 
   it("reconciles an exact payment with dashboard, income summary, task and tax", () => {
@@ -85,7 +95,7 @@ describe("rent receipt allocation", () => {
   });
 
   it("does not allocate a post-agreement receipt into a future rent month", () => {
-    const ending = { ...reduta, leaseEndDate: "2026-10-31", rentSchedule: [{ effectiveFrom: "2026-09", amount: "2700.00" }] };
+    const ending = { ...reduta, leaseEndDate: "2026-10-31", rentSchedule: [{ effectiveFrom: "2026-09", amount: "2700.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 10 }] };
     const result = allocateRentReceipts(ending, [receipt("post-end", "9000.00", "2026-11-12", reduta.id, "2026-11")], now);
     expect(result.byMonth.has("2026-11")).toBe(false);
     expect(result.unallocatedGrosz).toBe(260_000);
@@ -98,7 +108,7 @@ describe("rent receipt allocation", () => {
   });
 
   it("prioritizes an explicit rent month, then closes the oldest unpaid historical month", () => {
-    const historical = { ...reduta, rentSchedule: [{ effectiveFrom: "2026-08", amount: "3900.00" }] };
+    const historical = { ...reduta, rentSchedule: [{ effectiveFrom: "2026-08", amount: "3900.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 10 }] };
     const entries = [receipt("aug", "3000.00", "2026-08-27", reduta.id, "2026-08"), receipt("sep", "4800.00", "2026-09-27", reduta.id, "2026-09")];
     expect(rentMonthAmounts(historical, entries, "2026-09", now)).toMatchObject({ expectedGrosz: 440_000, confirmedGrosz: 440_000, remainingGrosz: 0 });
     expect(rentMonthAmounts(historical, entries, "2026-08", now)).toMatchObject({ confirmedGrosz: 340_000, remainingGrosz: 100_000 });
@@ -106,7 +116,7 @@ describe("rent receipt allocation", () => {
   });
 
   it("keeps an explicit September overpayment unallocated and leaves October at its expected rent", () => {
-    const expected2600: Property = { ...reduta, ownerRent: "2600.00", rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00" }] };
+    const expected2600: Property = { ...reduta, ownerRent: "2600.00", rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 10 }] };
     const entry = receipt("sep-overpayment", "10000.00", "2026-09-27", expected2600.id, "2026-09");
     const taxBeforeAllocation = calculateSettlements({ entries: [entry], payments: [], taxYear: 2026, mode: "monthly", today: "2026-09-27" });
     const allocation = allocateRentReceipts(expected2600, [entry], now);
@@ -121,7 +131,7 @@ describe("rent receipt allocation", () => {
   });
 
   it("allocates receipts without rentalMonth to the oldest open month due by receipt date", () => {
-    const historical = { ...reduta, rentSchedule: [{ effectiveFrom: "2026-08", amount: "3900.00" }] };
+    const historical = { ...reduta, rentSchedule: [{ effectiveFrom: "2026-08", amount: "3900.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 10 }] };
     const entries = [receipt("aug", "3000.00", "2026-08-27", reduta.id, "2026-08"), receipt("unspecified", "4800.00", "2026-09-27", reduta.id)];
     expect(rentMonthAmounts(historical, entries, "2026-08", now)).toMatchObject({ confirmedGrosz: 440_000, remainingGrosz: 0 });
     expect(rentMonthAmounts(historical, entries, "2026-09", now)).toMatchObject({ confirmedGrosz: 340_000, remainingGrosz: 100_000 });

@@ -3,6 +3,8 @@ export type Property = {
   id: string;
   address: string;
   lifecycle?: "ACTIVE" | "PAUSED" | "ARCHIVED";
+  /** Effective-month lifecycle history; ARCHIVED is terminal. */
+  lifecycleSchedule?: ApartmentLifecycleRate[];
   rentalStartDate?: string;
   ownerRent?: string;
   rentSchedule?: RentRate[];
@@ -13,7 +15,6 @@ export type Property = {
   tenantName?: string;
   tenantPhone?: string;
   tenantEmail?: string;
-  tenantSince?: string;
   leaseEndDate?: string;
   paymentDay?: number;
   administrationName?: string;
@@ -25,15 +26,48 @@ export type Property = {
 
 export type AdministrationSuggestion = { name: string; url?: string };
 
-export type RentRate = { effectiveFrom: string; amount: string };
-
-export type PropertyLink = {
-  id: string;
-  propertyId: string;
-  label: string;
-  url: string;
-  category?: "ADMINISTRATION" | "UTILITY" | "TAX" | "OTHER";
+/** Complete rent terms effective from the given calendar month. */
+export type RentRate = {
+  effectiveFrom: string;
+  amount: string;
+  mediaAmount?: string;
+  mediaPaidByTenant?: boolean;
+  taxableTreatment?: "OWNER_RENT" | "RENT_AND_CHARGES";
+  paymentDay?: number;
 };
+
+export type ApartmentPeriodSnapshot = {
+  propertyId: string;
+  month: string;
+  ownerRent?: string;
+  expectedAmount?: string;
+  expectedKnown: boolean;
+  confirmedAmount: string;
+  taxableAmount: string;
+  receiptIds: string[];
+  closedAt: string;
+};
+
+export type TaxSettlementSnapshot = {
+  period: string;
+  revenue: string;
+  taxableBase: string;
+  cumulativeRevenue: string;
+  cumulativeTax: string;
+  obligation: string;
+  paid: string;
+  allocatedPaid: string;
+  creditApplied: string;
+  outstanding: string;
+  overpaid: string;
+  dueDate: string;
+  rulesYear: number;
+  receiptIds: string[];
+  taxPaymentIds: string[];
+  savedAt: string;
+};
+
+export type ApartmentLifecycleRate = { effectiveFrom: string; lifecycle: "ACTIVE" | "PAUSED" | "ARCHIVED" };
 
 export type ReminderRecurrence = "ONCE" | "MONTHLY" | "YEARLY";
 
@@ -91,24 +125,25 @@ export type TaxPayment = {
   period: string;
   paidAt: string;
   amount: string;
+  source?: "MANUAL" | "INITIAL_IMPORT";
 };
 
 export type RentalDocument = {
-  schemaVersion: 7;
+  schemaVersion: 1;
   properties: Property[];
   incomeEntries: IncomeEntry[];
   taxPayments: TaxPayment[];
   recurringBills: RecurringBill[];
   billPayments: BillPayment[];
-  propertyLinks: PropertyLink[];
   administrationSuggestions: AdministrationSuggestion[];
   customReminders: CustomReminder[];
   taskStates: TaskState[];
+  apartmentPeriods: ApartmentPeriodSnapshot[];
+  taxSettlementSnapshots: TaxSettlementSnapshot[];
   settings: {
     taxYear: number;
-    settlementMode: "monthly" | "quarterly";
+    settlementMode: "monthly";
     jointSpouseThreshold: boolean;
-    quarterlyEligible: boolean;
     reminderCategories: {
       rent: boolean;
       agreements: boolean;
