@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "generate:brand-icons": "node scripts/generate-brand-icons.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint App.tsx src",
     "test": "vitest run",
@@ -37,6 +38,7 @@
     "@types/react": "~19.2.4",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "pngjs": "^3.4.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.1",
     "vitest": "^5.0.1"
