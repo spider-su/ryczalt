@@ -14,7 +14,7 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
-import { formatPolishDate } from "../domain/presentationFormat";
+import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
 import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "../domain/rentalPresentation";
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_PAYMENT_ALLOCATION_HINT, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
@@ -116,7 +116,7 @@ export function TaxScreen() {
     }
     Alert.alert(
       "Nie wszystkie wpłaty są potwierdzone",
-      `${unconfirmedRentCount === 1 ? "1 mieszkanie czeka" : `${unconfirmedRentCount} mieszkania czekają`} na potwierdzenie. Podatek jest wyliczony tylko z potwierdzonych wpłat. Jeśli czynsz został otrzymany, należny podatek może się zwiększyć.`,
+      `${formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek jest wyliczony tylko z potwierdzonych wpłat. Jeśli czynsz został otrzymany, należny podatek może się zwiększyć.`,
       [
         { text: "Sprawdź wpłaty", style: "cancel", onPress: () => navigation.navigate("Przychód") },
         { text: "Kontynuuj mimo to", onPress: proceedToPaymentWithHistoryReview },
@@ -215,7 +215,7 @@ export function TaxScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={`Dane do przelewu. ${TAX_TRANSFER_HINT}`} onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><View><Text style={transferTitle}>Dane do przelewu</Text><Text style={transferHint}>{TAX_TRANSFER_HINT}</Text></View><Text style={action}>›</Text></Pressable>
         {unconfirmedRentCount > 0 ? <View style={rentWarning}>
           <Text style={rentWarningTitle}>Nie wszystkie wpłaty są potwierdzone</Text>
-          <Text style={rentWarningText}>{unconfirmedRentCount === 1 ? "1 mieszkanie czeka" : `${unconfirmedRentCount} mieszkania czekają`} na potwierdzenie. Podatek obejmuje tylko potwierdzone wpłaty.</Text>
+          <Text style={rentWarningText}>{formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek obejmuje tylko potwierdzone wpłaty.</Text>
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
         </View> : null}
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
