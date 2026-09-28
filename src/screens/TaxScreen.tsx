@@ -119,13 +119,12 @@ export function TaxScreen() {
   };
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 36 }}>
-      <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700" }}>Podatek</Text>
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 36 }}>
       <PeriodSelector value={taxPeriodLabel(selectedPeriod, document.settings.settlementMode)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
         previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode)}
         onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, document.settings.settlementMode, now, earliestPeriod))}
         onNext={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, 1, document.settings.settlementMode, now, earliestPeriod))} />
-      <Text style={muted}>Rozliczenie {document.settings.settlementMode === "monthly" ? "miesięczne" : "kwartalne"}</Text>
+      <Text style={settlementContext}>Rozliczenie {document.settings.settlementMode === "monthly" ? "miesięczne" : "kwartalne"}</Text>
       {!settlement || !Number.isInteger(taxYear) ? null : <>
         <View style={[ui.card, { marginTop: 10 }]}>
           {paymentDisplay?.kind === "no-tax" ? <Text style={{ color: theme.colors.textSecondary, fontWeight: "700" }}>Brak podatku do zapłaty</Text> : <>
@@ -156,7 +155,7 @@ export function TaxScreen() {
         {payments.length ? <><Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>{TAX_PAYMENT_ALLOCATION_HINT}</Text></> : null}
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
-          <View style={{ flexDirection: "row", gap: 18, marginTop: 6 }}><Text accessibilityRole="button" onPress={() => openPayment(payment)} style={action}>Popraw</Text><Text accessibilityRole="button" onPress={() => deletePayment(payment)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}><Pressable accessibilityRole="button" onPress={() => openPayment(payment)} style={secondaryPaymentAction}><Text style={secondaryPaymentActionText}>Popraw</Text></Pressable><Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable></View>
         </View>)}
       </>}
       {!settlement && !([2025, 2026] as number[]).includes(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Dane pojawią się po dodaniu reguł dla tego roku.</Text> : null}
@@ -191,7 +190,10 @@ export function TaxScreen() {
 }
 
 const action = { color: theme.colors.primary, fontWeight: "600" as const, paddingVertical: 5 };
+const secondaryPaymentAction = { minWidth: 56, minHeight: 44, justifyContent: "center" as const, paddingHorizontal: 8 };
+const secondaryPaymentActionText = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "500" as const };
 const muted = { color: theme.colors.textSecondary, marginTop: 6, fontSize: 14 };
+const settlementContext = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 0 };
 const primaryButton = ui.primaryButton;
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const, fontSize: 15 };
 const dueLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5 };

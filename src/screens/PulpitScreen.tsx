@@ -20,7 +20,7 @@ import { TaskRow } from "../components/pulpit/TaskRow";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { dashboardAttentionTasks, dashboardProgress, daysOverdue, rentCheckAgeLabel, rentDisplayState, rentStatusLabel, unallocatedRentWarning } from "../domain/rentalPresentation";
 import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEntries, toggleBulkSelection } from "../domain/bulkRentConfirmation";
-import { formatPolishCount, formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
+import { formatPolishCount, formatPolishDate, formatPolishMonth, formatPlnSummary } from "../domain/presentationFormat";
 import { ProgressBar } from "../components/ProgressBar";
 import { PeriodSelector } from "../components/PeriodSelector";
 import { StatusBadge } from "../components/StatusBadge";
@@ -133,10 +133,6 @@ export function PulpitScreen() {
     if (linked.length === 1) { openAdministration(linked[0]); return; }
     if (linked.length > 1) setAdminPickerVisible(true);
     else navigation.navigate("Ustawienia");
-  };
-  const openCustom = () => {
-    setCustomTaskDone(false); setCustomTaskId(""); setCustomTitle(""); setCustomDate(todayIsoDate()); setCustomNote("");
-    setCustomPropertyId(""); setCustomReminderId(""); setCustomRecurrence("ONCE"); setCustomOpen(true);
   };
   const saveCustom = async () => {
     if (!customTitle.trim() || !isValidCalendarDate(customDate)) {
@@ -255,7 +251,6 @@ export function PulpitScreen() {
         total={setup.totalRequiredSteps}
         onPress={() => openSetupAction(setup.nextAction!.action, setup.nextAction!.propertyId)}
       /> : null}
-      <Pressable accessibilityRole="button" onPress={openCustom} style={{ alignSelf: "flex-start", paddingVertical: 8 }}><Text style={action}>＋ Dodaj przypomnienie</Text></Pressable>
       {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne tutaj.</Text> : null}
 
 
@@ -343,7 +338,7 @@ function monthDistance(month: string, now: Date) {
   const [year, monthNumber] = month.split("-").map(Number);
   return Math.max(6, (year! - now.getFullYear()) * 12 + monthNumber! - now.getMonth() - 1);
 }
-function compactPln(amountGrosz: number) { return formatPln(amountGrosz).replace(/,00(?= zł)/, ""); }
+function compactPln(amountGrosz: number) { return formatPlnSummary(amountGrosz); }
 
 const setupCard = { ...ui.card, marginTop: 14 };
 const setupTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 5 };

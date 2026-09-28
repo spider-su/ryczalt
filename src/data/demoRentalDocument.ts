@@ -1,5 +1,5 @@
 import type { RentalDocument, IncomeEntry, Property, TaxPayment } from "../model/rental";
-import { calculateSettlements, settlementPeriodForMonth, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
+import { calculateSettlements, settlementPeriodForMonth, SUPPORTED_TAX_YEARS, todayInPoland } from "../domain/ryczaltTax";
 
 function monthShift(month: string, offset: number) {
   const [year, number] = month.split("-").map(Number);
@@ -18,16 +18,16 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
     ? now.getFullYear()
     : Math.max(...SUPPORTED_TAX_YEARS);
   const currentMonth = `${supportedYear}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const previousMonth = monthShift(currentMonth, -1);
+  const today = todayInPoland(now);
   const leaseEnd = new Date(now.getFullYear(), now.getMonth() + 10, 1, 12);
   const leaseEndDate = `${leaseEnd.getFullYear()}-${String(leaseEnd.getMonth() + 1).padStart(2, "0")}-01`;
   const properties: Property[] = [
     {
-      id: "demo-reduta", address: "Reduta 26B / 44", lifecycle: "ACTIVE", rentalStartDate: `${supportedYear}-01-01`,
+      id: "demo-piotrkowska", address: "ul. Piotrkowska 18 / 7, Łódź", lifecycle: "ACTIVE", rentalStartDate: `${supportedYear}-01-01`,
       ownerRent: "2700", rentSchedule: [{ effectiveFrom: `${supportedYear}-01`, amount: "2700" }],
-      mediaAmount: "910", mediaPaidByTenant: true, tenantName: "Anna Kipricz", tenantPhone: "+48 600 123 456",
-      tenantEmail: "anna@example.com", tenantSince: `${supportedYear}-01-01`, leaseEndDate,
-      paymentDay: 5, administrationName: "Administracja Reduta", administrationUrl: "https://example.com/reduta",
+      mediaAmount: "910", mediaPaidByTenant: true, tenantName: "Zofia Kowalska", tenantPhone: "+48 600 123 456",
+      tenantEmail: "zofia@example.com", tenantSince: `${supportedYear}-01-01`, leaseEndDate,
+      paymentDay: 5, administrationName: "Administracja Piotrkowska", administrationUrl: "https://example.com/piotrkowska",
       electricityProvider: "TAURON",
     },
     {
@@ -38,21 +38,39 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
       paymentDay: 5, administrationName: "Administracja Mogilska", electricityProvider: "PGE",
     },
   ];
-  const incomeEntries: IncomeEntry[] = [
-    { id: "demo-income-reduta-prior", propertyId: "demo-reduta", receivedAt: monthDay(previousMonth, 5), rentalMonth: previousMonth, amount: "3610", taxableAmount: "2700", tenantNameSnapshot: "Anna Kipricz", source: "MANUAL" },
-    { id: "demo-income-reduta-current", propertyId: "demo-reduta", receivedAt: monthDay(currentMonth, now.getDate()), rentalMonth: currentMonth, amount: "3610", taxableAmount: "2700", tenantNameSnapshot: "Anna Kipricz", source: "MANUAL" },
-    { id: "demo-income-mogilska-current", propertyId: "demo-mogilska", receivedAt: monthDay(currentMonth, now.getDate()), rentalMonth: currentMonth, amount: "1900", taxableAmount: "1900", tenantNameSnapshot: "Marek Wiśniewski", description: "Częściowa wpłata za czynsz", source: "MANUAL" },
-  ];
-  const priorPeriod = settlementPeriodForMonth(previousMonth, "monthly")!;
-  const priorSettlement = calculateSettlements({ entries: incomeEntries, payments: [], taxYear: supportedYear, mode: "monthly", today: now.toISOString().slice(0, 10) })
-    .find((item) => item.period === priorPeriod);
-  const taxPayments: TaxPayment[] = priorSettlement && priorSettlement.obligationGrosz > 0
-    ? [{ id: "demo-tax-prior", period: priorPeriod, paidAt: monthDay(currentMonth, Math.min(now.getDate(), 20)), amount: (priorSettlement.obligationGrosz / 100).toFixed(2) }]
-    : [];
+  const months = Array.from({ length: now.getMonth() + 1 }, (_, index) => `${supportedYear}-${String(index + 1).padStart(2, "0")}`);
+  const incomeEntries: IncomeEntry[] = properties.flatMap((property) => {
+    const startMonth = property.rentalStartDate!.slice(0, 7);
+    return months.filter((month) => month >= startMonth).map((month) => {
+      const partialCurrentRent = property.id === "demo-mogilska" && month === currentMonth;
+      const amount = partialCurrentRent ? "1900" : property.id === "demo-piotrkowska" ? "3610" : "3850";
+      const taxableAmount = partialCurrentRent ? "1900" : property.ownerRent!;
+      return {
+        id: `demo-income-${property.id.replace("demo-", "")}-${month}`,
+        propertyId: property.id,
+        receivedAt: monthDay(month, month === currentMonth ? now.getDate() : 5),
+        rentalMonth: month,
+        amount,
+        taxableAmount,
+        tenantNameSnapshot: property.tenantName,
+        ...(partialCurrentRent ? { description: "Częściowa wpłata za czynsz" } : {}),
+        source: "MANUAL" as const,
+      };
+    });
+  });
+  const settlements = calculateSettlements({ entries: incomeEntries, payments: [], taxYear: supportedYear, mode: "monthly", today });
+  const taxPayments: TaxPayment[] = settlements
+    .filter((settlement) => settlement.obligationGrosz > 0 && settlement.dueDate <= today)
+    .map((settlement) => ({
+      id: `demo-tax-${settlement.period}`,
+      period: settlementPeriodForMonth(settlement.period, "monthly")!,
+      paidAt: settlement.dueDate,
+      amount: (settlement.obligationGrosz / 100).toFixed(2),
+    }));
   return {
     schemaVersion: 6, properties, incomeEntries, taxPayments, recurringBills: [], billPayments: [], propertyLinks: [],
     administrationSuggestions: [],
-    customReminders: [{ id: "demo-reminder-inspection", title: "Przegląd mieszkania", propertyId: "demo-reduta", dueDate: monthDay(monthShift(currentMonth, 1), 12), note: "Umów dogodny termin", recurrence: "ONCE" }],
+    customReminders: [{ id: "demo-reminder-inspection", title: "Przegląd mieszkania", propertyId: "demo-piotrkowska", dueDate: monthDay(monthShift(currentMonth, 1), 12), note: "Umów dogodny termin", recurrence: "ONCE" }],
     taskStates: [],
     settings: {
       taxYear: supportedYear, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,

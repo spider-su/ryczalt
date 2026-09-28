@@ -1,4 +1,11 @@
+import { formatPln } from "./ryczaltTax";
+
 export type PolishPluralForms = readonly [singular: string, paucal: string, plural: string];
+
+/** Compact whole-zloty formatting for summary and chart values. */
+export function formatPlnSummary(amountGrosz: number): string {
+  return formatPln(amountGrosz).replace(/,00(?= zł)/, "");
+}
 
 export function formatPolishCount(count: number, forms: PolishPluralForms): string {
   const absolute = Math.abs(count);
@@ -25,6 +32,13 @@ export function formatPolishMonth(value: string): string {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
   if (!match) return value;
   return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" })
+    .format(new Date(Number(match[1]), Number(match[2]) - 1, 1, 12));
+}
+
+export function formatPolishMonthName(value: string): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value);
+  if (!match) return value;
+  return new Intl.DateTimeFormat("pl-PL", { month: "long" })
     .format(new Date(Number(match[1]), Number(match[2]) - 1, 1, 12));
 }
 
