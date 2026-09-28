@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { calculateSettlements, formatPln, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
+import { calculateSettlements, formatPln, formatPlnAmount, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
@@ -14,6 +14,7 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
+import { formatPolishDate } from "../domain/presentationFormat";
 
 const statusLabel = { "no-tax": "Brak podatku do zapłaty", due: "Do zapłaty", partial: "Częściowo zapłacono", paid: "Zapłacono", overdue: "Po terminie" } as const;
 
@@ -77,7 +78,7 @@ export function TaxScreen() {
     } catch { /* The provider reports persistence failure. */ }
     finally { setSaving(false); }
   };
-  const deletePayment = (payment: TaxPayment) => Alert.alert("Usunąć potwierdzenie wpłaty?", `${payment.amount} zł z dnia ${payment.paidAt}.`, [
+  const deletePayment = (payment: TaxPayment) => Alert.alert("Usunąć potwierdzenie wpłaty?", `${formatPlnAmount(payment.amount)} z dnia ${formatPolishDate(payment.paidAt, "long")}.`, [
     { text: "Anuluj", style: "cancel" },
     { text: "Usuń", style: "destructive", onPress: () => void update((current) => removeTaxPayment(current, payment.id)).catch(() => undefined) },
   ]);
@@ -121,7 +122,7 @@ export function TaxScreen() {
           <Metric label="Zapłacono" value={formatPln(settlement.paidGrosz)} />
           {settlement.creditAppliedGrosz > 0 ? <Metric label="Wykorzystana nadpłata" value={formatPln(settlement.creditAppliedGrosz)} /> : null}
           <View style={dueAmount}><Text style={dueLabel}>{settlement.overpaidGrosz ? "NADPŁATA" : "DO ZAPŁATY"}</Text><Text style={dueValue}>{formatPln(settlement.overpaidGrosz || settlement.outstandingGrosz)}</Text></View>
-          <Text style={{ color: settlement.status === "overdue" ? theme.colors.danger : theme.colors.textSecondary, fontWeight: "600", marginTop: 10 }}>Termin · {settlement.dueDate}</Text>
+          <Text style={{ color: settlement.status === "overdue" ? theme.colors.danger : theme.colors.textSecondary, fontWeight: "600", marginTop: 10 }}>Termin · {formatPolishDate(settlement.dueDate, "long")}</Text>
           <Text style={taxContext}>Rocznie: {formatPln(settlement.cumulativeRevenueGrosz)} / {formatPln(document.settings.jointSpouseThreshold ? 20_000_000 : 10_000_000)}</Text>
           {settlement.status === "overdue" ? <Text style={{ color: theme.colors.danger, fontWeight: "700", marginTop: 8 }}>{statusLabel[settlement.status]}</Text> : null}
         </View>
@@ -130,7 +131,7 @@ export function TaxScreen() {
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><Text style={action}>Dane do przelewu podatku</Text><Text style={action}>›</Text></Pressable> : null}
           {payments.length ? <Text style={{ color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700", marginTop: 18 }}>Wpłaty w okresie</Text> : null}
         {payments.length === 0 ? <Text style={{ ...ui.emptyState, color: theme.colors.textSecondary }}>Brak potwierdzonych wpłat.</Text> : payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14 }]}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{payment.paidAt}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{payment.amount} zł</Text></View>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
           <View style={{ flexDirection: "row", gap: 18, marginTop: 6 }}><Text accessibilityRole="button" onPress={() => openPayment(payment)} style={action}>Popraw</Text><Text accessibilityRole="button" onPress={() => deletePayment(payment)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
         </View>)}
       </>}
@@ -157,7 +158,7 @@ export function TaxScreen() {
           <PaymentDetail label="Mikrorachunek podatkowy" value={taxPaymentDetails.bankAccount} onCopy={() => void copyDetail(taxPaymentDetails.bankAccount, "Mikrorachunek")} />
           <PaymentDetail label="Kwota pozostała" value={`${formatPln(settlement?.outstandingGrosz ?? 0)}`} onCopy={() => void copyDetail(taxPaymentDetails.amount, "Kwota")} />
           <PaymentDetail label="Tytuł płatności" value={taxPaymentDetails.title} onCopy={() => void copyDetail(taxPaymentDetails.title, "Tytuł płatności")} />
-          <PaymentDetail label="Termin płatności" value={taxPaymentDetails.dueDate} onCopy={() => void copyDetail(taxPaymentDetails.dueDate, "Termin płatności")} />
+          <PaymentDetail label="Termin płatności" value={taxPaymentDetails.dueDate ? formatPolishDate(taxPaymentDetails.dueDate, "long") : undefined} onCopy={() => void copyDetail(taxPaymentDetails.dueDate, "Termin płatności")} />
           {missingTaxDetails.length ? <Pressable accessibilityRole="button" onPress={() => { setPaymentDetailsOpen(false); navigation.navigate("Ustawienia", { settingsSection: "payment" }); }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 12 }}>Skonfiguruj lub popraw: {missingTaxDetails.join(", ")} w Ustawieniach ›</Text></Pressable> : null}
           <Text style={{ ...muted, marginTop: 16 }}>Kod QR nie jest generowany, aby nie podać niekompletnych lub niezgodnych z bankiem danych. Sprawdź rachunek przed zleceniem przelewu.</Text>
         </ScrollView>

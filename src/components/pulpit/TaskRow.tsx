@@ -2,6 +2,8 @@ import { Pressable, Text, View } from "react-native";
 import type { AssistantTask, TaskStatus } from "../../domain/tasks";
 import { theme } from "../../theme/theme";
 import { formatPln } from "../../domain/ryczaltTax";
+import { upcomingTaskPresentation } from "../../domain/rentalPresentation";
+import { formatPolishDate } from "../../domain/presentationFormat";
 
 const typeLabel: Record<AssistantTask["type"], string> = {
   TENANT_PAYMENT_CHECK: "Czynsz", TAX_PAYMENT: "Podatek", RECURRING_BILL: "Rachunek",
@@ -14,8 +16,9 @@ const statusLabel: Record<TaskStatus, string> = {
 export function TaskRow({ task, onOpen, onSnooze, onDismiss, onComplete, compact = false }: { task: AssistantTask; onOpen: () => void; onSnooze: () => void; onDismiss: () => void; onComplete: () => void; compact?: boolean }) {
   const stateColor = task.status === "needs-attention" ? theme.colors.warning : task.status === "snoozed" ? theme.colors.info : task.status === "completed" ? theme.colors.success : theme.colors.textSecondary;
   const detail = rentTaskSummary(task);
+  const upcoming = upcomingTaskPresentation(task);
   if (compact) return <View style={upcomingCard}>
-    <Pressable accessibilityRole="button" onPress={onOpen} style={{ flex: 1 }}><Text style={taskTitle} numberOfLines={1}>{task.type === "TAX_PAYMENT" ? `Podatek · ${formatPln(task.remainingGrosz ?? 0)}` : task.title.replace(/^Sprawdź czynsz — /, "")}</Text><Text style={muted} numberOfLines={1}>{task.type === "TENANT_PAYMENT_CHECK" && task.expectedGrosz ? `${formatPln(task.expectedGrosz)} · ` : ""}${task.dueAt.toLocaleDateString("pl-PL")}</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={onOpen} style={{ flex: 1 }}><Text style={taskTitle} numberOfLines={1}>{upcoming.title}</Text><Text style={upcomingMeta} numberOfLines={1}>{upcoming.amount}{upcoming.amount ? " · " : ""}{formatPolishDate(task.dueAt)}</Text></Pressable>
     <Pressable accessibilityRole="button" accessibilityLabel={`Przypomnij później: ${task.title}`} onPress={onSnooze}><Text style={action}>Odłóż</Text></Pressable>
   </View>;
   return <View style={taskCard}>
@@ -23,7 +26,7 @@ export function TaskRow({ task, onOpen, onSnooze, onDismiss, onComplete, compact
       <View style={{ flex: 1 }}><Text style={taskTitle}>{task.title}</Text><Text style={muted}>{detail || task.detail || typeLabel[task.type]}</Text></View>
       <Text style={[statusText, { color: stateColor }]}>{statusLabel[task.status]}</Text>
     </View>
-    <Text style={taskMeta}>{typeLabel[task.type]} · termin {task.dueAt.toLocaleDateString("pl-PL")}</Text>
+    <Text style={taskMeta}>{typeLabel[task.type]} · termin {formatPolishDate(task.dueAt, "long")}</Text>
     <View style={taskActions}>
       {task.status !== "dismissed" && task.status !== "completed" ? <>
         <Pressable accessibilityRole="button" onPress={onOpen}><Text style={action}>{task.type === "TENANT_PAYMENT_CHECK" ? "Potwierdź wpłatę" : task.type === "CUSTOM_REMINDER" ? "Szczegóły" : task.type === "RENTAL_AGREEMENT_END" ? "Zmień datę zakończenia" : "Otwórz"}</Text></Pressable>
@@ -50,3 +53,5 @@ function rentTaskSummary(task: AssistantTask) {
   if ((task.confirmedGrosz ?? 0) > 0) return `Pozostało ${formatPln(task.remainingGrosz ?? 0)}.`;
   return "Do potwierdzenia.";
 }
+
+const upcomingMeta = { color: theme.colors.textMuted, fontSize: 12, marginTop: 3 };

@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, formatPln, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "./ryczaltTax";
+import { calculateSettlements, formatPln, formatPlnAmount, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "./ryczaltTax";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
   id, propertyId, receivedAt, amount: taxableAmount, taxableAmount,
 });
 
 describe("Polish private-rental ryczałt", () => {
+  it("formats stored decimal amounts with the shared Polish PLN formatter", () => {
+    expect(formatPlnAmount("10000.00")).toBe("10 000,00 zł");
+  });
+
   it("resolves monthly and quarterly settlement periods from the calendar month", () => {
     expect(settlementPeriodForMonth("2026-09", "monthly")).toBe("2026-09");
     expect(settlementPeriodForMonth("2026-01", "quarterly")).toBe("2026-Q1");
