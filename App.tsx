@@ -52,7 +52,7 @@ function RentalApp() {
   if (loadError) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><LocalDataRecoveryScreen error={loadError} retryLoad={retryLoad} copyRawData={copyRawData} resetLocalData={resetLocalData} /></SafeAreaView>;
   if (!document) return <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><ActivityIndicator color={theme.colors.primary} /></SafeAreaView>;
   return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><NavigationContainer ref={navigationRef}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-    <Tabs.Navigator screenOptions={({ route }) => ({
+    <Tabs.Navigator safeAreaInsets={{ bottom: 0 }} screenOptions={({ route }) => ({
       headerShown: false,
       headerStyle: { backgroundColor: theme.colors.background },
       headerTintColor: theme.colors.textPrimary,
