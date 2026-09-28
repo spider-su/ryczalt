@@ -116,7 +116,7 @@ describe("rental presentation helpers", () => {
   });
 
   it("keeps settings capability reachable by category", () => {
-    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Powiadomienia", "Pozostałe rachunki", "Dane i kopia zapasowa"]);
+    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Powiadomienia", "Dane i kopia zapasowa", "Pozostałe rachunki"]);
   });
 
   it("keeps three dashboard values and six-month chart data available for income", () => {

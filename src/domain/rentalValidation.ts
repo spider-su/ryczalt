@@ -65,6 +65,10 @@ export function isValidPolishBankAccount(value: string): boolean {
   return remainder === 1;
 }
 
+export function isValidTaxMicroAccount(value: string): boolean {
+  return /^\d{26}$/.test(value) && isValidPolishBankAccount(value);
+}
+
 /** Exact decimal comparison; no JavaScript floating-point arithmetic is used. */
 export function compareDecimalStrings(left: string, right: string): number {
   const leftParts = left.split(".");

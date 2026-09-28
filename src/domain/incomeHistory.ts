@@ -1,5 +1,5 @@
 import type { IncomeEntry, Property } from "../model/rental";
-import { moneyToGrosz } from "./ryczaltTax";
+import { formatPln, moneyToGrosz } from "./ryczaltTax";
 
 export type IncomeMonthGroup = { month: string; totalGrosz: number; entries: IncomeEntry[] };
 
@@ -14,9 +14,30 @@ export function propertiesWithIncomeInYear(properties: Property[], entries: Inco
 
 export function incomeViewSummary(entries: IncomeEntry[]) {
   return {
-    totalGrosz: entries.reduce((total, entry) => total + moneyToGrosz(entry.amount), 0),
+    totalGrosz: entries.reduce((total, entry) => total + moneyToGrosz(entry.taxableAmount), 0),
     count: entries.length,
+    propertyCount: new Set(entries.map((entry) => entry.propertyId)).size,
   };
+}
+
+export function defaultExpandedIncomeMonths(months: string[], currentMonth: string): string[] {
+  return months.includes(currentMonth) ? [currentMonth] : [];
+}
+
+export function toggleIncomeMonth(expanded: string[], month: string): string[] {
+  return expanded.includes(month) ? expanded.filter((item) => item !== month) : [...expanded, month];
+}
+
+export function incomeMonthStatus(totalGrosz: number, paymentCount: number, expectedGrosz: number | null) {
+  return {
+    completion: expectedGrosz === null ? "unknown" as const : totalGrosz >= expectedGrosz ? "complete" as const : "incomplete" as const,
+    paymentLabel: `${paymentCount} ${paymentCount === 1 ? "wpłata" : "wpłaty"}`,
+  };
+}
+
+export function currentMonthIncomeLabel(month: string, confirmedGrosz: number, expectedGrosz: number): string {
+  const monthLabel = new Intl.DateTimeFormat("pl-PL", { month: "long" }).format(new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1, 12));
+  return `${monthLabel}: ${formatPln(confirmedGrosz)} / ${formatPln(expectedGrosz)}`;
 }
 
 export function groupIncomeEntriesByReceivedMonth(entries: IncomeEntry[]): IncomeMonthGroup[] {

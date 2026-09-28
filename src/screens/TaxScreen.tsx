@@ -16,8 +16,10 @@ import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
 import { formatPolishDate } from "../domain/presentationFormat";
 import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "../domain/rentalPresentation";
-import { shiftTaxPeriod, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
+import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
+import { earliestDashboardMonth } from "../domain/dashboardPeriods";
+import { decimalFromGrosz } from "../domain/apartmentPayments";
 
 export function TaxScreen() {
   const { document, error, update } = useRentalData();
@@ -30,6 +32,10 @@ export function TaxScreen() {
   const [saving, setSaving] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const settlementMode = document?.settings.settlementMode ?? "monthly";
+  const now = new Date();
+  const earliestMonth = document ? earliestDashboardMonth(document.properties, document.incomeEntries, now, "2025-01") : "2025-01";
+  const earliestPeriod = document ? settlementPeriodForMonth(earliestMonth, settlementMode) ?? "2025-01" : "2025-01";
   const taxYear = Number(selectedPeriod.slice(0, 4));
   const settlements = useMemo(() => document && (taxYear === 2025 || taxYear === 2026) ? calculateSettlements({
     entries: document.incomeEntries,
@@ -50,11 +56,13 @@ export function TaxScreen() {
     if (!document || !period) return;
     const year = Number(period.slice(0, 4));
     const part = period.slice(5);
-    setSelectedPeriod(`${year}-${part.startsWith("Q") ? part : part.padStart(2, "0")}`);
+    const requested = part.startsWith("Q") ? `${year}-${part}` : settlementPeriodForMonth(`${year}-${part.padStart(2, "0")}`, document.settings.settlementMode) ?? selectedPeriod;
+    const latest = currentTaxPeriod(now, document.settings.settlementMode);
+    setSelectedPeriod(requested > latest ? latest : requested < earliestPeriod ? earliestPeriod : requested);
     navigation.setParams({ period: undefined });
   // Notification reminders pass a settlement period to open directly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document]);
+  }, [document, earliestPeriod, navigation]);
   if (!document) return error
     ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text></View>
     : <ActivityIndicator style={{ flex: 1 }} />;
@@ -65,7 +73,9 @@ export function TaxScreen() {
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement, payments[0]?.paidAt) : null;
   const openPayment = (payment?: TaxPayment) => {
     setEditing(payment ?? null);
-    setPaymentDraft(payment ? { amount: payment.amount, paidAt: payment.paidAt } : { amount: "", paidAt: todayIsoDate() });
+    setPaymentDraft(payment
+      ? { amount: payment.amount, paidAt: payment.paidAt }
+      : { amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
     setModalOpen(true);
   };
   const savePayment = async () => {
@@ -90,6 +100,7 @@ export function TaxScreen() {
   ]);
   const annualIncome = annualRentalIncome(document.incomeEntries, taxYear, document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0);
   const annualThreshold = annualRentalThreshold(taxYear, document.settings.jointSpouseThreshold);
+  const remainingThreshold = remainingTaxThresholdGrosz(annualIncome, annualThreshold);
   const annualProgress = dashboardProgress(annualIncome, annualThreshold);
   const taxPaymentDetails = {
     recipientName: document.settings.taxRecipientName,
@@ -107,31 +118,31 @@ export function TaxScreen() {
   return <View style={ui.page}>
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 36 }}>
       <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700" }}>Podatek</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni okres" onPress={() => setSelectedPeriod((period) => shiftTaxPeriod(period, -1, document.settings.settlementMode))}><Text style={[action, { fontSize: 20, paddingHorizontal: 8 }]}>‹</Text></Pressable>
-        <Text style={{ color: theme.colors.textPrimary, fontWeight: "700", fontSize: 16 }}>{taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Następny okres" onPress={() => setSelectedPeriod((period) => shiftTaxPeriod(period, 1, document.settings.settlementMode))}><Text style={[action, { fontSize: 20, paddingHorizontal: 8 }]}>›</Text></Pressable>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni okres" accessibilityState={{ disabled: selectedPeriod <= earliestPeriod }} disabled={selectedPeriod <= earliestPeriod} onPress={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, document.settings.settlementMode, now, earliestPeriod))}><Text style={[action, { fontSize: 22, paddingHorizontal: 8 }, selectedPeriod <= earliestPeriod && disabledArrow]}>‹</Text></Pressable>
+        <Text style={{ color: theme.colors.textPrimary, fontWeight: "700", fontSize: 21 }}>{taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Następny okres" accessibilityState={{ disabled: selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode) }} disabled={selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode)} onPress={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, 1, document.settings.settlementMode, now, earliestPeriod))}><Text style={[action, { fontSize: 22, paddingHorizontal: 8 }, selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode) && disabledArrow]}>›</Text></Pressable>
       </View>
       <Text style={muted}>Rozliczenie {document.settings.settlementMode === "monthly" ? "miesięczne" : "kwartalne"}</Text>
       {!settlement || !Number.isInteger(taxYear) ? null : <>
-        <View style={[ui.card, { marginTop: 12 }]}>
+        <View style={[ui.card, { marginTop: 10 }]}>
           {paymentDisplay?.kind === "no-tax" ? <Text style={{ color: theme.colors.textSecondary, fontWeight: "700" }}>Brak podatku do zapłaty</Text> : paymentDisplay?.kind === "paid" ? <>
-            <Text style={{ color: theme.colors.success, fontWeight: "800", letterSpacing: 0.3 }}>✓ PODATEK OPŁACONY</Text>
-            <Text style={dueValue}>{formatPln(paymentDisplay.amountGrosz)}</Text>
+            <Text style={{ color: theme.colors.success, fontWeight: "700" }}>✓ ZAPŁACONO {formatPln(paymentDisplay.amountGrosz)}</Text>
             <Text style={{ color: theme.colors.success, marginTop: 4 }}>{paymentDisplay.paidAt ? formatPolishDate(paymentDisplay.paidAt, "long") : "Rozliczono nadpłatą"}</Text>
           </> : <>
             <Text style={dueLabel}>DO ZAPŁATY</Text>
-            <Text style={[dueValue, { fontSize: 32, marginTop: 6 }]}>{formatPln(paymentDisplay?.amountGrosz ?? 0)}</Text>
-            <Text style={{ color: paymentDisplay?.kind === "overdue" ? theme.colors.warning : theme.colors.textSecondary, fontWeight: "600", marginTop: 5 }}>{paymentDisplay?.kind === "overdue" ? "Termin minął " : "do "}{formatPolishDate(settlement.dueDate, "long")}</Text>
+            <Text style={[dueValue, { fontSize: 36, marginTop: 5 }]}>{formatPln(paymentDisplay?.amountGrosz ?? 0)}</Text>
+            <Text style={{ color: paymentDisplay?.kind === "overdue" ? theme.colors.warning : theme.colors.textSecondary, fontWeight: "600", fontSize: 16, marginTop: 4 }}>{paymentDisplay?.kind === "overdue" ? "Termin minął " : "do "}{formatPolishDate(settlement.dueDate, "long")}</Text>
             {paymentDisplay && paymentDisplay.paidGrosz > 0 ? <Text style={taxContext}>Zapłacono {formatPln(paymentDisplay.paidGrosz)} z {formatPln(paymentDisplay.obligationGrosz)}</Text> : null}
           </>}
           {settlement.overpaidGrosz > 0 ? <Text style={taxContext}>Nadpłata {formatPln(settlement.overpaidGrosz)}</Text> : null}
-          <Text style={taxContext}>Przychód {formatPln(settlement.revenueGrosz)} · {taxRateLabel(settlement.taxableBaseGrosz, annualThreshold)}</Text>
+          <Text style={taxContext}>Przychód opodatkowany: {formatPln(settlement.revenueGrosz)} · {taxRateLabel(settlement.cumulativeRevenueGrosz, annualThreshold)}</Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><Text style={action}>Dane do przelewu</Text><Text style={action}>›</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Dane do przelewu. ${TAX_TRANSFER_HINT}`} onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><View><Text style={transferTitle}>Dane do przelewu</Text><Text style={transferHint}>{TAX_TRANSFER_HINT}</Text></View><Text style={action}>›</Text></Pressable>
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={() => openPayment()} style={primaryButton}><Text style={primaryText}>Potwierdź zapłatę</Text></Pressable> : null}
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Przychód w {taxYear}</Text>
+        <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 15 }}>Przychód w {taxYear}</Text>
         <Text style={taxContext}>{formatPln(annualIncome)} / próg {annualThreshold > 0 ? formatPln(annualThreshold) : "niedostępny"}</Text>
+        {annualThreshold > 0 ? <Text style={thresholdRemaining}>Pozostało do progu: {formatPln(remainingThreshold)}</Text> : null}
         {annualThreshold > 0 ? <View style={{ marginTop: 8 }}><ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Przychód względem progu rocznego" /></View> : null}
         {payments.length ? <Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Historia wpłat</Text> : null}
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
@@ -140,7 +151,7 @@ export function TaxScreen() {
         </View>)}
       </>}
       {!settlement && !([2025, 2026] as number[]).includes(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Dane pojawią się po dodaniu reguł dla tego roku.</Text> : null}
-      <View style={taxDetails}><Text style={muted}>ⓘ Podatek wyliczony z potwierdzonych wpływów. Sprawdź indywidualne odliczenia i swoją sytuację przed zapłatą.</Text><Pressable accessibilityRole="button" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)}><Text style={[action, { marginTop: 4 }]}>Jak liczymy? {infoOpen ? "⌃" : "⌄"}</Text></Pressable>{infoOpen ? <Text style={muted}>Podatek w tym widoku jest obliczany z potwierdzonych wpływów dla wybranego okresu, z uwzględnieniem zapisanych wpłat i ustawionego progu stawki. Sprawdź indywidualne odliczenia i swoją sytuację przed zapłatą.</Text> : null}</View>
+      <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek? {infoOpen ? "⌃" : "›"}</Text></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
     <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
@@ -178,6 +189,12 @@ const dueLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: 
 const dueValue = { color: theme.colors.textPrimary, fontSize: 25, fontWeight: "800" as const, marginTop: 3 };
 const taxContext = { color: theme.colors.textMuted, fontSize: 12, marginTop: 12 };
 const transferRow = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
-const taxDetails = { marginTop: 18, padding: 12, borderRadius: 12, backgroundColor: theme.colors.surface };
+const transferTitle = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const };
+const transferHint = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 };
+const thresholdRemaining = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 2 };
+const infoTitle = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, paddingVertical: 2 };
+const infoBody = { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 };
+const disabledArrow = { opacity: 0.35 };
+const taxDetails = { marginTop: 14, padding: 11, borderRadius: 12, backgroundColor: theme.colors.surface };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { AssistantTask, TaskStatus } from "../../domain/tasks";
 import { theme } from "../../theme/theme";
@@ -14,6 +15,7 @@ const statusLabel: Record<TaskStatus, string> = {
 };
 
 export function TaskRow({ task, onOpen, onSnooze, onDismiss, onComplete, compact = false }: { task: AssistantTask; onOpen: () => void; onSnooze: () => void; onDismiss: () => void; onComplete: () => void; compact?: boolean }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const stateColor = task.status === "needs-attention" ? theme.colors.warning : task.status === "snoozed" ? theme.colors.info : task.status === "completed" ? theme.colors.success : theme.colors.textSecondary;
   const detail = rentTaskSummary(task);
   const upcoming = upcomingTaskPresentation(task);
@@ -30,9 +32,12 @@ export function TaskRow({ task, onOpen, onSnooze, onDismiss, onComplete, compact
     <View style={taskActions}>
       {task.status !== "dismissed" && task.status !== "completed" ? <>
         <Pressable accessibilityRole="button" onPress={onOpen}><Text style={action}>{task.type === "TENANT_PAYMENT_CHECK" ? "Potwierdź wpłatę" : task.type === "CUSTOM_REMINDER" ? "Szczegóły" : task.type === "RENTAL_AGREEMENT_END" ? "Zmień datę zakończenia" : "Otwórz"}</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={onSnooze}><Text style={action}>Przypomnij później</Text></Pressable>
-        {task.manuallyCompletable ? <Pressable accessibilityRole="button" onPress={onComplete}><Text style={action}>Oznacz jako załatwione</Text></Pressable> : null}
-        <Pressable accessibilityRole="button" onPress={onDismiss}><Text style={muted}>Ukryj</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Więcej działań" accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen((open) => !open)}><Text style={muted}>•••</Text></Pressable>
+        {menuOpen ? <>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); onSnooze(); }}><Text style={action}>Przypomnij później</Text></Pressable>
+          {task.manuallyCompletable ? <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); onComplete(); }}><Text style={action}>Oznacz jako załatwione</Text></Pressable> : null}
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); onDismiss(); }}><Text style={muted}>Ukryj</Text></Pressable>
+        </> : null}
       </> : task.status === "completed" ? <Text style={muted}>{task.type === "RECURRING_BILL" ? "Ręcznie potwierdzona płatność" : "Wynika z zapisanych danych"}</Text> : null}
     </View>
   </View>;

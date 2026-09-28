@@ -19,7 +19,7 @@ import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvide
 import type { Property, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
-import { isNonnegativeMoney, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
+import { isNonnegativeMoney, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount, isValidTaxMicroAccount } from "../domain/rentalValidation";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
@@ -33,6 +33,7 @@ import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartm
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
+import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsBillsEmpty, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
   address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
@@ -73,6 +74,9 @@ export function SettingsScreen() {
   const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
   const [showAdvancedProperty, setShowAdvancedProperty] = useState(false);
   const [showArchivedProperties, setShowArchivedProperties] = useState(false);
+  const [taxEligibilityOpen, setTaxEligibilityOpen] = useState(SETTINGS_TAX_LEGAL_DEFAULT_OPEN);
+  const [quarterlyInfoOpen, setQuarterlyInfoOpen] = useState(false);
+  const [showAllReminders, setShowAllReminders] = useState(false);
   const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
   const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
   const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
@@ -86,7 +90,6 @@ export function SettingsScreen() {
   const [billForDetails, setBillForDetails] = useState<RecurringBill | null>(null);
   const [billPaymentPeriod, setBillPaymentPeriod] = useState(() => todayIsoDate().slice(0, 7));
   const [billPaymentAmount, setBillPaymentAmount] = useState("");
-  const [taxRecipient, setTaxRecipient] = useState("");
   const [taxAccount, setTaxAccount] = useState("");
   const [openingRevenueDraft, setOpeningRevenueDraft] = useState("");
   const [openingTaxPaidDraft, setOpeningTaxPaidDraft] = useState("");
@@ -96,8 +99,7 @@ export function SettingsScreen() {
 
   useEffect(() => {
     if (!document) return;
-    setTaxRecipient(document.settings.taxRecipientName ?? "");
-    setTaxAccount(document.settings.taxMicroAccount ?? "");
+    setTaxAccount((document.settings.taxMicroAccount ?? "").replace(/^PL/i, "").replace(/\D/g, ""));
     setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
     setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
     const params = route.params as { propertyId?: string; billId?: string; period?: string; setupAction?: SetupAction; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
@@ -343,19 +345,22 @@ export function SettingsScreen() {
       settings: change(current.settings),
     })).catch(() => undefined);
   };
-  const saveOpeningAmount = (key: "openingTaxableRevenue" | "openingTaxPaid", raw: string) => {
-    const value = raw.trim().replace(",", ".");
-    if (value && !isNonnegativeMoney(value)) { Alert.alert("Nieprawidłowa kwota", "Wpisz kwotę równą lub większą od zera."); return; }
-    updateTaxSettings((settings) => ({ ...settings, [key]: value || undefined }));
+  const saveOpeningBalances = () => {
+    const revenue = openingRevenueDraft.trim().replace(",", ".");
+    const paid = openingTaxPaidDraft.trim().replace(",", ".");
+    if ((revenue && !isNonnegativeMoney(revenue)) || (paid && !isNonnegativeMoney(paid))) {
+      Alert.alert("Nieprawidłowa kwota", "Wpisz kwoty równe lub większe od zera."); return;
+    }
+    updateTaxSettings((settings) => ({ ...settings, openingTaxableRevenue: revenue || undefined, openingTaxPaid: paid || undefined }));
   };
   const saveTaxPaymentSettings = async () => {
-    const account = taxAccount.replace(/\s/g, "");
-    if (account && !isValidPolishBankAccount(account)) {
+    const account = taxAccount.replace(/\D/g, "");
+    if (!isValidTaxMicroAccount(account)) {
       Alert.alert("Nieprawidłowy rachunek", "Wpisz prawidłowy 26-cyfrowy polski mikrorachunek podatkowy.");
       return;
     }
     try {
-      await update((current) => ({ ...current, settings: { ...current.settings, taxRecipientName: taxRecipient.trim(), taxMicroAccount: account } }));
+      await update((current) => ({ ...current, settings: { ...current.settings, taxRecipientName: SETTINGS_TAX_RECIPIENT, taxMicroAccount: account } }));
       Alert.alert("Zapisano", "Dane płatności podatku zostały zapisane.");
     } catch { /* The provider reports persistence failure. */ }
   };
@@ -445,6 +450,11 @@ export function SettingsScreen() {
       <TextInput accessibilityLabel={label} value={typeof billDraft[key] === "string" ? billDraft[key] as string : ""} onChangeText={(value) => setBillDraft((current) => ({ ...current, [key]: value }))} keyboardType={keyboardType} placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
     </View>
   );
+  const archivedProperties = document.properties.filter((property) => effectiveLifecycle(property) === "ARCHIVED");
+  const taxAccountValid = isValidTaxMicroAccount(taxAccount);
+  const taxAccountError = taxAccount && !taxAccountValid
+    ? taxAccount.length < 26 ? "Wpisz dokładnie 26 cyfr." : "Sprawdź poprawność numeru mikrorachunku."
+    : null;
 
   return (
       <View style={ui.page}>
@@ -470,6 +480,7 @@ export function SettingsScreen() {
           <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{document.settings.taxYear}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Następny rok podatkowy" disabled={document.settings.taxYear >= 2026} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))}><Text style={[action, document.settings.taxYear >= 2026 && { opacity: 0.4 }]}>›</Text></Pressable>
         </View>
+        <Text style={sectionTitle}>Rozliczenie</Text>
         <Text style={muted}>Częstotliwość wpłat ryczałtu</Text>
         <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
           {(["monthly", "quarterly"] as const).map((mode) => (
@@ -489,38 +500,48 @@ export function SettingsScreen() {
             </Pressable>
           ))}
         </View>
-        <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
+        <View style={notificationRow}><Text style={{ ...rowTitle, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
           if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
           Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
             { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
           ]);
         }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
-        <Text style={{ ...muted, marginTop: -4 }}>Dotyczy wspólności majątkowej i wymaga wyboru opodatkowania całości przychodów z najmu przez jednego małżonka oraz złożenia wymaganego oświadczenia w terminie.</Text>
-        <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
-        <Text style={sectionTitle}>Stan początkowy za {document.settings.taxYear}</Text>
-        <Text style={muted}>Wpisz sumy otrzymane i zapłacone wcześniej w tym roku. Zwiększą rozliczenie roczne bez tworzenia fikcyjnych miesięcznych wpłat.</Text>
-        <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku (zł)</Text>
-        <TextInput accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} onEndEditing={(event) => saveOpeningAmount("openingTaxableRevenue", event.nativeEvent.text)} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-        <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku (zł)</Text>
-        <TextInput accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} onEndEditing={(event) => saveOpeningAmount("openingTaxPaid", event.nativeEvent.text)} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxEligibilityOpen }} onPress={() => setTaxEligibilityOpen((open) => !open)} style={disclosureRow}><Text style={disclosureTitle}>ⓘ Kiedy mogę użyć tego limitu? {taxEligibilityOpen ? "⌃" : "›"}</Text></Pressable>
+        {taxEligibilityOpen ? <Text style={legalText}>Wyższy limit 200 000 zł stosuj wyłącznie przy wspólności majątkowej i wyborze opodatkowania całości przychodów z najmu przez jednego małżonka, po złożeniu wymaganego oświadczenia w terminie.</Text> : null}
+        {document.settings.settlementMode === "quarterly" ? <>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: quarterlyInfoOpen }} onPress={() => setQuarterlyInfoOpen((open) => !open)} style={disclosureRow}><Text style={disclosureTitle}>ⓘ Warunki rozliczenia kwartalnego {quarterlyInfoOpen ? "⌃" : "›"}</Text></Pressable>
+          {quarterlyInfoOpen ? <Text style={legalText}>Rozliczenie kwartalne wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text> : null}
+        </> : null}
+        <Text style={[sectionTitle, { marginTop: 18 }]}>Stan początkowy {document.settings.taxYear}</Text>
+        <Text style={muted}>Wpisz przychód i podatek zapisane wcześniej w tym roku. Wartości wpływają na rozliczenie roczne bez tworzenia fikcyjnych miesięcznych wpłat.</Text>
+        <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
+        <TextInput accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+        <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
+        <TextInput accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+        <Pressable accessibilityRole="button" onPress={saveOpeningBalances} style={secondaryButton}><Text style={modeText}>Zapisz stan początkowy</Text></Pressable>
         </> : null}
         {activeSection === "notifications" ? <>
-      <Text style={sectionTitle}>Powiadomienia lokalne</Text>
-        <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : permission === "unavailable" ? "Powiadomienia urządzenia są niedostępne w przeglądarce; przypomnienia pozostają widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>
+        {settingsNotificationsUnavailable(permission)
+          ? <View accessibilityRole="summary" style={neutralBanner}><Text style={muted}>Powiadomienia lokalne są dostępne w aplikacji mobilnej.</Text></View>
+          : <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>}
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
+        <Text style={sectionTitle}>Kiedy przypominać</Text>
         <Text style={fieldLabel}>Przypomnij o nieopłaconym czynszu</Text>
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days }} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days, disabled: settingsNotificationsUnavailable(permission) }} disabled={settingsNotificationsUnavailable(permission)} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
+        <Text style={sectionTitle}>Kategorie</Text>
         {([
           ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
-        ] as const).map(([category, label]) => <View key={category} style={notificationRow}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
+        ] as const).map(([category, label]) => <View key={category} style={[notificationRow, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={{ ...rowTitle, flex: 1 }}>{label}</Text><Switch disabled={settingsNotificationsUnavailable(permission)} value={settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission)} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission), disabled: settingsNotificationsUnavailable(permission) }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
-        {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
+        {reminderPlan.length ? settingsReminderList(reminderPlan, showAllReminders).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
+        {settingsReminderHasMore(reminderPlan, showAllReminders) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllReminders }} onPress={() => setShowAllReminders(true)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż wszystkie</Text></Pressable> : null}
         </> : null}
         {activeSection === "payment" ? <>
-        <Text style={muted}>Wpisz dane z własnego mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
-        <Text style={fieldLabel}>Odbiorca</Text><TextInput accessibilityLabel="Odbiorca podatku" value={taxRecipient} onChangeText={setTaxRecipient} placeholder="Urząd skarbowy" style={inputStyle} />
-        <Text style={fieldLabel}>Mikrorachunek podatkowy</Text><TextInput accessibilityLabel="Mikrorachunek podatkowy" value={taxAccount} onChangeText={setTaxAccount} keyboardType="number-pad" placeholder="26 cyfr" style={inputStyle} />
-        <Pressable accessibilityRole="button" onPress={() => void saveTaxPaymentSettings()} style={secondaryButton}><Text style={modeText}>Zapisz dane płatności</Text></Pressable>
+        <Text style={muted}>Wpisz własny numer mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
+        <Text style={fieldLabel}>Odbiorca</Text><Text style={staticPaymentValue}>{SETTINGS_TAX_RECIPIENT}</Text>
+        <Text style={fieldLabel}>Mikrorachunek podatkowy</Text><TextInput accessibilityLabel="Mikrorachunek podatkowy" value={taxAccount} onChangeText={(value) => setTaxAccount(value.replace(/\D/g, "").slice(0, 26))} keyboardType="number-pad" maxLength={26} placeholder="Wpisz 26 cyfr" style={[inputStyle, taxAccountError && invalidInput]} />
+        <Text style={taxAccountError ? validationError : helperText}>{taxAccountError ?? `26 cyfr · ${taxAccount.length}/26`}</Text>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !taxAccountValid }} disabled={!taxAccountValid} onPress={() => void saveTaxPaymentSettings()} style={[secondaryButton, !taxAccountValid && disabledControl]}><Text style={modeText}>Zapisz dane płatności</Text></Pressable>
         </> : null}
         {activeSection === "properties" ? <>
         <Text
@@ -551,53 +572,26 @@ export function SettingsScreen() {
           <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Nie dodano jeszcze mieszkań.</Text></View>
         ) : (
           document.properties.filter((property) => effectiveLifecycle(property) !== "ARCHIVED").map((property) => (
-          <View
+          <Pressable
               key={property.id}
-              style={ui.card}
+              accessibilityRole="button"
+              accessibilityLabel={`Edytuj ${property.address}${property.tenantName ? `, ${property.tenantName}` : ""}, ${formatPlnAmount(decimalFromGrosz(tenantMonthlyTotalGrosz(property)))} miesięcznie`}
+              onPress={() => openProperty(property)}
+              style={[ui.card, apartmentCard]}
             >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "flex-start",
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      color: theme.colors.textPrimary,
-                      fontSize: 17,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {property.address}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 16 }}>
-                  <Text
-                    onPress={() => openProperty(property)}
-                    accessibilityRole="button"
-                    style={action}
-                  >
-                    Edytuj
-                  </Text>
-                </View>
-              </View>
-              <Text style={muted}>{property.tenantName || "Najemca nieuzupełniony"}</Text>
-              <Text style={muted}>{formatPlnAmount(decimalFromGrosz(tenantMonthlyTotalGrosz(property)))} / mies. · płatne do {property.paymentDay ?? 5}. dnia</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><View style={{ flex: 1 }}><Text style={apartmentTitle}>{property.address}</Text><Text style={apartmentTenant}>{property.tenantName || "Najemca nieuzupełniony"}</Text></View><Text style={action}>›</Text></View>
+              <Text style={apartmentMeta}>{formatPlnAmount(decimalFromGrosz(tenantMonthlyTotalGrosz(property)))} / mies. · płatne do {property.paymentDay ?? 5}. dnia</Text>
               {effectiveLifecycle(property) !== "ACTIVE" ? <Text style={muted}>{effectiveLifecycle(property) === "PAUSED" ? "Najem wstrzymany" : "Zarchiwizowane"}</Text> : null}
-            </View>
+            </Pressable>
           ))
         )}
-        <Pressable accessibilityRole="button" onPress={() => setShowArchivedProperties((visible) => !visible)} style={{ paddingVertical: 12 }}><Text style={action}>{showArchivedProperties ? "Ukryj archiwum" : `Archiwum · ${document.properties.filter((property) => effectiveLifecycle(property) === "ARCHIVED").length}`}</Text></Pressable>
-        {showArchivedProperties ? document.properties.filter((property) => effectiveLifecycle(property) === "ARCHIVED").map((property) => <View key={property.id} style={ui.card}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{property.address}</Text><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane</Text><Pressable accessibilityRole="button" onPress={() => openProperty(property)} style={{ paddingVertical: 8 }}><Text style={action}>Edytuj lub przywróć</Text></Pressable></View>) : null}
+        {settingsArchiveLabel(archivedProperties.length) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showArchivedProperties }} onPress={() => setShowArchivedProperties((visible) => !visible)} style={{ paddingVertical: 12 }}><Text style={action}>{showArchivedProperties ? "Ukryj archiwum" : settingsArchiveLabel(archivedProperties.length)}</Text></Pressable> : null}
+        {showArchivedProperties ? archivedProperties.map((property) => <Pressable accessibilityRole="button" accessibilityLabel={`Edytuj lub przywróć ${property.address}`} onPress={() => openProperty(property)} key={property.id} style={[ui.card, apartmentCard]}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={apartmentTitle}>{property.address}</Text><Text style={action}>›</Text></View><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane</Text><Text style={action}>Edytuj lub przywróć</Text></Pressable>) : null}
         </> : null}
         {activeSection === "bills" ? <>
-        <View style={{ marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}>
-          <Pressable accessibilityRole="button" onPress={() => openBill()}><Text style={action}>＋ Dodaj</Text></Pressable>
-        </View>
-        {document.recurringBills.length === 0 ? <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Brak pozostałych rachunków. Dodaj rachunki, aby mieć zapisane terminy i dane płatności.</Text></View> : document.recurringBills.map((bill) => {
+        {settingsBillsEmpty(document.recurringBills.length) ? <View style={[ui.emptyState, billsEmptyState]}><Text style={emptyStateTitle}>Brak pozostałych rachunków</Text><Text style={muted}>Możesz dodać np. ubezpieczenie, czynsz administracyjny lub inny stały termin.</Text><Pressable accessibilityRole="button" onPress={() => openBill()} style={primaryButton}><Text style={primaryText}>＋ Dodaj rachunek</Text></Pressable></View> : <>
+        <View style={{ marginTop: 4, marginBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}><Pressable accessibilityRole="button" onPress={() => openBill()}><Text style={action}>＋ Dodaj</Text></Pressable></View>
+        {document.recurringBills.map((bill) => {
           const property = document.properties.find((item) => item.id === bill.propertyId);
           return <View key={bill.id} style={[ui.card, { padding: 14 }]}>
             <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.address ?? "Mieszkanie"}</Text>
@@ -605,8 +599,9 @@ export function SettingsScreen() {
             <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => openBillDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
           </View>;
         })}
+        </>}
         </> : null}
-        {activeSection === "data" ? <View style={ui.card}><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Dane są zapisane lokalnie na tym urządzeniu.</Text><Text style={muted}>Aplikacja nie ma obecnie funkcji eksportu ani przywracania kopii zapasowej. W przypadku problemów z odczytem dostępny jest ekran odzyskiwania danych.</Text></View> : null}
+        {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}><View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text></View><View style={[ui.card, trustCard]}><Text style={sectionTitle}>Kopia zapasowa</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>W aplikacji działa lokalny mechanizm odzyskiwania po błędzie zapisu; nie zastępuje on kopii poza urządzeniem.</Text></View></View> : null}
         </>}
       </ScrollView>
       <Modal
@@ -869,11 +864,28 @@ const modeButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, bord
 const modeText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
 const sectionTitle = ui.sectionTitle;
 const categoryRow = { minHeight: 72, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 14, marginBottom: 9 };
-const categoryLabel = { color: theme.colors.textPrimary, fontWeight: "700" as const, fontSize: 15 };
+const categoryLabel = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
+const rowTitle = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
+const apartmentCard = { paddingHorizontal: 14, paddingVertical: 12, marginVertical: 5, minHeight: 78 };
+const apartmentTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "600" as const };
+const apartmentTenant = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 };
+const apartmentMeta = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 7 };
 const settingsBack = { minHeight: 40, justifyContent: "center" as const, marginBottom: 6 };
 const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
+const staticPaymentValue = { color: theme.colors.textPrimary, fontSize: 16, minHeight: 38, paddingVertical: 7 };
+const helperText = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 };
+const validationError = { color: theme.colors.danger, fontSize: 13, marginTop: 3 };
+const invalidInput = { borderColor: theme.colors.danger };
+const disabledControl = { opacity: 0.45 };
+const neutralBanner = { backgroundColor: theme.colors.surface, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, marginTop: 8 };
+const disclosureRow = { minHeight: 44, justifyContent: "center" as const, marginTop: 4 };
+const disclosureTitle = { color: theme.colors.primary, fontSize: 14, fontWeight: "600" as const };
+const legalText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18, paddingBottom: 8 };
+const billsEmptyState = { padding: 18, alignItems: "stretch" as const, gap: 2 };
+const emptyStateTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "600" as const };
+const trustCard = { padding: 16 };
 const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
 const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };

@@ -29,6 +29,9 @@ import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
 import { formatPolishMonth, formatPolishCount } from "../domain/presentationFormat";
 import { groupIncomeEntriesByReceivedMonth, incomeEntriesForView, incomeViewSummary, propertiesWithIncomeInYear } from "../domain/incomeHistory";
+import { incomeMonthStatus, toggleIncomeMonth } from "../domain/incomeHistory";
+import { expectedRentForMonth } from "../domain/rentAllocation";
+import { availableIncomeYears } from "../domain/dashboardPeriods";
 import {
   compareDecimalStrings,
   isNonnegativeMoney,
@@ -69,17 +72,33 @@ export function IncomeScreen() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const properties = document?.properties ?? [];
   const [selectedTaxYear, setSelectedTaxYear] = useState<number | null>(null);
+  const currentMonth = todayIsoDate().slice(0, 7);
+  const [expandedMonths, setExpandedMonths] = useState<string[]>(() => [currentMonth]);
   const configuredTaxYear =
     document?.settings.taxYear ?? new Date().getFullYear();
-  const taxYear = selectedTaxYear ?? configuredTaxYear;
-  const firstReportYear = 2000;
-  const lastReportYear = new Date().getFullYear() + 1;
+  const currentYear = new Date().getFullYear();
+  const incomeYears = availableIncomeYears(
+    properties,
+    document?.incomeEntries ?? [],
+    document?.settings.openingTaxableRevenue && moneyToGrosz(document.settings.openingTaxableRevenue) > 0 ? document.settings.taxYear : undefined,
+  );
+  const initialYear = incomeYears.includes(configuredTaxYear) ? configuredTaxYear : currentYear;
+  const taxYear = incomeYears.includes(selectedTaxYear ?? initialYear) ? selectedTaxYear ?? initialYear : currentYear;
+  const taxYearIndex = incomeYears.indexOf(taxYear);
   const orderedEntries = useMemo(
     () => (document ? incomeEntriesForView(document.incomeEntries, taxYear, selectedPropertyId) : []),
     [document, taxYear, selectedPropertyId],
   );
   const groups = useMemo(() => groupIncomeEntriesByReceivedMonth(orderedEntries), [orderedEntries]);
-  const sections = useMemo(() => groups.map(({ entries, ...section }) => ({ ...section, data: entries })), [groups]);
+  const visibleProperties = selectedPropertyId ? properties.filter((property) => property.id === selectedPropertyId) : properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE");
+  const expectedForMonth = (month: string) => {
+    const expected = visibleProperties.map((property) => expectedRentForMonth(property, month));
+    return expected.length > 0 && expected.every((amount) => amount !== null)
+      ? expected.reduce<number>((total, amount) => total + (amount ?? 0), 0)
+      : null;
+  };
+  const expectedCurrentGrosz = expectedForMonth(currentMonth) || undefined;
+  const sections = groups.map(({ entries, ...section }) => ({ ...section, paymentCount: entries.length, expectedGrosz: expectedForMonth(section.month), data: expandedMonths.includes(section.month) ? entries : [] }));
   const summary = incomeViewSummary(orderedEntries);
   const availableProperties = propertiesWithIncomeInYear(properties, document?.incomeEntries ?? [], taxYear);
   const propertyNames = new Map(properties.map((property) => [property.id, property.address]));
@@ -364,26 +383,36 @@ export function IncomeScreen() {
           <View style={headerRow}>
             <View style={{ flex: 1 }}><Text style={pageTitle}>Przychód</Text>
               <View style={yearNav}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok" disabled={taxYear <= firstReportYear} onPress={() => setSelectedTaxYear(taxYear - 1)}><Text style={[action, taxYear <= firstReportYear && { opacity: 0.4 }]}>‹</Text></Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok" accessibilityState={{ disabled: taxYearIndex <= 0 }} disabled={taxYearIndex <= 0} onPress={() => setSelectedTaxYear(incomeYears[taxYearIndex - 1]!)}><Text style={[action, taxYearIndex <= 0 && { opacity: 0.4 }]}>‹</Text></Pressable>
                 <Text style={yearLabel}>{taxYear}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel="Następny rok" disabled={taxYear >= lastReportYear} onPress={() => setSelectedTaxYear(taxYear + 1)}><Text style={[action, taxYear >= lastReportYear && { opacity: 0.4 }]}>›</Text></Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel="Następny rok" accessibilityState={{ disabled: taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear }} disabled={taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear} onPress={() => setSelectedTaxYear(incomeYears[taxYearIndex + 1]!)}><Text style={[action, (taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear) && { opacity: 0.4 }]}>›</Text></Pressable>
               </View>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Dodaj wpłatę" onPress={openAddMenu} style={addButton}><Text style={addGlyph}>＋</Text></Pressable>
           </View>
           {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
           <View style={[ui.card, summaryCard]}>
-            <Text style={summaryEyebrow}>Przychód {taxYear}{selectedPropertyName ? ` · ${selectedPropertyName}` : ""}</Text>
+            <Text style={summaryEyebrow}>Przychód podatkowy</Text>
             <Text style={summaryAmount}>{formatPln(summary.totalGrosz).replace(",00 zł", " zł")}</Text>
-            <Text style={muted}>{summary.count ? formatPolishCount(summary.count, ["potwierdzona wpłata", "potwierdzone wpłaty", "potwierdzonych wpłat"]) : `Brak potwierdzonych wpłat w ${taxYear}.`}</Text>
+            <Text style={muted}>{summary.count ? `${formatPolishCount(summary.count, ["potwierdzona wpłata", "potwierdzone wpłaty", "potwierdzonych wpłat"])} · ${formatPolishCount(summary.propertyCount, ["mieszkanie", "mieszkania", "mieszkań"])}` : `Brak potwierdzonych wpłat w ${taxYear}.`}</Text>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} onPress={() => setFilterOpen(true)} style={filterControl}>
-            <View><Text style={filterOverline}>Historia wpływów</Text><Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text></View><Text style={action}>Zmień⌄</Text>
+            <Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text><Text style={action}>▼</Text>
           </Pressable>
-          <IncomeHistoryChart entries={orderedEntries} propertyId={selectedPropertyId} year={taxYear} />
+          <IncomeHistoryChart entries={orderedEntries} propertyId={selectedPropertyId} year={taxYear} expectedCurrentGrosz={taxYear === Number(currentMonth.slice(0, 4)) ? expectedCurrentGrosz : undefined} />
           <Text style={historyTitle}>Wpłaty</Text>
+          <Pressable accessibilityRole="button" onPress={openAddMenu} style={addPaymentButton}><Text style={addPaymentText}>＋ Dodaj wpłatę</Text></Pressable>
         </View>}
-        renderSectionHeader={({ section }) => <View style={monthHeader}><Text style={monthLabel}>{formatPolishMonth(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{formatPln(section.totalGrosz).replace(",00 zł", " zł")}</Text></View>}
+        renderSectionHeader={({ section }) => {
+          const currentSection = section.month === currentMonth;
+          const status = incomeMonthStatus(section.totalGrosz, section.paymentCount, section.expectedGrosz);
+          const complete = status.completion === "complete";
+          const amountSummary = currentSection && section.expectedGrosz !== null && !complete
+            ? `${formatPln(section.totalGrosz).replace(",00 zł", " zł")} / ${formatPln(section.expectedGrosz).replace(",00 zł", " zł")} · ${status.paymentLabel}`
+            : `${formatPln(section.totalGrosz).replace(",00 zł", " zł")} · ${complete ? "komplet" : status.paymentLabel}`;
+          return <Pressable accessibilityRole="button" accessibilityState={{ expanded: expandedMonths.includes(section.month) }} accessibilityLabel={`${formatPolishMonth(section.month)}, ${amountSummary}`} onPress={() => setExpandedMonths((items) => toggleIncomeMonth(items, section.month))} style={[monthHeader, currentSection && currentMonthHeader]}>
+            <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonth(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><Text style={[monthChevron, complete && { color: theme.colors.success }]}>{complete ? "✓" : expandedMonths.includes(section.month) ? "⌃" : "⌄"}</Text>
+          </Pressable>;
+        }}
         renderItem={({ item }) => <IncomeEntryRow entry={item} propertyName={propertyNames.get(item.propertyId) ?? "Usunięte mieszkanie"} onOpen={() => openEntryMenu(item)} />}
         ListEmptyComponent={<View style={emptyHistory}><Text style={emptyText}>{selectedPropertyName ? `Brak potwierdzonych wpłat dla ${selectedPropertyName} w ${taxYear}.` : `Brak potwierdzonych wpłat w ${taxYear}.`}</Text></View>}
       />
@@ -542,18 +571,19 @@ const pageTitle = { color: theme.colors.textPrimary, fontSize: 26, fontWeight: "
 const headerRow = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingVertical: 6 };
 const yearNav = { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, marginTop: 3 };
 const yearLabel = { color: theme.colors.textPrimary, fontWeight: "700" as const, fontSize: 15 };
-const addButton = { width: 42, height: 42, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 21, backgroundColor: theme.colors.accent };
-const addGlyph = { color: theme.colors.onAccent, fontSize: 25, lineHeight: 29 };
 const summaryCard = { marginTop: 4, padding: 16 };
 const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
 const summaryAmount = { color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" as const, marginTop: 2 };
-const filterControl = { marginTop: 12, minHeight: 54, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingHorizontal: 13, borderRadius: 12, backgroundColor: theme.colors.surface };
-const filterOverline = { color: theme.colors.textMuted, fontSize: 11 };
+const filterControl = { marginTop: 8, minHeight: 38, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8, paddingHorizontal: 2 };
 const filterSelected = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, flex: 1 };
-const historyTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" as const, marginTop: 18, marginBottom: 5 };
-const monthHeader = { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingTop: 17, paddingBottom: 6, borderBottomWidth: 1, borderColor: theme.colors.divider };
+const addPaymentButton = { minHeight: 44, alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 12, marginTop: 6 };
+const addPaymentText = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 14 };
+const historyTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" as const, marginTop: 12, marginBottom: 2 };
+const monthHeader = { minHeight: 58, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.colors.divider };
+const currentMonthHeader = { backgroundColor: theme.colors.surfaceMuted, paddingHorizontal: 8, borderRadius: 8 };
 const monthLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.4 };
-const monthTotal = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const };
+const monthTotal = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "600" as const, marginTop: 3 };
+const monthChevron = { color: theme.colors.textSecondary, fontSize: 17, paddingHorizontal: 7 };
 const emptyHistory = { paddingVertical: 20 };
 const emptyText = { color: theme.colors.textSecondary, fontSize: 14 };
 const filterBackdrop = { flex: 1, justifyContent: "flex-end" as const, backgroundColor: "rgba(0,0,0,0.35)" };

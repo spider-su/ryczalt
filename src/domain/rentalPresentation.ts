@@ -151,6 +151,6 @@ export const settingsSections = [
   { id: "tax", label: "Podatek i rozliczenia" },
   { id: "payment", label: "Dane do przelewu" },
   { id: "notifications", label: "Powiadomienia" },
-  { id: "bills", label: "Pozostałe rachunki" },
   { id: "data", label: "Dane i kopia zapasowa" },
+  { id: "bills", label: "Pozostałe rachunki" },
 ] as const;

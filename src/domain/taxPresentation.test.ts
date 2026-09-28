@@ -3,7 +3,7 @@ import { annualRentalThreshold } from "./rentalPresentation";
 import { calculateSettlements } from "./ryczaltTax";
 import { formatPln } from "./ryczaltTax";
 import { formatPolishDate, formatPolishMonth } from "./presentationFormat";
-import { shiftTaxPeriod, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "./taxPresentation";
+import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriod, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxPeriodsForYear, taxRateLabel } from "./taxPresentation";
 
 const income = [{ id: "i", propertyId: "p", receivedAt: "2026-09-01", amount: "17900.00", taxableAmount: "17900.00" }];
 function settle(payments: { id: string; period: string; paidAt: string; amount: string }[] = [], today = "2026-09-28") {
@@ -27,6 +27,30 @@ describe("tax presentation", () => {
     expect(taxPeriodLabel("2026-09", "monthly")).toBe(formatPolishMonth("2026-09"));
     expect(shiftTaxPeriod("2026-Q4", 1, "quarterly")).toBe("2027-Q1");
     expect(shiftTaxPeriod("2027-Q1", -1, "quarterly")).toBe("2026-Q4");
+  });
+
+  it("limits manual period navigation to tracked months through the current period", () => {
+    const now = new Date(2026, 8, 28, 12);
+    expect(currentTaxPeriod(now)).toBe("2026-09");
+    expect(shiftTaxPeriodWithinRange("2026-09", 1, "monthly", now, "2026-03")).toBe("2026-09");
+    expect(shiftTaxPeriodWithinRange("2026-08", 1, "monthly", now, "2026-03")).toBe("2026-09");
+    expect(taxPeriodsForYear(2026, "monthly", now, "2026-03")).toEqual(["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
+    expect(taxPeriodsForYear(2025, "monthly", now)).toHaveLength(12);
+    expect(taxPeriodsForYear(2025, "monthly", now).at(-1)).toBe("2025-12");
+    expect(taxPeriodsForYear(2027, "monthly", now)).toEqual([]);
+    expect(taxPeriodsForYear(2026, "quarterly", now).at(-1)).toBe("2026-Q3");
+  });
+
+  it("shows the transfer hint and one compact calculation explanation", () => {
+    expect(TAX_TRANSFER_HINT).toBe("PPE · mikrorachunek podatkowy");
+    expect(TAX_CALCULATION_EXPLANATION).toContain("potwierdzonych wpływów");
+    expect(TAX_CALCULATION_EXPLANATION).toContain("nie uwzględnia indywidualnych odliczeń");
+  });
+
+  it("calculates remaining progress against the active single or spouse threshold", () => {
+    expect(remainingTaxThresholdGrosz(4_260_000, annualRentalThreshold(2026))).toBe(5_740_000);
+    expect(remainingTaxThresholdGrosz(4_260_000, annualRentalThreshold(2026, true))).toBe(15_740_000);
+    expect(remainingTaxThresholdGrosz(21_000_000, annualRentalThreshold(2026, true))).toBe(0);
   });
 
   it("uses the same configured rate band and capped progress threshold as Pulpit", () => {

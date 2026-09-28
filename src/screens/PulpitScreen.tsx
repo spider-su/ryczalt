@@ -16,10 +16,11 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
-import { annualRentalIncome, annualRentalThreshold, dashboardProgress, dashboardTaxIssueSummary, daysOverdue, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
-import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEntries, shiftRentalMonth, toggleBulkSelection } from "../domain/bulkRentConfirmation";
+import { dashboardProgress, dashboardTaxIssueSummary, daysOverdue, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
+import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEntries, toggleBulkSelection } from "../domain/bulkRentConfirmation";
 import { formatPolishCount, formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 import { ProgressBar } from "../components/ProgressBar";
+import { currentRentalMonth, earliestDashboardMonth, shiftDashboardMonth } from "../domain/dashboardPeriods";
 
 export function PulpitScreen() {
   const { document, update, enterDemoMode } = useRentalData();
@@ -59,6 +60,8 @@ export function PulpitScreen() {
 
   if (!document) return <View style={ui.page} />;
   const now = new Date();
+  const currentMonth = currentRentalMonth(now);
+  const earliestMonth = earliestDashboardMonth(document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE"), document.incomeEntries, now);
   const attention = tasks.filter((task) => task.status === "needs-attention" && task.type !== "TENANT_PAYMENT_CHECK");
   const taxIssues = attention.filter((task) => task.type === "TAX_PAYMENT");
   const overdueTaxIssues = taxIssues.filter((task) => task.dueAt < now);
@@ -67,14 +70,13 @@ export function PulpitScreen() {
   const selectedYear = Number(selectedMonth.slice(0, 4));
   const openingRevenue = selectedYear === document.settings.taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0;
   const openingTaxPaid = selectedYear === document.settings.taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0;
-  const annualIncome = annualRentalIncome(document.incomeEntries, selectedYear, openingRevenue);
-  const annualThreshold = annualRentalThreshold(selectedYear, document.settings.jointSpouseThreshold);
-  const settlements = annualThreshold > 0 ? calculateSettlements({
+  const settlements = selectedYear === 2025 || selectedYear === 2026 ? calculateSettlements({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: selectedYear,
     mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: openingRevenue, openingTaxPaidGrosz: openingTaxPaid,
   }) : [];
-  const activeProperties = document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE");
+  const activeProperties = document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE"
+    && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth));
   const monthAmounts = activeProperties.map((property) => rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now)));
   const rentExpectationKnown = monthAmounts.every((amount) => amount.expectedGrosz !== null);
   const expectedRent = monthAmounts.reduce((sum, amount) => sum + (amount.expectedGrosz ?? 0), 0);
@@ -83,7 +85,6 @@ export function PulpitScreen() {
   }, 0);
   const receivedRent = expectedRent - remainingRent;
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
-  const annualProgress = dashboardProgress(annualIncome, annualThreshold);
   const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
   const currentPeriod = settlements.find((item) => item.period === currentPeriodKey);
   const pendingRents = bulkRentItems(activeProperties, document.incomeEntries, selectedMonth, now);
@@ -113,7 +114,7 @@ export function PulpitScreen() {
       setCustomOpen(true);
     }
   };
-  const addIncome = (propertyId?: string) => navigation.navigate("Przychód", { quickAdd: true, ...(propertyId ? { propertyId } : {}) });
+  const addIncome = (propertyId?: string, rentalMonth?: string) => navigation.navigate("Przychód", { quickAdd: true, ...(propertyId ? { propertyId } : {}), ...(rentalMonth ? { rentalMonth } : {}) });
   const openAdministration = (property?: Property) => {
     const linked = document.properties.filter((item) => item.administrationUrl);
     if (property) {
@@ -195,9 +196,9 @@ export function PulpitScreen() {
   return <View style={ui.page}>
     <ScrollView contentContainerStyle={ui.content}>
       <View style={periodNavigation}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni miesiąc" onPress={() => setSelectedMonth((month) => shiftRentalMonth(month, -1))} style={periodArrow}><Text style={action}>‹</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni miesiąc" accessibilityState={{ disabled: selectedMonth <= earliestMonth }} disabled={selectedMonth <= earliestMonth} onPress={() => setSelectedMonth((month) => shiftDashboardMonth(month, -1, now, earliestMonth))} style={periodArrow}><Text style={[action, selectedMonth <= earliestMonth && disabledPeriodArrow]}>‹</Text></Pressable>
         <Text style={periodTitle}>{monthLabel(selectedMonth)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Następny miesiąc" onPress={() => setSelectedMonth((month) => shiftRentalMonth(month, 1))} style={periodArrow}><Text style={action}>›</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Następny miesiąc" accessibilityState={{ disabled: selectedMonth >= currentMonth }} disabled={selectedMonth >= currentMonth} onPress={() => setSelectedMonth((month) => shiftDashboardMonth(month, 1, now, earliestMonth))} style={periodArrow}><Text style={[action, selectedMonth >= currentMonth && disabledPeriodArrow]}>›</Text></Pressable>
       </View>
       <View style={[ui.card, summaryCard]}>
         <Text style={summaryLabel}>Czynsz</Text>
@@ -211,11 +212,6 @@ export function PulpitScreen() {
         <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Podatek")} style={summaryTax}>
           <Text style={summaryLabel}>Podatek</Text><Text style={summaryDetail}>{currentPeriod ? `${currentPeriod.status === "paid" ? "Opłacony" : currentPeriod.status === "overdue" ? `Zaległy ${compactPln(currentPeriod.outstandingGrosz)}` : compactPln(currentPeriod.outstandingGrosz)} · do ${formatPolishDate(currentPeriod.dueDate)}` : "—"}</Text>
         </Pressable>
-        <View style={summaryAnnual}>
-          <Text style={summaryLabel}>Przychód w {selectedYear}</Text>
-          <Text style={summaryDetail}>{annualThreshold > 0 ? `${compactPln(annualIncome)} / próg ${compactPln(annualThreshold)}` : `${compactPln(annualIncome)} · próg niedostępny`}</Text>
-          {annualThreshold > 0 ? <ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Przychód względem progu rocznego" /> : null}
-        </View>
       </View>
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text></View>
@@ -224,8 +220,8 @@ export function PulpitScreen() {
         const paymentState = rentDisplayState(amount.expectedGrosz, amount.confirmedGrosz, amount.remainingGrosz);
         const overdueDays = paymentState.kind !== "paid" && paymentState.kind !== "unknown" && property.paymentDay ? daysOverdue(selectedMonth, property.paymentDay, now) : 0;
         const dueDate = property.paymentDay ? rentDueIso(selectedMonth, property.paymentDay) : undefined;
-        const isOverdue = Boolean(dueDate && dueDate < todayIsoDate() && paymentState.kind !== "paid");
-        return <Pressable key={property.id} accessibilityRole="button" accessibilityLabel={`${property.address}, ${property.tenantName ?? ""}, ${paymentState.kind}`} onPress={() => addIncome(property.id)} style={[ui.card, propertyRow]}>
+        const isOverdue = Boolean(selectedMonth === todayIsoDate().slice(0, 7) && dueDate && dueDate < todayIsoDate() && paymentState.kind !== "paid");
+        return <Pressable key={property.id} accessibilityRole="button" accessibilityLabel={`${property.address}, ${property.tenantName ?? ""}, ${paymentState.kind}`} onPress={() => addIncome(property.id, selectedMonth)} style={[ui.card, propertyRow]}>
           <View style={compactPropertyHeader}><View style={{ flex: 1 }}><Text style={propertyName} numberOfLines={1}>{property.address}</Text>{property.tenantName ? <Text style={compactTenant} numberOfLines={1}>{property.tenantName}</Text> : null}</View>
             {paymentState.kind === "unknown" ? <Text style={compactMuted}>Nieustalony</Text>
               : paymentState.kind === "paid" ? <Text style={paidLabel}>✓ Opłacone</Text>
@@ -356,7 +352,6 @@ const summaryLabel = { color: theme.colors.textSecondary, fontSize: 12, fontWeig
 const summaryAmount = { color: theme.colors.textPrimary, fontSize: 20, fontWeight: "700" as const, marginTop: 3 };
 const summaryDetail = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, marginTop: 3 };
 const summaryTax = { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 13, paddingTop: 10 };
-const summaryAnnual = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 10, paddingTop: 9 };
 const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
 const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
 const selectedFilter = { backgroundColor: theme.colors.selectedSurface, borderColor: theme.colors.selectedBorder };
@@ -373,6 +368,7 @@ const paidLabel = { color: theme.colors.success, fontWeight: "700" as const, fon
 const periodNavigation = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 4, marginBottom: 5 };
 const periodTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, textTransform: "capitalize" as const };
 const periodArrow = { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const };
+const disabledPeriodArrow = { opacity: 0.35 };
 const bulkRow = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, paddingVertical: 8 };
 const bulkCheck = { color: theme.colors.selectedNavigation, fontSize: 22, width: 28, textAlign: "center" as const };
 const bulkItemName = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const };
