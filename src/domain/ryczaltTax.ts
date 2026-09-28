@@ -46,6 +46,10 @@ export function formatPln(grosz: number): string {
   return `${sign}${whole},${String(absolute % 100).padStart(2, "0")} zł`;
 }
 
+export function formatPlnAmount(amount: string): string {
+  return formatPln(moneyToGrosz(amount));
+}
+
 export function taxOnRevenue(
   cumulativeRevenueGrosz: number,
   taxYear: number,

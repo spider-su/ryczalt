@@ -64,7 +64,7 @@ describe("custom reminder recurrence", () => {
   it("projects yearly reminders and returns leap-day anchors to February 29", () => {
     const yearly: CustomReminder = { id: "yearly", title: "Przegląd", dueDate: "2026-11-30", recurrence: "YEARLY" };
     expect(reminderOccurrenceDates(yearly, new Date(2026, 10, 1))).toEqual(["2026-11-30", "2027-11-30"]);
-    expect(recurrenceLabel("YEARLY", "2026-11-30")).toBe("Co rok · 30 listopada");
+    expect(recurrenceLabel("YEARLY", "2026-11-30")).toBe("Co rok · 30 listopada 2026");
     const leapDay: CustomReminder = { id: "leap", title: "Urodziny", dueDate: "2028-02-29", recurrence: "YEARLY" };
     expect(reminderOccurrenceDates(leapDay, new Date(2028, 1, 28))).toEqual(["2028-02-29", "2029-02-28"]);
     expect(reminderOccurrenceDates(leapDay, new Date(2029, 1, 27))).toEqual(["2029-02-28", "2030-02-28"]);

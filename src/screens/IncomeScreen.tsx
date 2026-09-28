@@ -24,11 +24,12 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
 import { entriesForTaxYear } from "../domain/rentalHistory";
-import { formatPln, moneyToGrosz, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
+import { formatPln, formatPlnAmount, moneyToGrosz, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 import { summarizeRentMonth } from "../domain/reminders";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
 import { incomeSectionLabels, rentConfirmationGroups, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
+import { formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 import {
   compareDecimalStrings,
   isNonnegativeMoney,
@@ -243,7 +244,7 @@ export function IncomeScreen() {
     const warnings: string[] = [];
     if (compareDecimalStrings(amount, "100000") > 0) {
       warnings.push(
-        `Kwota ${amount} zł jest bardzo wysoka. Sprawdź, czy nie ma pomyłki.`,
+        `Kwota ${formatPlnAmount(amount)} jest bardzo wysoka. Sprawdź, czy nie ma pomyłki.`,
       );
     }
     const today = todayIsoDate();
@@ -265,7 +266,7 @@ export function IncomeScreen() {
     if (deletingId) return;
     Alert.alert(
       "Usunąć wpłatę?",
-      `Wpłata ${entry.amount} zł z dnia ${entry.receivedAt} zostanie usunięta.`,
+      `Wpłata ${formatPlnAmount(entry.amount)} z dnia ${formatPolishDate(entry.receivedAt, "long")} zostanie usunięta.`,
       [
         { text: "Anuluj", style: "cancel" },
         {
@@ -404,7 +405,7 @@ export function IncomeScreen() {
                     : state.kind === "unpaid" ? <Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPln(state.remainingGrosz)} do potwierdzenia</Text> : null}
                   <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)} style={secondaryAction}><Text style={action}>Potwierdź wpłatę</Text></Pressable>
                 </View>)}
-                </> : allPaid ? <Text style={successState}>✓ Wszystkie czynsze za {new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(`${rentalMonth}-15T12:00:00`))} są potwierdzone.</Text> : null}
+                </> : allPaid ? <Text style={successState}>✓ Wszystkie czynsze za {formatPolishMonth(rentalMonth)} są potwierdzone.</Text> : null}
                 {rentStates.flatMap(({ property, summary }) => {
                   const warning = unallocatedRentWarning(summary.unallocatedGrosz);
                   return warning ? [<Text key={property.id} style={muted}>{property.name} · {warning}</Text>] : [];

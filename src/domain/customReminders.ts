@@ -1,4 +1,5 @@
 import type { CustomReminder, ReminderRecurrence, RentalDocument } from "../model/rental";
+import { formatPolishDate } from "./presentationFormat";
 
 export function reminderOccurrenceDates(reminder: CustomReminder, now = new Date()): string[] {
   if (reminder.recurrence === "ONCE") return [reminder.dueDate];
@@ -58,7 +59,7 @@ export function recurrenceLabel(recurrence: ReminderRecurrence, dueDate: string)
   const { year, month, day } = parseDate(dueDate);
   if (recurrence === "MONTHLY") return `Co miesiąc · ${day}. dzień miesiąca`;
   const date = new Date(year, month - 1, day);
-  const dateLabel = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long" }).format(date);
+  const dateLabel = formatPolishDate(date, "long");
   return `Co rok · ${dateLabel}`;
 }
 
