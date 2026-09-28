@@ -964,7 +964,8 @@ const trustCard = { padding: 16 };
 const clearDataButton = { minHeight: 46, justifyContent: "center" as const, alignItems: "center" as const, marginTop: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 12 };
 const clearDataText = { color: theme.colors.danger, fontSize: 14, fontWeight: "700" as const };
 const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
-const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
+const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
+const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
 const taxableOptionSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
 const radioMark = { width: 22, color: theme.colors.textMuted, fontSize: 20, textAlign: "center" as const };
 const radioMarkSelected = { color: theme.colors.accent };
@@ -972,5 +973,3 @@ const taxableOptionLabel = { color: theme.colors.textPrimary, flex: 1, fontSize:
 const taxableOptionLabelSelected = { fontWeight: "600" as const };
 const disclosureRow = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingVertical: 12 };
 const disclosureChevron = { color: theme.colors.textSecondary, fontSize: 18, fontWeight: "700" as const };
-
-const };
