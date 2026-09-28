@@ -12,7 +12,7 @@ const lightColors = {
   textPrimary: '#17263C', textSecondary: '#536176', textMuted: '#64748B', borderSubtle: '#E3E8EF', divider: '#E9EDF2', interactive: '#34465D',
   brandAction: '#D20A32', brandActionPressed: '#AF092A', accent: '#D20A32', accentPressed: '#AF092A', accentSoft: '#FFF0F3',
   success: '#18794E', successSoft: '#E8F6EE', warning: '#9A6700', warningSoft: '#FFF5D6', danger: '#B42318', dangerSoft: '#FDEDEC', info: '#45627F', infoSoft: '#EDF3F8', onAccent: '#FFFFFF', overlay: '#15223866', inputBackground: '#FFFFFF', inputBorder: '#E3E8EF', disabled: '#A8B3C2', focusRing: '#D20A32', selectedNavigation: '#17263C', inactiveNavigation: '#64748B', selectedSurface: '#F1F4F8', selectedBorder: '#C8D2DF', modalBackground: '#FFFFFF',
-  text: '#17263C', border: '#E3E8EF', primary: '#17263C', primarySoft: '#F1F4F8'
+  text: '#17263C', border: '#E3E8EF', primary: '#D20A32', primarySoft: '#FFF0F3'
 } as const;
 type Colors = { [K in keyof typeof lightColors]: string };
 

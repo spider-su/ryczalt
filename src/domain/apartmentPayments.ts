@@ -15,7 +15,7 @@ export function decimalFromGrosz(grosz: number): string {
   return `${Math.floor(grosz / 100)}.${String(grosz % 100).padStart(2, "0")}`;
 }
 
-/** Defaults taxable income to the owner's rent component and carries it across partial receipts in one rental month. */
+/** Applies the apartment's explicit contractual tax-base choice across partial receipts in a rental month. */
 export function defaultTaxableAmountGrosz(args: {
   property: Property;
   amountGrosz: number;
@@ -24,7 +24,8 @@ export function defaultTaxableAmountGrosz(args: {
   now?: Date;
 }): number {
   const { property, amountGrosz, rentalMonth, priorEntries, now = new Date() } = args;
-  if (!property.mediaPaidByTenant) return amountGrosz;
+  if (!property.taxableTreatment) throw new Error("Choose the taxable rent treatment before confirming a receipt");
+  if (property.taxableTreatment === "RENT_AND_CHARGES") return amountGrosz;
   const ownerRent = ownerRentForMonth(property, rentalMonth, now) ?? (property.ownerRent ? moneyToGrosz(property.ownerRent) : 0);
   const alreadyTaxable = priorEntries.filter((entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === rentalMonth)
     .reduce((total, entry) => total + moneyToGrosz(entry.taxableAmount), 0);

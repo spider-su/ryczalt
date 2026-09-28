@@ -112,6 +112,8 @@ describe("tax presentation", () => {
     expect(TAX_CALCULATION_EXPLANATION).toContain("potwierdzonych wpływów");
     expect(TAX_CALCULATION_EXPLANATION).toContain("nie uwzględnia indywidualnych odliczeń");
     expect(TAX_PAYMENT_ALLOCATION_HINT).toContain("najstarszej nierozliczonej należności");
+    expect(taxPeriodLabel("2026-09", "monthly")).toBe("wrzesień 2026");
+    expect(taxPeriodLabel("2026-Q3", "quarterly")).toBe("III kwartał 2026");
   });
 
   it("calculates remaining progress against the active single or spouse threshold", () => {

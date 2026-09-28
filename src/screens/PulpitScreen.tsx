@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
-import { calculateTaxYear, formatPln, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
+import { calculateTaxYear, formatPln, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
 import { taxSummaryForPeriod } from "../domain/taxPresentation";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
@@ -72,7 +72,7 @@ export function PulpitScreen() {
   const selectedYear = Number(selectedMonth.slice(0, 4));
   const openingRevenue = selectedYear === document.settings.taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0;
   const openingTaxPaid = selectedYear === document.settings.taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0;
-  const taxCalculation = selectedYear === 2025 || selectedYear === 2026 ? calculateTaxYear({
+  const taxCalculation = hasTaxRulesForYear(selectedYear) ? calculateTaxYear({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: selectedYear,
     mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: openingRevenue, openingTaxPaidGrosz: openingTaxPaid,
@@ -165,6 +165,10 @@ export function PulpitScreen() {
   };
   const confirmBulkRent = async () => {
     if (bulkSaving || bulkSelectedIds.length === 0) return;
+    if (bulkSelectedIds.some((id) => !document.properties.find((property) => property.id === id)?.taxableTreatment)) {
+      Alert.alert("Ustaw sposób opodatkowania", "Wybierz sposób wliczania opłat w ustawieniach każdego mieszkania przed potwierdzeniem wpłat.");
+      return;
+    }
     if (!isValidCalendarDate(bulkReceivedAt) || bulkReceivedAt > todayIsoDate()) {
       Alert.alert("Sprawdź datę wpłaty", "Wpisz prawidłową datę nie późniejszą niż dzisiaj.");
       return;
@@ -216,7 +220,7 @@ export function PulpitScreen() {
         </>}
         <Pressable accessibilityRole="button" accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${currentPeriod.status === "paid" ? "Opłacone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} onPress={() => navigateToTaxDetails(navigation)} style={summaryTax}>
           <Text style={summaryMainLine} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>Podatek: <Text style={summaryMainValue}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text></Text>
-          <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Opłacone · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : "—"}</Text>
+          <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Opłacone · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : hasTaxRulesForYear(selectedYear) ? "—" : `Brak zweryfikowanych reguł podatkowych dla ${selectedYear}`}</Text>
         </Pressable>
       </View>
 

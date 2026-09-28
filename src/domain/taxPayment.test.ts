@@ -3,7 +3,7 @@ import type { RentalDocument, TaxPayment } from "../model/rental";
 import { removeTaxPayment, upsertTaxPayment } from "./taxPayment";
 
 const document: RentalDocument = {
-  schemaVersion: 6,
+  schemaVersion: 7,
   properties: [{ id: "p1", address: "Mieszkanie" }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", amount: "1000.00", taxableAmount: "1000.00" }],
   taxPayments: [{ id: "t1", period: "2026-01", paidAt: "2026-02-10", amount: "50.00" }],

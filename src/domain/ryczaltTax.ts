@@ -5,6 +5,12 @@ export const RYCZALT_RULES = {
   2026: { lowerLimitPln: 100_000, lowerRate: 85, upperRate: 125 },
 } as const;
 export const SUPPORTED_TAX_YEARS = Object.keys(RYCZALT_RULES).map(Number) as (keyof typeof RYCZALT_RULES)[];
+export function hasTaxRulesForYear(year: number): year is keyof typeof RYCZALT_RULES {
+  return Object.prototype.hasOwnProperty.call(RYCZALT_RULES, year);
+}
+export function taxNavigationYears(now = new Date(), firstYear = 2025): number[] {
+  return Array.from({ length: Math.max(0, now.getFullYear() - firstYear + 1) }, (_, index) => firstYear + index);
+}
 
 export type SettlementMode = "monthly" | "quarterly";
 /** Resolve the settlement bucket containing a calendar month. */

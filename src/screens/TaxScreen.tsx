@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { calculateTaxYear, formatPln, formatPlnAmount, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
+import { calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
 import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
@@ -39,7 +39,7 @@ export function TaxScreen() {
   const earliestMonth = document ? earliestDashboardMonth(document.properties, document.incomeEntries, now, currentYearStart) : currentYearStart;
   const earliestPeriod = document ? settlementPeriodForMonth(earliestMonth, settlementMode) ?? currentYearStart : currentYearStart;
   const taxYear = Number(selectedPeriod.slice(0, 4));
-  const calculation = useMemo(() => document && (taxYear === 2025 || taxYear === 2026) ? calculateTaxYear({
+  const calculation = useMemo(() => document && hasTaxRulesForYear(taxYear) ? calculateTaxYear({
     entries: document.incomeEntries,
     payments: document.taxPayments,
     taxYear,
@@ -158,7 +158,7 @@ export function TaxScreen() {
           <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}><Pressable accessibilityRole="button" onPress={() => openPayment(payment)} style={secondaryPaymentAction}><Text style={secondaryPaymentActionText}>Popraw</Text></Pressable><Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable></View>
         </View>)}
       </>}
-      {!settlement && !([2025, 2026] as number[]).includes(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Dane pojawią się po dodaniu reguł dla tego roku.</Text> : null}
+      {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
       <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek? {infoOpen ? "⌃" : "›"}</Text></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
@@ -177,6 +177,8 @@ export function TaxScreen() {
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Dane przelewu</Text><Text accessibilityRole="button" onPress={() => setPaymentDetailsOpen(false)} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <PaymentDetail label="Symbol formularza płatności" value="PPE" onCopy={() => void copyDetail("PPE", "Symbol formularza")} />
+          <PaymentDetail label="Okres rozliczenia" value={settlement ? taxPeriodLabel(settlement.period, document.settings.settlementMode) : undefined} onCopy={() => void copyDetail(settlement ? taxPeriodLabel(settlement.period, document.settings.settlementMode) : undefined, "Okres rozliczenia")} />
           <PaymentDetail label="Odbiorca" value={taxPaymentDetails.recipientName} onCopy={() => void copyDetail(taxPaymentDetails.recipientName, "Odbiorca")} />
           <PaymentDetail label="Mikrorachunek podatkowy" value={taxPaymentDetails.bankAccount} onCopy={() => void copyDetail(taxPaymentDetails.bankAccount, "Mikrorachunek")} />
           <PaymentDetail label="Kwota do zapłaty" value={settlement && settlement.outstandingGrosz > 0 ? formatPln(settlement.outstandingGrosz) : "Brak kwoty do zapłaty"} onCopy={() => void copyDetail(settlement?.outstandingGrosz ? taxPaymentDetails.amount : undefined, "Kwota")} />

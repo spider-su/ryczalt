@@ -113,7 +113,7 @@ export function IncomeScreen() {
       setTaxableExpanded(false);
       const selected = property ?? properties[0];
       const period = params.rentalMonth ?? todayIsoDate().slice(0, 7);
-      const taxable = selected && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : amount;
+      const taxable = selected?.taxableTreatment && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : "";
       setDraft({ ...blankDraft(), propertyId: property?.id ?? selected?.id ?? "", amount,
         taxableAmount: taxable, rentalMonth: params.rentalMonth ?? "" });
       setModalOpen(true);
@@ -176,6 +176,10 @@ export function IncomeScreen() {
         "Wybierz mieszkanie",
         "Najpierw dodaj mieszkanie i wybierz je dla wpłaty.",
       );
+      return;
+    }
+    if (!properties.find((property) => property.id === draft.propertyId)?.taxableTreatment && !editing) {
+      Alert.alert("Ustaw sposób opodatkowania", "Wybierz go w Ustawieniach mieszkania zgodnie z warunkami umowy najmu.");
       return;
     }
     const rentalPeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
@@ -499,7 +503,7 @@ export function IncomeScreen() {
                 </Text>
               </Pressable>
             ))}
-            {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>Czynsz dla właściciela: {formatPlnAmount(property.ownerRent ?? "0")} · media: {property.mediaPaidByTenant ? "opłaca najemca" : "opłaca właściciel"}. Opodatkowana jest tylko część właściciela.</Text> : null; })()}
+            {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>{property.taxableTreatment ? `Podstawa wg ustawienia mieszkania: ${property.taxableTreatment === "OWNER_RENT" ? "czynsz dla właściciela" : "czynsz i opłaty dodatkowe"}.` : "Ustaw sposób wliczania opłat do przychodu w edycji mieszkania przed potwierdzeniem wpłaty."}</Text> : null; })()}
             {field("Otrzymana kwota (zł) *", "amount", {
               keyboardType: "decimal-pad",
               placeholder: "Wpisz faktycznie otrzymaną kwotę",

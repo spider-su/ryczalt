@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ELECTRICITY_PROVIDER_PRESETS, leaseEndOneYearAfter, mergeAdministrationSuggestions, newApartmentDefaults } from "./apartmentSetup";
+import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "./apartmentSetup";
 import { isValidHttpsUrl } from "./rentalValidation";
 
 describe("apartment setup helpers", () => {
-  it("defaults a new lease to one year after the selected date and clamps leap days", () => {
-    expect(leaseEndOneYearAfter("2026-09-28")).toBe("2027-09-28");
-    expect(leaseEndOneYearAfter("2028-02-29")).toBe("2029-02-28");
-  });
-
-  it("defaults the rent due day to 5 for a new apartment", () => {
-    expect(newApartmentDefaults("2026-09-28")).toEqual({ leaseEndDate: "2027-09-28", paymentDay: 5 });
+  it("does not invent a lease end date for a new apartment", () => {
+    expect(newApartmentDefaults()).toEqual({ leaseEndDate: "", paymentDay: 5 });
   });
 
   it("deduplicates saved administration names case-insensitively and keeps the latest URL", () => {

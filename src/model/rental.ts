@@ -8,6 +8,8 @@ export type Property = {
   rentSchedule?: RentRate[];
   mediaAmount?: string;
   mediaPaidByTenant?: boolean;
+  /** Explicit contract-dependent tax base; absent until the landlord confirms it. */
+  taxableTreatment?: "OWNER_RENT" | "RENT_AND_CHARGES";
   tenantName?: string;
   tenantPhone?: string;
   tenantEmail?: string;
@@ -92,7 +94,7 @@ export type TaxPayment = {
 };
 
 export type RentalDocument = {
-  schemaVersion: 6;
+  schemaVersion: 7;
   properties: Property[];
   incomeEntries: IncomeEntry[];
   taxPayments: TaxPayment[];

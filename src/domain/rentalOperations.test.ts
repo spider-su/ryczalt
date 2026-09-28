@@ -13,4 +13,9 @@ describe("income tenant history", () => {
     const edited = editIncomeEntry(historical, { propertyId: property.id, receivedAt: "2026-09-29", amount: "2700", taxableAmount: "2700", rentalMonth: "2026-09" });
     expect(edited.tenantNameSnapshot).toBe("Former tenant");
   });
+
+  it("retains INITIAL_IMPORT provenance when correcting an estimated receipt", () => {
+    const imported: IncomeEntry = { id: "import-1", propertyId: property.id, receivedAt: "2026-03-12", amount: "2600", taxableAmount: "2600", rentalMonth: "2026-03", source: "INITIAL_IMPORT" };
+    expect(editIncomeEntry(imported, { propertyId: property.id, receivedAt: "2026-03-14", amount: "2600", taxableAmount: "2600", rentalMonth: "2026-03" }).source).toBe("INITIAL_IMPORT");
+  });
 });

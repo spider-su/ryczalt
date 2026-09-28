@@ -1,4 +1,4 @@
-import { calculateSettlements, formatPln, moneyToGrosz } from "./ryczaltTax";
+import { calculateSettlements, formatPln, hasTaxRulesForYear, moneyToGrosz } from "./ryczaltTax";
 import { customReminderTaskId, recurrenceLabel, reminderOccurrenceDates } from "./customReminders";
 import type { RentalDocument, TaskState } from "../model/rental";
 import { rentMonthAmounts } from "./rentAllocation";
@@ -74,7 +74,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
     }
   }
 
-  if ([2025, 2026].includes(document.settings.taxYear)) {
+  if (hasTaxRulesForYear(document.settings.taxYear)) {
     const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
       taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
       jointSpouseThreshold: document.settings.jointSpouseThreshold,

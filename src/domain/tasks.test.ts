@@ -4,7 +4,7 @@ import { deriveTasks, expectedRentForMonth, setTaskState, taskNotificationPlan }
 
 function document(): RentalDocument {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 10,
       rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
       leaseEndDate: "2026-12-31" }],
@@ -15,6 +15,11 @@ function document(): RentalDocument {
 }
 
 describe("personal assistant tasks", () => {
+  it("does not create a lease-end task without a recorded contractual date", () => {
+    const withoutEnd = document();
+    withoutEnd.properties = [{ id: "p-no-end", address: "Parkowa 2", paymentDay: 10 }];
+    expect(deriveTasks(withoutEnd, new Date(2026, 8, 28)).some((task) => task.type === "RENTAL_AGREEMENT_END")).toBe(false);
+  });
   const billTask = (doc: RentalDocument, period = "2026-09") => deriveTasks(doc, new Date(2026, 8, 26, 12)).find((item) => item.id === `RECURRING_BILL:power:${period}`)!;
 
   it("resolves fixed recurring bills only when period payments cover the expected amount", () => {

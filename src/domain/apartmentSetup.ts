@@ -8,15 +8,8 @@ export const ELECTRICITY_PROVIDER_PRESETS = [
   { name: "E.ON", url: "https://eon.pl/dla-domu" },
 ] as const;
 
-export function newApartmentDefaults(today: string) {
-  return { leaseEndDate: leaseEndOneYearAfter(today), paymentDay: 5 };
-}
-
-export function leaseEndOneYearAfter(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const targetYear = year! + 1;
-  const targetDay = Math.min(day!, new Date(targetYear, month!, 0).getDate());
-  return `${targetYear}-${String(month).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+export function newApartmentDefaults() {
+  return { leaseEndDate: "", paymentDay: 5 };
 }
 
 export function mergeAdministrationSuggestions(

@@ -9,7 +9,7 @@ import { summarizeRentMonth } from "./reminders";
 import { deriveTasks, taskNotificationPlan } from "./tasks";
 
 const fixture = (): RentalDocument => ({
-  schemaVersion: 6,
+  schemaVersion: 7,
   properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 30,
     rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00" }], leaseEndDate: "2026-12-31" }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "1000.00", taxableAmount: "300.00" }],

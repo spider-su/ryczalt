@@ -21,6 +21,7 @@ import type { Property, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { isNonnegativeMoney, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount, isValidTaxMicroAccount } from "../domain/rentalValidation";
+import { hasTaxRulesForYear } from "../domain/ryczaltTax";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
@@ -45,7 +46,7 @@ type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymen
 };
 type PropertyDraftTextKey = "address" | "ownerRent" | "mediaAmount" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalStartDate" | "leaseEndDate" | "paymentDay" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "notes";
 const newPropertyDraft = (): PropertyDraft => ({
-  ...newApartmentDefaults(todayIsoDate()),
+  ...newApartmentDefaults(),
   address: "",
   ownerRent: "",
   mediaAmount: "",
@@ -141,6 +142,7 @@ export function SettingsScreen() {
             ownerRent: property.ownerRent ?? "",
             mediaAmount: property.mediaAmount ?? "0",
             mediaPaidByTenant: property.mediaPaidByTenant ?? false,
+            taxableTreatment: property.taxableTreatment,
             tenantName: property.tenantName ?? "",
             tenantPhone: property.tenantPhone ?? "",
             tenantEmail: property.tenantEmail ?? "",
@@ -182,6 +184,10 @@ export function SettingsScreen() {
       Alert.alert("Nieprawidłowa kwota mediów", "Wpisz kwotę, np. 350 lub 350,50.");
       return;
     }
+    if (draft.taxableTreatment !== "OWNER_RENT" && draft.taxableTreatment !== "RENT_AND_CHARGES") {
+      Alert.alert("Wybierz przychód do opodatkowania", "Wybierz sposób zgodny z warunkami umowy najmu przed zapisaniem mieszkania.");
+      return;
+    }
     const endDate = draft.leaseEndDate.trim();
     if (endDate && !isValidCalendarDate(endDate)) {
       Alert.alert("Nieprawidłowa data", "Sprawdź datę wygaśnięcia umowy.");
@@ -215,10 +221,10 @@ export function SettingsScreen() {
       ...(ownerRent ? { ownerRent } : {}),
       ...(ownerRent ? { rentSchedule: updatedRentSchedule(editing, ownerRent, !editing && startDate ? startDate.slice(0, 7) : undefined) } : editing?.rentSchedule ? { rentSchedule: editing.rentSchedule } : {}),
       lifecycle: editing ? effectiveLifecycle(editing) : "ACTIVE",
-      ...(startDate ? { rentalStartDate: startDate } : editing?.rentalStartDate ? { rentalStartDate: editing.rentalStartDate } : {}),
       ...(draft.rentalStartDate ? { rentalStartDate: draft.rentalStartDate } : editing?.rentalStartDate ? { rentalStartDate: editing.rentalStartDate } : {}),
       mediaAmount,
       mediaPaidByTenant: draft.mediaPaidByTenant,
+      taxableTreatment: draft.taxableTreatment,
       ...optional("tenantName", draft.tenantName),
       ...optional("tenantPhone", draft.tenantPhone),
       ...optional("tenantEmail", draft.tenantEmail),
@@ -477,9 +483,10 @@ export function SettingsScreen() {
         <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 12 }}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
         {activeSection === "tax" ? <>
         <PeriodSelector value={String(document.settings.taxYear)} valueLabel={`Rok podatkowy ${document.settings.taxYear}`} previousLabel="Poprzedni rok podatkowy" nextLabel="Następny rok podatkowy"
-          previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= 2026}
+          previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= new Date().getFullYear()}
           onPrevious={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}
           onNext={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} />
+        {!hasTaxRulesForYear(document.settings.taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.warning, marginTop: 8 }}>Możesz wybrać ten rok kalendarzowy, ale reguły podatkowe nie są jeszcze zweryfikowane i wyliczenie pozostanie niedostępne.</Text> : null}
         <Text style={sectionTitle}>Rozliczenie</Text>
         <Text style={muted}>Częstotliwość wpłat ryczałtu</Text>
         <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
@@ -658,6 +665,9 @@ export function SettingsScreen() {
               <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0", selectTextOnFocus: true })}</View>
             </View>
             <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
+            <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
+            <Text style={muted}>Wybierz wariant zgodny z warunkami Twojej umowy najmu.</Text>
+            {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: draft.taxableTreatment === value }} onPress={() => setDraft((current) => ({ ...current, taxableTreatment: value }))} style={{ ...notificationRow, borderWidth: 1, borderColor: draft.taxableTreatment === value ? theme.colors.accent : theme.colors.borderSubtle, borderRadius: 10, padding: 10, marginTop: 6 }}><Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{label}</Text><Text style={{ color: theme.colors.accent, fontWeight: "700" }}>{draft.taxableTreatment === value ? "●" : "○"}</Text></Pressable>)}
             <Text style={{ ...muted, marginBottom: 8 }}>Razem od najemcy: {tenantDraftTotal(draft)} / mies.</Text>
             <View onLayout={setupFocus === "payment-day" ? (event) => { propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); setSetupFocus(null); } : undefined}>
               {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "5" })}

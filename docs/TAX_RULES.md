@@ -1,27 +1,61 @@
 # Private rental tax rules
 
-The calculation engine supports tax years 2025 and 2026 only. Do not extend this table to another year without checking the rules in force for that year.
+**Scope:** Polish private residential rental recorded as ryczałt. This is a receipt ledger and estimate, not a tax return or legal classification tool. Sources below were checked on **2026-09-28**.
 
-| Tax year | Lower rate | Annual threshold | Rate above threshold | Source checked |
+## Supported tax rules
+
+| Tax year | Rate up to annual threshold | Threshold | Rate above threshold | Source checked |
 | --- | ---: | ---: | ---: | --- |
 | 2025 | 8.5% | PLN 100,000 | 12.5% | Ministry of Finance private-rental guidance and PIT-28 2025 guide |
 | 2026 | 8.5% | PLN 100,000 | 12.5% | Ministry of Finance private-rental guidance, updated 2026-08-20 |
 
-For marital joint-property rental where the required election to tax all rental receipts by one spouse applies, the higher-rate threshold is PLN 200,000. This must not be used merely because the taxpayer is married.
+For joint marital property where the required election to tax all rental income by one spouse applies, the higher-rate threshold is PLN 200,000. Marriage alone does not satisfy this condition. The setting is user-confirmed; the app does not determine ownership, eligibility, or whether the election was filed.
 
-Taxable receipts are grouped by the actual receipt date and summed across apartments. For each monthly or quarterly period, the taxable base is rounded to whole PLN before applying the rates and cumulative annual threshold (50 grosz rounds upward); the calculation then rounds the tax due to whole PLN as well. Cumulative threshold use is based on the sum of these rounded period bases. This follows the whole-PLN tax-base and tax rule in Article 63 of the Tax Ordinance. Calculations use integer grosz. Confirmed tax payments do not change the tax obligation or income records. Payments are applied oldest-outstanding-period first; any amount remaining after all accrued obligations is a tax credit carried forward to reduce later periods. Each period retains its own outstanding liability bucket, so prior unpaid amounts remain visible once and are not counted again as new later-period liability. The period in which an excess payment was confirmed continues to show that overpayment; the resulting credit is applied automatically to subsequent obligations. Editing or removing a payment recalculates the allocation and later balances.
+The tax engine supports only 2025 and 2026. Calendar navigation can reach later years, but no calculation or tax task is generated without an explicitly supported rule set. Never carry the previous year's rates forward automatically. 2025 and 2026 rate/threshold rules are supported by Ministry of Finance guidance; 2027 remains unavailable pending verification.
 
-An opening balance entered after tracking began is aggregate prior-to-tracking context. Its taxable revenue contributes to the cumulative annual rate threshold. Calculated tax minus tax paid is shown as a separate opening balance, without a fabricated month or due date; an opening overpayment is likewise kept separate because its payment period is unknown. Monthly or quarterly obligations and overdue status come only from known period receipts and payments.
+## What controls taxable rent
 
-The periodic payment deadline is the 20th day of the next month, or the month after quarter end. December and fourth-quarter periodic advances are due in January (January 20, shifted when it is a non-working day); this is separate from the annual PIT-28 filing/payment deadline. A deadline falling on a Saturday, Sunday, or Polish public holiday moves to the next working day. Quarterly settlement is shown only after the user confirms eligibility; the app does not independently establish eligibility from tax records. One statutory eligibility route uses a prior-year revenue ceiling of EUR 200,000. The PLN equivalent is year-specific (PLN 856,920 for 2025; PLN 851,720 for 2026), and the taxpayer must verify all conditions that apply to them. For the spouse threshold, use PLN 200,000 only where marital joint property applies and one spouse has made the required election to tax all rental receipts; the app does not file or validate that election.
+The Ministry of Finance says private-rental income arises when money is received or made available. It also states that fees for utilities and similar charges are not the landlord's rental income where the rental agreement makes the tenant responsible for those charges. How a particular agreement allocates responsibility is a factual and contractual question.
 
-Implementation alignment: `RYCZALT_RULES` supports only 2025 and 2026, the settings/document validator accepts those supported years, and the settlement screen reports other years as unavailable. Tax status dates use `Europe/Warsaw`, regardless of the device timezone. The `jointSpouseThreshold` setting is a user-confirmed condition, not an eligibility determination. The engine does not calculate personal deductions or prepare PIT-28. Therefore the result is a recordkeeping estimate from the taxable amounts the user enters, not a complete tax return calculation. Before enabling another tax year, verify that year's rates, thresholds, deadline rules, and eligibility wording against current official sources and add matching regression examples.
+Each apartment therefore stores an explicit `taxableTreatment`, independent of `mediaPaidByTenant`:
 
-Calculation regression tests live in `src/domain/ryczaltTax.test.ts`. They protect the annual threshold split, actual-receipt-date grouping across properties, monthly and quarterly periods, exact/partial/overpaid balances, oldest-period payment allocation and credit carry-forward, correction/removal recalculation, whole-PLN rounding, and deadline adjustment. Tax-payment mutation tests live in `src/domain/taxPayment.test.ts` and assert income records remain unchanged. Keep test dates explicit with `today` so status assertions do not drift as calendar time advances. When rules or rounding behavior change, update both the examples here and the matching test cases.
+- `OWNER_RENT`: cap taxable receipts for the rental month at the scheduled owner's rent, carrying that cap across partial receipts.
+- `RENT_AND_CHARGES`: treat the full confirmed receipt as taxable.
+
+The landlord must choose based on the actual agreement and payment arrangement. The labels are calculation choices, not statements that one option is universally correct. A migrated apartment without a confirmed choice cannot create new receipt tax amounts until the landlord selects one. Existing confirmed `IncomeEntry.taxableAmount` values are retained unchanged; migrations do not recalculate them.
+
+This single rule is applied by `defaultTaxableAmountGrosz` to individual confirmations, bulk confirmations and historical imports. `mediaPaidByTenant` controls expected tenant rent only; it does not decide taxable treatment. Users may edit an existing confirmed receipt's taxable amount as a correction, and that stored amount remains the tax engine input.
+
+## Receipt periods, rounding and thresholds
+
+The tax base uses each receipt's `receivedAt` date, including receipts assigned to a rent month for reconciliation. Annual threshold progression uses cumulative taxable receipts grouped by the actual/recorded receipt month. This is aligned with Ministry guidance that income arises when received or made available. The app does not tax unpaid expected rent.
+
+Historical onboarding creates `INITIAL_IMPORT` entries using the configured payment day as an estimated received date. The displayed date is marked **data szacunkowa**. If it falls before the configured rental start date, it is clamped to that start date. Because the estimate remains the stored `receivedAt`, it affects the calculated calendar tax month, annual threshold progression, and corresponding deadline. Users should correct imported dates when they know the actual receipt dates; the import provenance remains `INITIAL_IMPORT` after edits.
+
+For a monthly or quarterly period, the taxable base is rounded to whole PLN before rate calculation, with 50 grosz rounding up; the calculated tax is then rounded to whole PLN. Cumulative rate-threshold use is based on the sum of those rounded period bases. Calculations use integer grosz. The whole-zloty rounding rule is in Article 63 of the Tax Ordinance. Individual deductions are not modelled; this limits the result to a recordkeeping estimate from the configured taxable amounts.
+
+## Periods, deadlines and payment details
+
+The Ministry of Finance specifies payment by the 20th of the following month for monthly payments and by the 20th of the month after quarter end for quarterly payments. December and Q4 payments are due by 20 January of the following year. Under Article 12 §5 of the Tax Ordinance, a deadline on Saturday or a statutory holiday moves to the next day that is not a Saturday or statutory holiday. The annual PIT-28 filing/payment deadline is separate and is not implemented as a filing engine.
+
+The Ministry specifies **PPE** as the payment form symbol for interim monthly/quarterly rental ryczałt and PIT-28 for annual return tax. The app shows PPE, the selected human-readable settlement period, the due date and configured micro-account. It does not invent a bank-specific period code or generate a payment QR. Users must verify payment details with their bank and tax account. PPE guidance is not annual filing support.
+
+Quarterly settlement appears only after the user confirms eligibility. One statutory eligibility path uses a previous-year revenue ceiling of EUR 200,000; the PLN equivalent is year-specific (PLN 856,920 for 2025; PLN 851,720 for 2026). The app does not validate every condition. Confirm current limits and eligibility before selecting quarterly settlement.
+
+Tax payments do not change income or tax obligations. Recorded payments allocate oldest outstanding period first, with excess carried as credit into later periods. Opening taxable revenue and paid tax are aggregate prior-to-tracking context: any difference is displayed separately and is not assigned a fabricated month or deadline.
 
 ## Official sources
 
-- [Ministry of Finance: private rental income](https://www.podatki.gov.pl/podatki-osobiste/pit/informacje-podstawowe/co-jest-opodatkowane/dochody-z-najmu) (rates, joint-property threshold, receipt-date basis, periods, and deadlines; updated 2026-08-20).
-- [Ministry of Finance: PIT-28 for 2025](https://www.podatki.gov.pl/twoj-e-pit/pit-28-za-2025-rok) (year-specific private-rental treatment and whole-zloty rounding).
-- [Ministry of Finance: PIT limits](https://www.podatki.gov.pl/podatki-osobiste/pit/stawki-i-limity) (annual PLN equivalents for quarterly settlement eligibility).
-- [Tax Ordinance, Article 63](https://isap.sejm.gov.pl/isap.nsf/download.xsp/WDU19971370926/U/D19970926Lj.pdf) (whole-PLN rounding rule; verify current consolidated text when reviewing future tax years).
+All were accessed/checked on **2026-09-28**.
+
+| Source title | URL | Rule used |
+| --- | --- | --- |
+| Ministry of Finance, “Rozliczenie przychodów z najmu prywatnego” (updated 2026-08-20) | https://www.podatki.gov.pl/podatki-osobiste/pit/informacje-podstawowe/co-jest-opodatkowane/dochody-z-najmu | Receipt timing, tenant-borne charges, 8.5%/12.5% rates, PLN 100,000/200,000 thresholds, monthly/quarterly deadlines, December/Q4 January deadline and PPE symbol. |
+| Ministry of Finance, “Czy zryczałtowany podatek dochodowy z najmu nieruchomości wpłacam na mikrorachunek podatkowy?” | https://www.podatki.gov.pl/pytania-i-odpowiedzi/mikrorachunek/czy-zryczaltowany-podatek-dochodowy-z-najmu-nieruchomosci-wplacam-na-mikrorachunek-podatkowy | Micro-account and PPE for periodic payment; PIT-28 for annual return payment. |
+| Ministry of Finance, “PIT-28 za 2025 rok” | https://www.podatki.gov.pl/twoj-e-pit/pit-28-za-2025-rok | Year-specific guide and whole-zloty rounding cross-check. |
+| Ministry of Finance, “Stawki i limity PIT” | https://www.podatki.gov.pl/podatki-osobiste/pit/stawki-i-limity | Quarterly eligibility PLN equivalents. |
+| Tax Ordinance, 2026 consolidated text, Article 12 §5 and Article 63 | https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU20260000622 | Saturday/statutory-holiday deadline shift and whole-PLN rounding. |
+
+## Implementation checks
+
+Regression coverage is in `src/domain/ryczaltTax.test.ts`, `src/domain/taxPayment.test.ts`, `src/domain/apartmentPayments.test.ts`, `src/domain/bulkRentConfirmation.test.ts`, and `src/domain/historicalRentBootstrap.test.ts`. These cover supported-rule failure, annual rate threshold, receipt-date grouping, rounding, deadline shift including December/Q4, tax-payment allocation, explicit tax-base handling and import estimates. Verify this source table and add tests before enabling a further tax year.

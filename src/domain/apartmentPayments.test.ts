@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultTaxableAmountGrosz, tenantMonthlyTotalGrosz } from "./apartmentPayments";
 import type { IncomeEntry, Property } from "../model/rental";
 
-const property: Property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true,
+const property: Property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT",
   rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }] };
 const entry = (amount: string, taxableAmount: string): IncomeEntry => ({ id: `${amount}-${taxableAmount}`, propertyId: "p1", receivedAt: "2026-09-10", rentalMonth: "2026-09", amount, taxableAmount });
 
@@ -18,8 +18,14 @@ describe("apartment payment amounts", () => {
     expect(defaultTaxableAmountGrosz({ property, amountGrosz: 100_000, rentalMonth: "2026-09", priorEntries: [entry("2500.00", "2500.00")] })).toBe(0);
   });
 
-  it("preserves the legacy all-taxable default when media is not tenant-paid", () => {
-    const ownerPaid = { ...property, mediaPaidByTenant: false };
-    expect(defaultTaxableAmountGrosz({ property: ownerPaid, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(300_000);
+  it("uses the tax-base choice independently of who pays media", () => {
+    const includeCharges = { ...property, mediaPaidByTenant: false, taxableTreatment: "RENT_AND_CHARGES" as const };
+    expect(defaultTaxableAmountGrosz({ property: includeCharges, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(300_000);
+    const ownerOnly = { ...property, mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT" as const };
+    expect(defaultTaxableAmountGrosz({ property: ownerOnly, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(250_000);
+  });
+
+  it("requires explicit treatment instead of inferring from the media toggle", () => {
+    expect(() => defaultTaxableAmountGrosz({ property: { ...property, taxableTreatment: undefined }, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toThrow("Choose the taxable rent treatment");
   });
 });
