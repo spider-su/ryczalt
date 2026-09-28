@@ -16,7 +16,7 @@
 ## Priority levels
 
 - **P0 — Core reason to use the app:** confirmed rental income, ryczałt calculation, tax payment deadline and annual/PIT-28 readiness.
-- **P1 — Makes the core easier:** apartment and current tenant/contact, expected rent, reminders, tax payment details and local backup/restore.
+- **P1 — Makes the core easier:** apartment and current tenant/contact, expected rent, reminders and tax payment details.
 - **P2 — Convenience:** recurring bills, administrator/utility links, agreement reminders and light statistics.
 - **P3 — Only with demonstrated user demand:** cloud sync, spouse/shared access, bank feeds, document management, deposits, full expense accounting, tenant communication and maintenance workflows.
 
@@ -55,17 +55,18 @@ Competitor layouts and flows are references, not templates. Do not copy propriet
 
 ## Boundaries
 
-No backend, bank sync, automatic payment confirmation or cloud sync. Annual/PIT-28 verification summary and local JSON backup/restore are near-term roadmap priorities, not current functionality. Electronic PIT-28 submission is explicitly out of scope. Investory integration remains a later/optional idea.
+No backend, bank sync, automatic payment confirmation or cloud sync. Annual/PIT-28 verification summary is a roadmap priority. User-controlled local JSON export/import is parked pending explicit privacy and format requirements. The app keeps a rolling last-good local recovery snapshot, but that is not user-facing backup/export and AsyncStorage is not encrypted by the app. Electronic PIT-28 submission is explicitly out of scope. Investory integration remains a later/optional idea.
 
 Not Investory (no portfolio analytics, valuations or retirement planning); not `ryczalt_it` (no JDG/VAT/KSeF accounting); not a full property manager (no tenant accounts, messaging, document repository or maintenance tickets).
 
 ## Status
 
-- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, rent history, recurring bills, agreement reminders, apartment links, local notification scheduling, one-time/monthly/yearly custom reminders and compact statistics.
+- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, recurring bills, agreement reminders, apartment links, local notification scheduling, one-time/monthly/yearly custom reminders and compact statistics.
+- **Implemented:** validated local-document writes retain one previous valid snapshot; startup can recover from a corrupted/missing primary and reports recovery. This is app-local recovery only, not encrypted storage or user-controlled export/import.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
-- **Implemented:** guided setup derived from apartment configuration.
 - **Functional scope complete:** 0.4 includes recurring custom reminders. This does not establish private-beta readiness.
-- **Upcoming:** year-to-date/annual tax summaries, annual/PIT-28 verification readiness, and local JSON backup/restore; see [ROADMAP](ROADMAP.md). These are not implemented yet.
+- **Upcoming:** year-to-date/annual tax summaries and annual/PIT-28 verification readiness; see [ROADMAP](ROADMAP.md). These are not implemented yet.
+- **Parked:** user-controlled local JSON export/import/restore pending a defined data-format and privacy contract.
 - **Later/optional:** Investory integration and P3 features without demonstrated user demand.
 
 See [MVP](MVP.md) for current acceptance scope and [ROADMAP](ROADMAP.md) for delivery state. Milestones are not published releases.

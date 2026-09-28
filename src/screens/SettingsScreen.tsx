@@ -478,6 +478,7 @@ export function SettingsScreen() {
             { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
           ]);
         }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
+        <Text style={{ ...muted, marginTop: -4 }}>Dotyczy wspólności majątkowej i wymaga wyboru opodatkowania całości przychodów z najmu przez jednego małżonka oraz złożenia wymaganego oświadczenia w terminie.</Text>
         <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
         </> : null}
         {activeSection === "notifications" ? <>

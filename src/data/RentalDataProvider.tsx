@@ -10,7 +10,7 @@ import {
 } from "react";
 import {
   emptyDocument,
-  loadRentalDocument,
+  loadRentalDocumentWithStatus,
   readRawRentalDocument,
   resetRentalDocument,
   saveRentalDocument,
@@ -23,6 +23,8 @@ type RentalDataContextValue = {
   document: RentalDocument | null;
   error: string;
   loadError: string;
+  recoveredFromBackup: boolean;
+  dismissRecoveryNotice: () => void;
   retryLoad: () => Promise<void>;
   copyRawData: () => Promise<string | null>;
   resetLocalData: () => Promise<void>;
@@ -37,14 +39,16 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
   const [document, setDocument] = useState<RentalDocument | null>(null);
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [recoveredFromBackup, setRecoveredFromBackup] = useState(false);
   const documentRef = useRef<RentalDocument | null>(null);
   const mutationQueue = useRef(createSerializedMutationQueue());
 
   const retryLoad = useCallback(async () => {
     try {
-      const loaded = await loadRentalDocument();
-      documentRef.current = loaded;
-      setDocument(loaded);
+      const loaded = await loadRentalDocumentWithStatus();
+      documentRef.current = loaded.document;
+      setDocument(loaded.document);
+      setRecoveredFromBackup(loaded.recoveredFromBackup);
       setLoadError("");
     } catch (cause) {
       setLoadError(cause instanceof Error ? cause.message : "Nie udało się odczytać danych lokalnych.");
@@ -54,6 +58,7 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
   useEffect(() => { void retryLoad(); }, [retryLoad]);
 
   const copyRawData = useCallback(() => readRawRentalDocument(), []);
+  const dismissRecoveryNotice = useCallback(() => setRecoveredFromBackup(false), []);
   const resetLocalData = useCallback(async () => {
     await resetRentalDocument();
     const empty = emptyDocument();
@@ -61,6 +66,7 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
     setDocument(empty);
     setError("");
     setLoadError("");
+    setRecoveredFromBackup(false);
   }, []);
 
   const update = useCallback(
@@ -83,8 +89,8 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
   );
 
   const value = useMemo(
-    () => ({ document, error, loadError, retryLoad, copyRawData, resetLocalData, update }),
-    [document, error, loadError, retryLoad, copyRawData, resetLocalData, update],
+    () => ({ document, error, loadError, recoveredFromBackup, dismissRecoveryNotice, retryLoad, copyRawData, resetLocalData, update }),
+    [document, error, loadError, recoveredFromBackup, dismissRecoveryNotice, retryLoad, copyRawData, resetLocalData, update],
   );
   return (
     <RentalDataContext.Provider value={value}>

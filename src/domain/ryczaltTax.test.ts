@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, formatPln, formatPlnAmount, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "./ryczaltTax";
+import { calculateSettlements, formatPln, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxOnRevenue, todayInPoland } from "./ryczaltTax";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
   id, propertyId, receivedAt, amount: taxableAmount, taxableAmount,
 });
 
 describe("Polish private-rental ryczałt", () => {
-  it("formats stored decimal amounts with the shared Polish PLN formatter", () => {
-    expect(formatPlnAmount("10000.00")).toBe("10 000,00 zł");
-  });
-
   it("resolves monthly and quarterly settlement periods from the calendar month", () => {
     expect(settlementPeriodForMonth("2026-09", "monthly")).toBe("2026-09");
     expect(settlementPeriodForMonth("2026-01", "quarterly")).toBe("2026-Q1");
@@ -18,6 +14,80 @@ describe("Polish private-rental ryczałt", () => {
     expect(settlementPeriodForMonth("2026-08", "quarterly")).toBe("2026-Q3");
     expect(settlementPeriodForMonth("2026-12", "quarterly")).toBe("2026-Q4");
     expect(settlementPeriodForMonth("2026-13", "quarterly")).toBeNull();
+  });
+
+  it("rounds each period's taxable base to whole PLN before tax", () => {
+    expect(roundTaxBaseGrosz(1_234_49)).toBe(1_234_00);
+    expect(roundTaxBaseGrosz(1_234_50)).toBe(1_235_00);
+    expect(roundTaxBaseGrosz(1_234_00)).toBe(1_234_00);
+    const settlements = calculateSettlements({ entries: [
+      entry("base-down", "2026-01-01", "1234.49"),
+      entry("base-up", "2026-02-01", "1234.50"),
+      entry("base-exact", "2026-03-01", "1234.00"),
+    ], payments: [], taxYear: 2026, mode: "monthly", today: "2026-01-01" });
+    expect(settlements.slice(0, 3).map(({ taxableBaseGrosz }) => taxableBaseGrosz)).toEqual([123_400, 123_500, 123_400]);
+  });
+
+  it("rounds the base before splitting across the 100k and spouse 200k thresholds", () => {
+    const one = (amount: string, jointSpouseThreshold = false) => calculateSettlements({
+      entries: [entry("threshold", "2026-01-01", amount)], payments: [], taxYear: 2026, mode: "monthly", jointSpouseThreshold, today: "2026-01-01",
+    })[0]!;
+    expect(one("100000.49")).toMatchObject({ taxableBaseGrosz: 10_000_000, obligationGrosz: 850_000 });
+    expect(one("100004.50")).toMatchObject({ taxableBaseGrosz: 10_000_500, obligationGrosz: 850_100 });
+    expect(one("200000.49", true)).toMatchObject({ taxableBaseGrosz: 20_000_000, obligationGrosz: 1_700_000 });
+    expect(one("200004.50", true)).toMatchObject({ taxableBaseGrosz: 20_000_500, obligationGrosz: 1_700_100 });
+    expect(one("200000.00")).toMatchObject({ obligationGrosz: 2_100_000 });
+  });
+
+  it("uses the same band calculation for annual tax and cumulative period settlements", () => {
+    const entries = [
+      entry("jan", "2026-01-10", "40000.00"),
+      entry("feb", "2026-02-10", "60000.00"),
+      entry("mar", "2026-03-10", "10000.00"),
+    ];
+    const settlements = calculateSettlements({ entries, payments: [], taxYear: 2026, mode: "monthly", today: "2026-03-01" });
+    expect(settlements.reduce((total, item) => total + item.obligationGrosz, 0)).toBe(taxOnRevenue(11_000_000, 2026));
+    expect(settlements[2]?.obligationGrosz).toBe(125_000);
+  });
+
+  it("rounds tax amounts to whole PLN after calculating the rate", () => {
+    expect(taxOnRevenue(10_000, 2026)).toBe(900); // PLN 8.50 -> PLN 9
+    expect(taxOnRevenue(6_00, 2026)).toBe(100); // PLN 0.51 -> PLN 1
+    expect(taxOnRevenue(5_00, 2026)).toBe(0); // PLN 0.425 -> PLN 0
+  });
+
+  it("uses Europe/Warsaw for the default tax-status date across timezone and DST boundaries", () => {
+    const originalTimezone = process.env.TZ;
+    try {
+      process.env.TZ = "Pacific/Honolulu";
+      expect(todayInPoland(new Date("2026-02-20T23:30:00.000Z"))).toBe("2026-02-21");
+      expect(todayInPoland(new Date("2026-03-29T00:30:00.000Z"))).toBe("2026-03-29");
+    } finally {
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
+  });
+
+  it("marks partial obligations overdue after the deadline and keeps paid obligations paid", () => {
+    const income = [entry("jan", "2026-01-01", "1000.00")];
+    const payment: TaxPayment = { id: "partial", period: "2026-01", paidAt: "2026-02-10", amount: "30.00" };
+    const status = (payments: TaxPayment[], today: string) => calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today })[0]!.status;
+    expect(status([], "2026-02-19")).toBe("due");
+    expect(status([payment], "2026-02-19")).toBe("partial");
+    expect(status([payment], "2026-02-21")).toBe("overdue");
+    expect(status([], "2026-02-21")).toBe("overdue");
+    expect(status([{ ...payment, amount: "85.00" }], "2026-02-21")).toBe("paid");
+  });
+
+  it("keeps December and Q4 periodic payments due in January", () => {
+    const monthly = calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-12-01" });
+    const quarterly = calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "quarterly", today: "2026-12-01" });
+    expect(monthly[9]?.dueDate).toBe("2026-11-20");
+    expect(monthly[10]?.dueDate).toBe("2026-12-21"); // Sunday 20 December moves to Monday.
+    expect(monthly[11]?.dueDate).toBe("2027-01-20");
+    expect(quarterly[2]?.dueDate).toBe("2026-10-20");
+    expect(quarterly[3]?.dueDate).toBe("2027-01-20");
+    expect(calculateSettlements({ entries: [], payments: [], taxYear: 2025, mode: "quarterly", today: "2025-12-01" })[3]?.dueDate).toBe("2026-01-20");
   });
 
   it("uses year-specific 8.5% and 12.5% bands with whole-zloty rounding", () => {
@@ -77,7 +147,7 @@ describe("Polish private-rental ryczałt", () => {
       entry("apr", "2026-04-02", "1000.00"),
       entry("may", "2026-05-02", "1000.00"),
     ];
-    const calculate = (payments: TaxPayment[]) => calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today: "2026-06-01" });
+    const calculate = (payments: TaxPayment[]) => calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today: "2026-02-15" });
     const exact = calculate([{ id: "jan-exact", period: "2026-01", paidAt: "2026-02-10", amount: "85.00" }]);
     expect(exact[0]).toMatchObject({ obligationGrosz: 8_500, paidGrosz: 8_500, outstandingGrosz: 0, overpaidGrosz: 0 });
 
@@ -125,6 +195,9 @@ describe("Polish private-rental ryczałt", () => {
     expect(calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-01-01" })[10]?.dueDate).toBe("2026-12-21");
     expect(moneyToGrosz("0.05")).toBe(5);
     expect(formatPln(1_000_050)).toBe("10 000,50 zł");
+    expect(formatPln(0)).toBe("0,00 zł");
+    expect(formatPln(-12_345)).toBe("-123,45 zł");
+    expect(formatPln(123_456_789)).toBe("1 234 567,89 zł");
   });
 
   it("moves a deadline past Easter Monday and rejects invalid or unsafe money", () => {

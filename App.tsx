@@ -2,8 +2,8 @@ import { createNavigationContainerRef, NavigationContainer } from '@react-naviga
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator } from 'react-native';
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -17,14 +17,19 @@ import { ReminderProvider } from './src/notifications/ReminderProvider';
 import { notificationDataToIntent } from './src/navigation/notificationIntent';
 import { useRentalData } from './src/data/RentalDataProvider';
 import { LocalDataRecoveryScreen } from './src/screens/LocalDataRecoveryScreen';
-import { appSafeAreaEdges, fallbackSafeAreaEdges, tabBarSafeAreaStyle } from './src/navigation/safeAreaLayout';
+import { appSafeAreaEdges } from './src/navigation/safeAreaLayout';
 
 const Tabs = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef<any>();
 function RentalApp() {
   const { mode } = useTheme();
-  const insets = useSafeAreaInsets();
-  const { document, loadError, retryLoad, copyRawData, resetLocalData } = useRentalData();
+  const { document, loadError, recoveredFromBackup, dismissRecoveryNotice, retryLoad, copyRawData, resetLocalData } = useRentalData();
+  useEffect(() => {
+    if (!recoveredFromBackup || Platform.OS === 'web') return;
+    Alert.alert('Odzyskano lokalne dane', 'Głównego zapisu nie można było odczytać. Otworzono ostatnią poprawną kopię danych.', [
+      { text: 'Rozumiem', onPress: dismissRecoveryNotice },
+    ]);
+  }, [dismissRecoveryNotice, recoveredFromBackup]);
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const openTarget = (response: Notifications.NotificationResponse, retry = 0) => {
@@ -50,16 +55,16 @@ function RentalApp() {
     void Notifications.getLastNotificationResponseAsync().then((response) => { if (response) openTarget(response); });
     return () => subscription.remove();
   }, []);
-  if (loadError) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={fallbackSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><LocalDataRecoveryScreen error={loadError} retryLoad={retryLoad} copyRawData={copyRawData} resetLocalData={resetLocalData} /></SafeAreaView>;
-  if (!document) return <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }} edges={fallbackSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><ActivityIndicator color={theme.colors.primary} /></SafeAreaView>;
+  if (loadError) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><LocalDataRecoveryScreen error={loadError} retryLoad={retryLoad} copyRawData={copyRawData} resetLocalData={resetLocalData} /></SafeAreaView>;
+  if (!document) return <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><ActivityIndicator color={theme.colors.primary} /></SafeAreaView>;
   return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><NavigationContainer ref={navigationRef}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-    <Tabs.Navigator screenOptions={({ route }) => ({
+    <Tabs.Navigator safeAreaInsets={{ bottom: 0 }} screenOptions={({ route }) => ({
       headerShown: false,
       headerStyle: { backgroundColor: theme.colors.background },
       headerTintColor: theme.colors.textPrimary,
       tabBarActiveTintColor: theme.colors.primary,
       tabBarInactiveTintColor: theme.colors.inactiveNavigation,
-      tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, ...tabBarSafeAreaStyle(insets.bottom), elevation: 0 },
+      tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, elevation: 0 },
       tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 1 },
       tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>
