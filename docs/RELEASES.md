@@ -8,11 +8,11 @@
 
 Current inspected branch declares version `0.1.0`; this does **not** prove a public release exists. Proposed milestone numbers in [ROADMAP](ROADMAP.md) are provisional until checked against actual tags/releases. Never silently bump app version as part of a docs-only PR.
 
-## Current readiness — 2026-09-27
+## Current readiness — 2026-09-28
 
 The 0.4 functional scope is implemented: manually confirmed rental income, private-rental tax calculations/payment tracking, guided setup, Pulpit tasks, one-time/monthly/yearly personal reminders, and fixed/variable recurring bills with period-correct partial-payment tracking. Standard CI runs typecheck, lint, unit/domain tests, Expo Doctor, Web export and Android prebuild. A separate workflow assembles Android debug builds on demand and for relevant pull requests. EAS builds run on pushes to `develop` (preview) and `main` (production profile); neither workflow publishes to stores.
 
-The Android API 35 emulator has verified launch, core local flows, startup channel creation with notification permission denied, and malformed-data recovery. This is emulator evidence only. Physical-device notification delivery/taps, permission-granted behavior, timezone/DST, reboot and upgrade behavior remain outstanding; migration behavior currently has test coverage but no device-upgrade run. Signing/distribution preparation, accessibility review and focused privacy review are still 0.5 gates before inviting private-beta testers. See [the Android checklist](PRIVATE_BETA_ANDROID_CHECKLIST.md). QR payments are not implemented. Annual tax/PIT-28 verification summary and local JSON backup/restore are product priorities for milestones 0.6–0.7, but are not implemented yet; electronic filing, bank integration and cloud sync remain out of scope. Investory integration is later/optional.
+The Android API 35 emulator has verified launch, core local flows, startup channel creation with notification permission denied, and malformed-data recovery. This is emulator evidence only. Physical-device notification delivery/taps, permission-granted behavior, timezone/DST, reboot and upgrade behavior remain outstanding; migration behavior currently has test coverage but no device-upgrade run. Signing/distribution preparation, accessibility review and focused privacy review are still 0.5 gates before inviting private-beta testers. See [the Android checklist](PRIVATE_BETA_ANDROID_CHECKLIST.md). QR payments are not implemented. Annual tax/PIT-28 verification summary is a roadmap item; user-controlled JSON backup/restore is parked. The app has an internal rolling recovery snapshot, not a user-facing backup feature. Electronic filing, bank integration and cloud sync remain out of scope. Investory integration is later/optional.
 
 On 2026-09-27, `npm audit` and `npm audit --omit=dev` each reported 11 moderate advisories in Expo CLI/config and the `@expo/config-plugins` → `xcode` → `uuid` chain. npm's automatic suggestion is a breaking Expo downgrade; no force fix was applied. These findings are in the Expo build/config dependency tree, not a package imported directly by application features. Re-evaluate with a compatible Expo SDK/toolchain update.
 
@@ -32,7 +32,7 @@ The clean debug APK is produced at `android/app/build/outputs/apk/debug/app-debu
 
 EAS identity was checked against the authenticated Expo account on 2026-09-27: owner `smart-box`, project `@smart-box/ryczalt`, ID `90116624-70fc-4f49-92f7-e787344dc969`, package and bundle ID `pl.ryczalt.rental`. Expo account access showed this project under `smart-box`; the separate project ID is not the parent `ryczalt_it` ID. The repository's `EXPO_TOKEN` secret exists. App-store credentials and a distribution release have not been verified or created.
 
-The lightweight privacy review found app records stored in AsyncStorage, no analytics SDK or backend/sync client in the app dependency/source tree, and outbound navigation opening the saved/selected URL without appending tenant or financial fields. AsyncStorage is app-local storage and the app does not add encryption at rest. Notification lock-screen text is now generic; notification payloads retain only local navigation context. This source/config review is not a device/network traffic audit.
+The lightweight privacy review found app records stored in AsyncStorage, no analytics SDK or backend/sync client in the app dependency/source tree, and outbound navigation opening the saved/selected URL without appending tenant or financial fields. The app now retains a rolling last-good local document and attempts recovery if the primary document is missing or invalid; it surfaces successful recovery in the UI. This is not a user-controlled backup/export, and AsyncStorage is app-local storage without encryption added by the app. Notification lock-screen text is generic; notification payloads retain only local navigation context. This source/config review is not a device/network traffic audit.
 
 ## Release flow
 
@@ -47,7 +47,7 @@ The lightweight privacy review found app records stored in AsyncStorage, no anal
 
 ## Local-data safety
 
-Document every schema change and migration path. No silent reset or loss of confirmed receipts/tax payments. A rollback to an older build may not understand newer data: test compatibility or state the limitation. JSON backup/restore is planned for milestone 0.7 and is not currently available; do not imply it exists in release notes.
+Document every schema change and migration path. No silent reset or loss of confirmed receipts/tax payments. A rollback to an older build may not understand newer data: test compatibility or state the limitation. The internal rolling recovery snapshot is covered by code tests but has not yet been device-tested. It is not a user-controlled backup/export and cannot be browsed or restored on demand. AsyncStorage is not encrypted by the app. User-facing JSON export/import remains parked until format, privacy and invalid-input requirements are defined. Do not imply cloud sync, encryption or user-controlled backup exists in release notes.
 
 ## Documentation discipline
 

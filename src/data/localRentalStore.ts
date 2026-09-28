@@ -18,7 +18,9 @@ import {
 import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 
 export const RENTAL_DOCUMENT_SCHEMA_VERSION = 4;
+/** Stable namespace; the current document schema version is stored in its JSON. */
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
+export const RENTAL_DOCUMENT_BACKUP_KEY = `${RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
 export const DEFAULT_TAX_YEAR = Math.max(...SUPPORTED_TAX_YEARS);
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
@@ -32,6 +34,11 @@ export class RentalStoreError extends Error {
     this.name = "RentalStoreError";
   }
 }
+
+export type RentalDocumentLoadResult = {
+  document: RentalDocument;
+  recoveredFromBackup: boolean;
+};
 
 export const emptyDocument = (
   taxYear = DEFAULT_TAX_YEAR,
@@ -55,27 +62,44 @@ export const emptyDocument = (
 });
 
 export async function loadRentalDocument(): Promise<RentalDocument> {
-  const raw = await AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
-  if (!raw) return emptyDocument();
-  let data: unknown;
+  return (await loadRentalDocumentWithStatus()).document;
+}
+
+export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoadResult> {
+  let raw: string | null;
   try {
-    data = JSON.parse(raw);
-  } catch (_error) {
-    throw new RentalStoreError(
-      "CORRUPTED_DATA",
-      "Local rental document is not valid JSON.",
-    );
+    raw = await AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
+  } catch (primaryReadError) {
+    return recoverFromBackup(primaryReadError);
   }
-  return validateRentalDocument(data);
+  if (raw === null) {
+    const backupRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_BACKUP_KEY);
+    if (backupRaw === null) return { document: emptyDocument(), recoveredFromBackup: false };
+    return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
+  }
+  try {
+    return { document: parseRentalDocument(raw), recoveredFromBackup: false };
+  } catch (primaryError) {
+    if (primaryError instanceof RentalStoreError && primaryError.code === "UNSUPPORTED_VERSION") throw primaryError;
+    return recoverFromBackup(primaryError);
+  }
 }
 
 export async function saveRentalDocument(
   document: RentalDocument,
 ): Promise<void> {
-  await AsyncStorage.setItem(
-    RENTAL_DOCUMENT_STORAGE_KEY,
-    JSON.stringify(validateRentalDocument(document)),
-  );
+  const next = JSON.stringify(validateRentalDocument(document));
+  const currentRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
+  if (currentRaw !== null) {
+    try {
+      const lastGood = parseRentalDocument(currentRaw);
+      await AsyncStorage.setItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(lastGood));
+    } catch (error) {
+      if (!(error instanceof RentalStoreError) || error.code === "UNSUPPORTED_VERSION") throw error;
+      // Never copy corrupted bytes into the backup; a valid existing backup remains untouched.
+    }
+  }
+  await AsyncStorage.setItem(RENTAL_DOCUMENT_STORAGE_KEY, next);
 }
 
 export async function readRawRentalDocument(): Promise<string | null> {
@@ -84,7 +108,34 @@ export async function readRawRentalDocument(): Promise<string | null> {
 
 /** Removes unreadable local data only after the user confirms an explicit reset. */
 export async function resetRentalDocument(): Promise<void> {
+  await AsyncStorage.removeItem(RENTAL_DOCUMENT_BACKUP_KEY);
   await AsyncStorage.removeItem(RENTAL_DOCUMENT_STORAGE_KEY);
+}
+
+function parseRentalDocument(raw: string): RentalDocument {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch (_error) {
+    throw new RentalStoreError("CORRUPTED_DATA", "Local rental document is not valid JSON.");
+  }
+  return validateRentalDocument(data);
+}
+
+async function recoverFromBackup(primaryError: unknown): Promise<RentalDocumentLoadResult> {
+  let backupRaw: string | null;
+  try {
+    backupRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_BACKUP_KEY);
+  } catch {
+    throw primaryError;
+  }
+  if (backupRaw === null) throw primaryError;
+  try {
+    return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
+  } catch (backupError) {
+    if (backupError instanceof RentalStoreError && backupError.code === "UNSUPPORTED_VERSION") throw backupError;
+    throw primaryError;
+  }
 }
 
 function validateRentalDocument(data: unknown): RentalDocument {

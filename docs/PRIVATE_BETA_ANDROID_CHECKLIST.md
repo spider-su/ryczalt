@@ -27,6 +27,11 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | DST boundary | Not run |
 | Reboot device | Not run |
 | Upgrade with existing schema 1/2/3 data and preserve records | Migration tests only; device upgrade not run |
+| Schema 1/2/3/4 normalized load-save-reload keeps records and reminder preferences | Automated round-trip tests; device upgrade not run |
+| Recover a damaged/missing primary from last-good local snapshot and show recovery notice | Automated storage tests; device recovery flow not yet run |
+| Both primary and backup damaged: retain recovery screen and offer explicit raw-data handling/reset | Automated storage tests cover preserving corruption error; device flow not yet run |
+| Tax status and deadline around Warsaw midnight, DST, weekend/public holiday, and December/Q4 January deadline | Domain tests only; device timezone/DST run not done |
+| Verify newly supported tax-year rates, thresholds, spouse conditions and due dates before January release | Required release check; current engine supports 2025 and 2026 only |
 
 ## Manual procedure
 
