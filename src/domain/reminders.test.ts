@@ -9,17 +9,29 @@ import { summarizeRentMonth } from "./reminders";
 import { deriveTasks, taskNotificationPlan } from "./tasks";
 
 const fixture = (): RentalDocument => ({
-  schemaVersion: 4,
-  properties: [{ id: "p1", name: "Parkowa", defaultMonthlyRent: "3000.00", expectedPaymentDay: 30, paymentReminderEnabled: true,
-    rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00" }], rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
+  schemaVersion: 6,
+  properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 30,
+    rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00" }], leaseEndDate: "2026-12-31" }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "1000.00", taxableAmount: "300.00" }],
   taxPayments: [], recurringBills: [{ id: "b1", propertyId: "p1", name: "Prąd", reminderEnabled: true, dueDay: 15, variableAmount: true }],
-  billPayments: [], propertyLinks: [], customReminders: [], taskStates: [],
+  billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
   settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 0 },
 });
 
 describe("task reminders and payment details", () => {
+  it("groups properties due on the same day and keeps different due days separate", () => {
+    const doc = fixture();
+    doc.properties.push({ id: "p2", address: "Mogilska 12 / 8", ownerRent: "1800.00", paymentDay: 30, rentSchedule: [{ effectiveFrom: "2026-01", amount: "1800.00" }] });
+    const now = new Date(2026, 8, 1, 8);
+    const september = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:2026-09:"));
+    expect(september).toHaveLength(1);
+    expect(september[0]?.body).toContain("Parkowa, Mogilska 12 / 8");
+    doc.properties[1]!.paymentDay = 25;
+    const split = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:2026-09:"));
+    expect(split).toHaveLength(2);
+  });
+
   it("uses expected rent only for known rate months and compares actual receipts", () => {
     const doc = fixture();
     expect(summarizeRentMonth(doc.properties[0]!, doc.incomeEntries, "2026-01", new Date(2026, 0, 1))).toMatchObject({ expectedGrosz: 300_000, confirmedGrosz: 100_000, remainingGrosz: 200_000, status: "check" });
@@ -29,10 +41,10 @@ describe("task reminders and payment details", () => {
   it("uses clamped local dates and maintains one stable reminder per task", async () => {
     const doc = fixture();
     const now = new Date(2026, 0, 1, 8);
-    doc.properties[0]!.expectedPaymentDay = 31;
+    doc.properties[0]!.paymentDay = 31;
     const plan = taskNotificationPlan(doc, now);
-    const rent = plan.find((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-01");
-    expect(rent?.fireAt).toEqual(new Date(2026, 1, 1, 9));
+    const rent = plan.find((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"));
+    expect(rent?.fireAt).toEqual(new Date(2026, 0, 31, 9));
     const agreement = taskNotificationPlan(doc, new Date(2026, 9, 1, 8)).find((item) => item.key === "RENTAL_AGREEMENT_END:p1:2026-12-31:30");
     expect(agreement?.fireAt).toEqual(new Date(2026, 11, 1, 9));
     const cancel = vi.fn(async () => undefined);
@@ -66,7 +78,7 @@ describe("task reminders and payment details", () => {
     const doc = fixture();
     const now = new Date(2026, 8, 26, 8);
     const oldPlan = taskNotificationPlan(doc, now);
-    doc.properties[0]!.rentalEndDate = "2027-01-31";
+    doc.properties[0]!.leaseEndDate = "2027-01-31";
     const newPlan = taskNotificationPlan(doc, now);
     const cancel = vi.fn(async () => undefined);
     const schedule = vi.fn(async () => undefined);
@@ -77,7 +89,7 @@ describe("task reminders and payment details", () => {
   it("cancels duplicate scheduled identifiers and preserves one matching reminder", async () => {
     const doc = fixture();
     const plan = taskNotificationPlan(doc, new Date(2026, 8, 26, 8));
-    const rent = plan.find((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-09")!;
+    const rent = plan.find((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))!;
     const cancel = vi.fn(async () => undefined);
     const schedule = vi.fn(async () => undefined);
     await reconcileReminderSchedule(plan, [
@@ -90,7 +102,7 @@ describe("task reminders and payment details", () => {
 
   it("uses generic lock-screen text and keeps each category switch independent", async () => {
     const doc = fixture();
-    doc.properties[0]!.rentalEndDate = "2026-09-15";
+    doc.properties[0]!.leaseEndDate = "2026-09-15";
     doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-08-05", propertyId: "p1", note: "Szczegóły poufne", recurrence: "ONCE" }];
     doc.incomeEntries = [{ id: "taxable", propertyId: "p1", receivedAt: "2026-07-10", rentalMonth: "2026-07", amount: "3000.00", taxableAmount: "3000.00" }];
     const now = new Date(2026, 7, 1, 8);
@@ -100,11 +112,11 @@ describe("task reminders and payment details", () => {
       expect.stringMatching(/^TAX_PAYMENT:/), expect.stringMatching(/^RECURRING_BILL:/), expect.stringMatching(/^CUSTOM_REMINDER:/),
     ]));
     for (const reminder of plan) {
-      expect(`${reminder.title} ${reminder.body}`).not.toMatch(/Parkowa|Prąd|Sprawdź licznik|3000|1000|poufne/);
+      expect(`${reminder.title} ${reminder.body}`).not.toMatch(/Prąd|Sprawdź licznik|3000|1000|poufne/);
     }
 
     const keyCategory: Record<string, keyof RentalDocument["settings"]["reminderCategories"]> = {
-      "TENANT_PAYMENT_CHECK:": "rent",
+      "TENANT_PAYMENT_CHECK:group:": "rent",
       "RENTAL_AGREEMENT_END:": "agreements",
       "TAX_PAYMENT:": "tax",
       "RECURRING_BILL:": "bills",
@@ -116,23 +128,24 @@ describe("task reminders and payment details", () => {
       const after = taskNotificationPlan(switchedOff, now);
       expect(after.some((item) => item.key.startsWith(prefix))).toBe(false);
       expect(taskNotificationPlan(doc, now).some((item) => item.key.startsWith(prefix))).toBe(true);
-      expect(deriveTasks(switchedOff, now).some((task) => task.id.startsWith(prefix))).toBe(true);
+      const taskPrefix = prefix === "TENANT_PAYMENT_CHECK:group:" ? "TENANT_PAYMENT_CHECK:" : prefix;
+      expect(deriveTasks(switchedOff, now).some((task) => task.id.startsWith(taskPrefix))).toBe(true);
     }
 
     const sourceSwitchesOff = structuredClone(doc);
-    sourceSwitchesOff.properties[0]!.paymentReminderEnabled = false;
+    sourceSwitchesOff.settings.reminderCategories.rent = false;
     sourceSwitchesOff.recurringBills[0]!.reminderEnabled = false;
-    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:p1:"))).toBe(false);
+    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))).toBe(false);
     expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("RECURRING_BILL:b1:"))).toBe(false);
-    expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("TENANT_PAYMENT_CHECK:p1:"))).toBe(true);
+    expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("TENANT_PAYMENT_CHECK:"))).toBe(true);
     expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("RECURRING_BILL:b1:"))).toBe(true);
-    sourceSwitchesOff.properties[0]!.paymentReminderEnabled = true;
+    sourceSwitchesOff.settings.reminderCategories.rent = true;
     sourceSwitchesOff.recurringBills[0]!.reminderEnabled = true;
-    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:p1:"))).toBe(true);
+    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))).toBe(true);
     expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("RECURRING_BILL:b1:"))).toBe(true);
 
     const active = taskNotificationPlan(doc, now);
-    const rentKey = "TENANT_PAYMENT_CHECK:p1:2026-08";
+    const rentKey = active.find((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))!.key;
     const rent = active.find((item) => item.key === rentKey)!;
     const cancel = vi.fn(async () => undefined);
     const schedule = vi.fn(async () => undefined);

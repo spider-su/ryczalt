@@ -9,7 +9,7 @@ export type IncomeInput = Pick<
   IncomeEntry,
   "propertyId" | "receivedAt" | "amount" | "taxableAmount"
 > &
-  Partial<Pick<IncomeEntry, "rentalMonth" | "description">>;
+  Partial<Pick<IncomeEntry, "rentalMonth" | "description" | "source">>;
 
 export function createIncomeEntry(
   input: IncomeInput,
@@ -24,6 +24,7 @@ export function createIncomeEntry(
     receivedAt: input.receivedAt,
     amount: input.amount,
     taxableAmount: input.taxableAmount,
+    source: input.source ?? "MANUAL",
     ...(input.rentalMonth ? { rentalMonth: input.rentalMonth } : {}),
     ...(property.tenantName ? { tenantNameSnapshot: property.tenantName } : {}),
     ...(input.description?.trim()
@@ -38,7 +39,7 @@ export function editIncomeEntry(
 ): IncomeEntry {
   validateRentalMonth(input.rentalMonth);
   validateIncomeValues(input, [
-    { id: input.propertyId, name: "historical reference" },
+    { id: input.propertyId, address: "historical reference" },
   ]);
   return {
     ...existing,

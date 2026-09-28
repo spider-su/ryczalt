@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, formatPln, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxOnRevenue, todayInPoland } from "./ryczaltTax";
+import { calculateSettlements, calculateTaxYear, formatPln, formatPlnAmount, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxOnRevenue, todayInPoland } from "./ryczaltTax";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
   id, propertyId, receivedAt, amount: taxableAmount, taxableAmount,
@@ -48,6 +48,26 @@ describe("Polish private-rental ryczałt", () => {
     const settlements = calculateSettlements({ entries, payments: [], taxYear: 2026, mode: "monthly", today: "2026-03-01" });
     expect(settlements.reduce((total, item) => total + item.obligationGrosz, 0)).toBe(taxOnRevenue(11_000_000, 2026));
     expect(settlements[2]?.obligationGrosz).toBe(125_000);
+  });
+
+  it("keeps opening tax as an aggregate balance and never attributes it to January", () => {
+    const receivedLater = [entry("later", "2026-09-10", "4600.00")];
+    const settledOpening = calculateTaxYear({ entries: receivedLater, payments: [], taxYear: 2026, mode: "monthly",
+      openingTaxableRevenueGrosz: 2_160_000, openingTaxPaidGrosz: 183_600, today: "2026-09-28" });
+    expect(settledOpening.openingBalance).toEqual({ taxableRevenueGrosz: 2_160_000, calculatedTaxGrosz: 183_600, paidTaxGrosz: 183_600, outstandingGrosz: 0, overpaidGrosz: 0 });
+    expect(settledOpening.settlements[8]).toMatchObject({ revenueGrosz: 460_000, cumulativeRevenueGrosz: 2_620_000, obligationGrosz: 39_100, outstandingGrosz: 39_100 });
+    const unpaidOpening = calculateTaxYear({ entries: receivedLater, payments: [], taxYear: 2026, mode: "monthly",
+      openingTaxableRevenueGrosz: 2_160_000, openingTaxPaidGrosz: 100_000, today: "2026-09-28" });
+    expect(unpaidOpening.openingBalance).toMatchObject({ calculatedTaxGrosz: 183_600, paidTaxGrosz: 100_000, outstandingGrosz: 83_600, overpaidGrosz: 0 });
+    expect(unpaidOpening.settlements[0]).toMatchObject({ obligationGrosz: 0, outstandingGrosz: 0, status: "no-tax" });
+    expect(unpaidOpening.settlements[8]?.obligationGrosz).toBe(39_100);
+    expect(unpaidOpening.settlements[8]?.cumulativeTaxGrosz).toBe(222_700);
+    expect(unpaidOpening.settlements[8]?.status).toBe("due");
+    const overpaidOpening = calculateTaxYear({ entries: [], payments: [], taxYear: 2026, mode: "monthly",
+      openingTaxableRevenueGrosz: 2_160_000, openingTaxPaidGrosz: 200_000, today: "2026-09-28" });
+    expect(overpaidOpening.openingBalance).toMatchObject({ outstandingGrosz: 0, overpaidGrosz: 16_400 });
+    expect(overpaidOpening.settlements[0]?.creditAppliedGrosz).toBe(0);
+    expect(receivedLater).toHaveLength(1);
   });
 
   it("rounds tax amounts to whole PLN after calculating the rate", () => {
@@ -129,7 +149,7 @@ describe("Polish private-rental ryczałt", () => {
       { id: "tax-2", period: "2026-01", paidAt: "2026-02-11", amount: "50.00" },
     ];
     const paid = calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today: "2026-02-15" })[0]!;
-    expect(paid).toMatchObject({ obligationGrosz: 8_500, paidGrosz: 10_000, outstandingGrosz: 0, overpaidGrosz: 1_500, status: "paid" });
+    expect(paid).toMatchObject({ obligationGrosz: 8_500, allocatedPaidGrosz: 8_500, paidGrosz: 10_000, outstandingGrosz: 0, overpaidGrosz: 1_500, status: "paid" });
     const overdue = calculateSettlements({ entries: income, payments: [], taxYear: 2026, mode: "monthly", today: "2026-02-21" })[0]!;
     expect(overdue.status).toBe("overdue");
     expect(overdue.obligationGrosz).toBe(paid.obligationGrosz);
@@ -149,14 +169,14 @@ describe("Polish private-rental ryczałt", () => {
     ];
     const calculate = (payments: TaxPayment[]) => calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today: "2026-02-15" });
     const exact = calculate([{ id: "jan-exact", period: "2026-01", paidAt: "2026-02-10", amount: "85.00" }]);
-    expect(exact[0]).toMatchObject({ obligationGrosz: 8_500, paidGrosz: 8_500, outstandingGrosz: 0, overpaidGrosz: 0 });
+    expect(exact[0]).toMatchObject({ obligationGrosz: 8_500, allocatedPaidGrosz: 8_500, paidGrosz: 8_500, outstandingGrosz: 0, overpaidGrosz: 0 });
 
     const underpaid = calculate([{ id: "jan-under", period: "2026-01", paidAt: "2026-02-10", amount: "50.00" }]);
-    expect(underpaid[0]).toMatchObject({ outstandingGrosz: 3_500, status: "partial" });
+    expect(underpaid[0]).toMatchObject({ allocatedPaidGrosz: 5_000, outstandingGrosz: 3_500, status: "partial" });
     expect(underpaid[1]).toMatchObject({ outstandingGrosz: 8_500 });
 
     const overpaid = calculate([{ id: "jan-over", period: "2026-01", paidAt: "2026-02-10", amount: "100.00" }]);
-    expect(overpaid[0]).toMatchObject({ overpaidGrosz: 1_500, outstandingGrosz: 0 });
+    expect(overpaid[0]).toMatchObject({ allocatedPaidGrosz: 8_500, overpaidGrosz: 1_500, outstandingGrosz: 0 });
     expect(overpaid[1]).toMatchObject({ obligationGrosz: 8_500, outstandingGrosz: 7_000 });
 
     const spanningCredit = calculate([{ id: "jan-large-over", period: "2026-01", paidAt: "2026-02-10", amount: "400.00" }]);
@@ -185,7 +205,7 @@ describe("Polish private-rental ryczałt", () => {
       ],
       taxYear: 2026, mode: "monthly", today: "2026-03-15",
     });
-    expect(settlements[1]).toMatchObject({ obligationGrosz: 89_400, paidGrosz: 58_000, creditAppliedGrosz: 31_400, outstandingGrosz: 0 });
+    expect(settlements[1]).toMatchObject({ obligationGrosz: 89_400, allocatedPaidGrosz: 89_400, paidGrosz: 58_000, creditAppliedGrosz: 31_400, outstandingGrosz: 0 });
   });
 
   it("handles zero revenue, rounding, and Polish non-working-day deadlines", () => {
@@ -198,6 +218,8 @@ describe("Polish private-rental ryczałt", () => {
     expect(formatPln(0)).toBe("0,00 zł");
     expect(formatPln(-12_345)).toBe("-123,45 zł");
     expect(formatPln(123_456_789)).toBe("1 234 567,89 zł");
+    expect(formatPlnAmount("3000")).toBe("3 000,00 zł");
+    expect(formatPlnAmount("2500.50")).toBe("2 500,50 zł");
   });
 
   it("moves a deadline past Easter Monday and rejects invalid or unsafe money", () => {

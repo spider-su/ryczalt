@@ -13,7 +13,7 @@
 1. From the project root, record `git rev-parse --short HEAD`, `git status --short`, and APK checksum.
 2. Run `adb devices -l`; select the booted AVD. Verify `adb -s <serial> shell getprop ro.kernel.qemu` returns `1`. If it does not, stop without installing or clearing data.
 3. Verify emulator display size/density: `adb -s <serial> shell wm size` and `wm density`. If not 320×640 / 160 dpi, restore the AVD's default display configuration or record the deviation; don't silently compare screenshots across layouts.
-4. Install with `adb -s <serial> install -r artifacts/app/ryczalt.apk`; then run `adb -s <serial> shell pm clear pl.ryczalt.rental`. This clears only synthetic app data on the verified emulator and establishes an empty fixture. Launch with `adb -s <serial> shell monkey -p pl.ryczalt.rental 1`.
+4. Install with `adb -s <serial> install -r artifacts/app/ryczalt.apk`; then run `adb -s <serial> shell pm clear pl.ryczalt.rental`. This clears only synthetic app data on the verified emulator and establishes an empty fixture. Launch with `adb -s <serial> shell am start -W -n pl.ryczalt.rental/.MainActivity`; the explicit component launch avoids a flaky launcher/monkey handoff immediately after `pm clear`.
 5. Do not clear Android-wide state, change device time, or clear data after discovering a failure. Capture evidence first. The next run starts from the same app-data reset.
 
 Evidence commands (replace `<serial>` and `<run-dir>`):
@@ -37,7 +37,7 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 
 ### B. Apartment and current rent state
 
-1. Open Ustawienia → Mieszkania and add `QA-Parkowa` with expected monthly rent `3000 zł` and payment day `10`. Leave optional tenant, account, and end-date fields blank; save.
+1. Open Ustawienia → Mieszkania and add `QA-Parkowa` with expected monthly rent `3000 zł` and payment day `10`. Leave optional tenant and account fields blank. If the form prepopulates an end date, focus the date field by tapping at the end of the displayed ISO date, then press Backspace once per character (10 times for `YYYY-MM-DD`) and verify the field is empty after dismissing the keyboard. Save. Avoid relying on cursor-end key events; they did not reliably move the caret on the API 35 AVD.
 2. Verify the apartment appears in settings and its current-month unpaid state appears on Pulpit. Confirm current month / due date is plausible for the emulator's real date.
 3. Capture property and dashboard evidence.
 
@@ -68,7 +68,7 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 
 ### F. Persistence across process restart
 
-1. Force-stop the app with `adb -s <serial> shell am force-stop pl.ryczalt.rental`; relaunch with `monkey`.
+1. Force-stop the app with `adb -s <serial> shell am force-stop pl.ryczalt.rental`; relaunch with `adb -s <serial> shell am start -W -n pl.ryczalt.rental/.MainActivity`.
 2. Revisit Pulpit, Przychód, Podatek, and Mieszkania. Verify apartment, both receipts, paid tax, and resulting statuses persist and still reconcile.
 3. Save final screenshots/XML and write case results. Leave only the QA fixture in the disposable emulator; the next run resets it with `pm clear`.
 

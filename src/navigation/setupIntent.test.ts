@@ -14,8 +14,8 @@ describe("guided setup navigation intents", () => {
   });
 
   it("maps each guided action to a field in the existing editor", () => {
-    expect(["apartment", "rent", "payment-day", "payment-reminder", "tenant", "agreement-end", "administrator-portal"].map((action) => setupActionField(action as Parameters<typeof setupActionField>[0]))).toEqual([
-      "name", "defaultMonthlyRent", "expectedPaymentDay", "paymentReminderEnabled", "tenantName", "rentalEndDate", "administratorPortalUrl",
+    expect(["apartment", "rent", "payment-day", "tenant", "agreement-end", "administrator-portal"].map((action) => setupActionField(action as Parameters<typeof setupActionField>[0]))).toEqual([
+      "address", "ownerRent", "paymentDay", "tenantName", "leaseEndDate", "administrationName",
     ]);
   });
 });

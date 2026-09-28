@@ -4,7 +4,7 @@ These describe implemented flows except sections explicitly labeled **target fut
 
 ## 0. Guided setup
 
-No apartments → Pulpit shows a short explanation and one “Dodaj mieszkanie” action → existing Settings apartment editor opens. With apartment data present, setup progress is derived from the saved name, expected rent and payment day; Pulpit offers only the next useful action and Settings opens the same editor at the corresponding field. Required progress is evaluated per apartment and optional tenant, agreement and administrator details do not block completion. Once required setup is complete, the guidance disappears, except that an unenabled in-app rent reminder may be offered as one optional suggestion. This suggestion only opens the existing preference; it does not enable the reminder or request notification permission. If OS notifications are denied, tasks remain visible in Pulpit. Setup writes configuration only: it creates no income, tax-payment or bill-payment records and does not invent dates or URLs.
+No apartments → Pulpit shows a short explanation and one “Dodaj mieszkanie” action → existing Settings apartment editor opens. With apartment data present, setup progress is derived from the saved address, owner rent and payment day; Pulpit offers only the next useful action and Settings opens the same editor at the corresponding field. New apartments default to payment day 5 and a lease end one year ahead; editing preserves the saved date. Optional tenant, agreement and administration details do not block required setup. Rent reminders are derived from due dates and grouped by address; there is no per-apartment reminder preference. If OS notifications are denied, tasks remain visible in Pulpit. Setup writes configuration only: it creates no income, tax-payment or bill-payment records and does not invent URLs.
 
 ## 1. Check monthly rent
 
@@ -30,7 +30,7 @@ User enters title, optional apartment, anchor date, note and recurrence: one-tim
 
 ## 6. Monthly apartment overview
 
-Select apartment/month → show expected rent for that period, confirmed receipts, remaining amount to check, nearby agreement/bill tasks and useful links → contextual quick actions open payment confirmation or external portal. Do not mix expected rent into confirmed-income statistics.
+Select apartment/month → show expected owner rent for that period, confirmed receipts, remaining amount to check, nearby agreement/bill tasks, administration and electricity-provider portals → contextual quick actions open payment confirmation or an external portal. Media stays separate from owner rent and confirmed-income statistics.
 
 ## 7. Year-end review / PIT-28 verification — target future flow
 

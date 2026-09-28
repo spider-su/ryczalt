@@ -4,7 +4,7 @@ Use this document as the default context for implementation tasks in this reposi
 
 ## Current capability snapshot (`main` and `develop`)
 
-- **Implemented:** Pulpit and three supporting tabs; schema-v4 local persistence/migrations; confirmed income and tax/bill payments; effective-month rents; shared tax engine and task projection; local reminders; apartment links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
+- **Implemented:** Pulpit and three supporting tabs; schema-v6 local persistence/migrations; confirmed income and tax/bill payments; effective-month owner rent; separate media amount/responsibility; apartment lifecycle; historical rent bootstrap; shared tax engine and task projection; grouped rent reminders with global delay; administration/electricity links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
 - **Upcoming priorities:** year-to-date/annual tax and PIT-28 verification summary, and local JSON backup/restore. These are not implemented. Investory integration remains later/optional.
 
@@ -119,12 +119,12 @@ Do not promise OS delivery guarantees.
 
 Keep apartment setup small but sufficient for derived workflows:
 
-- name/address;
+- address;
 - current tenant name/contact;
-- expected rent with history/effective date;
-- expected payment day;
-- optional agreement end date and reminder offsets;
-- administrator portal and optional useful links;
+- owner rent with history/effective date and separate media amount/responsibility;
+- rent due day (default 5 for new apartments);
+- optional agreement end date;
+- administration and electricity-provider links;
 - optional fixed/variable recurring bills.
 
 Do not turn this into full contract lifecycle management.
@@ -132,12 +132,11 @@ Do not turn this into full contract lifecycle management.
 ### Guided setup (implemented)
 
 A lightweight checklist can guide the initial configuration:
-1. apartment;
-2. expected rent;
+1. apartment address;
+2. owner rent;
 3. payment day;
 4. optional tenant;
-5. reminder preferences;
-6. optional administrator portal.
+5. optional agreement and administration details.
 
 Required vs optional fields must be clear. Completed setup should disappear from the everyday dashboard.
 

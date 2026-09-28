@@ -6,7 +6,7 @@ import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
+  SectionList,
   Modal,
   Pressable,
   ScrollView,
@@ -23,13 +23,16 @@ import type { IncomeEntry } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
-import { entriesForTaxYear } from "../domain/rentalHistory";
-import { formatPln, formatPlnAmount, moneyToGrosz, SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
-import { summarizeRentMonth } from "../domain/reminders";
+import { formatPln, formatPlnAmount, moneyToGrosz } from "../domain/ryczaltTax";
+import { decimalFromGrosz, defaultTaxableAmountGrosz, tenantMonthlyTotalGrosz } from "../domain/apartmentPayments";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
-import { incomeSectionLabels, rentConfirmationGroups, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
-import { formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
+import { PeriodSelector } from "../components/PeriodSelector";
+import { StatusBadge } from "../components/StatusBadge";
+import { formatPolishMonth, formatPolishCount } from "../domain/presentationFormat";
+import { groupIncomeEntriesByReceivedMonth, incomeEntriesForView, incomeViewSummary, propertiesWithIncomeInYear, rentMonthStatusRows } from "../domain/incomeHistory";
+import { toggleIncomeMonth } from "../domain/incomeHistory";
+import { availableIncomeYears } from "../domain/dashboardPeriods";
 import {
   compareDecimalStrings,
   isNonnegativeMoney,
@@ -66,27 +69,46 @@ export function IncomeScreen() {
   const [taxableExpanded, setTaxableExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const properties = document?.properties ?? [];
   const [selectedTaxYear, setSelectedTaxYear] = useState<number | null>(null);
-  const rentalMonth = todayIsoDate().slice(0, 7);
-  const configuredTaxYear =
-    document?.settings.taxYear ?? new Date().getFullYear();
-  const taxYear = selectedTaxYear ?? configuredTaxYear;
-  const sectionLabels = incomeSectionLabels(rentalMonth, taxYear);
-  const orderedEntries = useMemo(
-    () => (document ? entriesForTaxYear(document.incomeEntries, taxYear) : []),
-    [document, taxYear],
+  const currentMonth = todayIsoDate().slice(0, 7);
+  const [expandedMonths, setExpandedMonths] = useState<string[]>(() => [currentMonth]);
+  const currentYear = new Date().getFullYear();
+  const incomeYears = availableIncomeYears(
+    properties,
+    document?.incomeEntries ?? [],
+    document?.settings.openingTaxableRevenue && moneyToGrosz(document.settings.openingTaxableRevenue) > 0 ? document.settings.taxYear : undefined,
   );
-  const annualIncomeGrosz = orderedEntries.reduce((total, entry) => total + moneyToGrosz(entry.amount), 0);
+  const latestYear = incomeYears.at(-1) ?? currentYear;
+  const taxYear = incomeYears.includes(selectedTaxYear ?? latestYear) ? selectedTaxYear ?? latestYear : latestYear;
+  const taxYearIndex = incomeYears.indexOf(taxYear);
+  const orderedEntries = useMemo(
+    () => (document ? incomeEntriesForView(document.incomeEntries, taxYear, selectedPropertyId) : []),
+    [document, taxYear, selectedPropertyId],
+  );
+  const groups = useMemo(() => groupIncomeEntriesByReceivedMonth(orderedEntries), [orderedEntries]);
+  const visibleProperties = selectedPropertyId ? properties.filter((property) => property.id === selectedPropertyId) : properties;
+  const rentRows = rentMonthStatusRows(visibleProperties, document?.incomeEntries ?? [], currentMonth);
+  const expectedCurrentGrosz = rentRows.reduce((total, row) => total + (row.expectedGrosz ?? 0), 0) || undefined;
+  const sections = groups.map(({ entries, ...section }) => ({ ...section, paymentCount: entries.length, data: expandedMonths.includes(section.month) ? entries : [] }));
+  const summary = incomeViewSummary(orderedEntries);
+  const availableProperties = propertiesWithIncomeInYear(properties, document?.incomeEntries ?? [], taxYear);
+  const propertyNames = new Map(properties.map((property) => [property.id, property.address]));
+  const selectedPropertyName = selectedPropertyId ? propertyNames.get(selectedPropertyId) ?? "Usunięte mieszkanie" : null;
   useEffect(() => {
     const params = route.params as { propertyId?: string; rentalMonth?: string; quickAdd?: boolean; expectedAmount?: string } | undefined;
     const property = params?.propertyId ? properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.quickAdd) {
-      const amount = params.expectedAmount ?? property?.defaultMonthlyRent ?? "";
+      const amount = params.expectedAmount ?? (property ? decimalFromGrosz(tenantMonthlyTotalGrosz(property)) : "");
       setEditing(null);
       setTaxableExpanded(false);
-      setDraft({ ...blankDraft(), propertyId: property?.id ?? properties[0]?.id ?? "", amount,
-        taxableAmount: amount, rentalMonth: params.rentalMonth ?? "" });
+      const selected = property ?? properties[0];
+      const period = params.rentalMonth ?? todayIsoDate().slice(0, 7);
+      const taxable = selected && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : amount;
+      setDraft({ ...blankDraft(), propertyId: property?.id ?? selected?.id ?? "", amount,
+        taxableAmount: taxable, rentalMonth: params.rentalMonth ?? "" });
       setModalOpen(true);
       navigation.setParams({ quickAdd: undefined, expectedAmount: undefined, propertyId: undefined, rentalMonth: undefined });
       return;
@@ -94,7 +116,8 @@ export function IncomeScreen() {
     if (!property || !params?.rentalMonth) return;
     setEditing(null);
     setTaxableExpanded(false);
-    setDraft({ ...blankDraft(), propertyId: property.id, amount: property.defaultMonthlyRent ?? "", taxableAmount: property.defaultMonthlyRent ?? "", rentalMonth: params.rentalMonth });
+    const amount = decimalFromGrosz(tenantMonthlyTotalGrosz(property));
+    setDraft({ ...blankDraft(), propertyId: property.id, amount, taxableAmount: property.ownerRent ?? "", rentalMonth: params.rentalMonth });
     setModalOpen(true);
     navigation.setParams({ propertyId: undefined, rentalMonth: undefined });
   // Notification actions are consumed once the document has loaded.
@@ -111,18 +134,28 @@ export function IncomeScreen() {
       <ActivityIndicator style={{ flex: 1 }} />
     );
 
-  const openNew = (selectedPropertyId?: string, selectedRentalMonth = "") => {
+  const openNew = (selectedPropertyId?: string, selectedRentalMonth = "", additional = false) => {
     setEditing(null);
     setTaxableExpanded(false);
     setDraft({
       ...blankDraft(),
       propertyId: selectedPropertyId ?? properties[0]?.id ?? "",
-      amount: properties.find((property) => property.id === selectedPropertyId)?.defaultMonthlyRent ?? (selectedPropertyId ? "" : properties[0]?.defaultMonthlyRent ?? ""),
-      taxableAmount: properties.find((property) => property.id === selectedPropertyId)?.defaultMonthlyRent ?? (selectedPropertyId ? "" : properties[0]?.defaultMonthlyRent ?? ""),
+      amount: additional ? "" : (() => { const property = properties.find((item) => item.id === selectedPropertyId) ?? (selectedPropertyId ? undefined : properties[0]); return property ? decimalFromGrosz(tenantMonthlyTotalGrosz(property)) : ""; })(),
+      taxableAmount: properties.find((property) => property.id === selectedPropertyId)?.ownerRent ?? (selectedPropertyId ? "" : properties[0]?.ownerRent ?? ""),
       rentalMonth: selectedRentalMonth,
     });
     setModalOpen(true);
   };
+  const openAddMenu = () => Alert.alert("Dodaj wpłatę", undefined, [
+    { text: "Potwierdź wpłatę", onPress: () => openNew() },
+    { text: "Dodaj inną wpłatę", onPress: () => openNew(undefined, "", true) },
+    { text: "Anuluj", style: "cancel" },
+  ]);
+  const openEntryMenu = (entry: IncomeEntry) => Alert.alert("Wpłata", undefined, [
+    { text: "Edytuj", onPress: () => openEdit(entry) },
+    { text: "Usuń wpłatę", style: "destructive", onPress: () => remove(entry) },
+    { text: "Anuluj", style: "cancel" },
+  ]);
   const openEdit = (entry: IncomeEntry) => {
     setEditing(entry);
     setTaxableExpanded(entry.taxableAmount !== entry.amount);
@@ -141,9 +174,9 @@ export function IncomeScreen() {
     setDraft((current) => ({
       ...current,
       propertyId,
-      amount: current.amount || property?.defaultMonthlyRent || "",
+      amount: current.amount || property?.ownerRent || "",
       taxableAmount:
-        current.taxableAmount || property?.defaultMonthlyRent || "",
+        current.taxableAmount || property?.ownerRent || "",
     }));
   };
   const save = async () => {
@@ -155,9 +188,13 @@ export function IncomeScreen() {
       );
       return;
     }
-    const taxableAmount = (taxableExpanded ? draft.taxableAmount : amount)
-      .trim()
-      .replace(",", ".");
+    const rentalPeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
+    const taxableAmount = taxableExpanded ? draft.taxableAmount.trim().replace(",", ".") : decimalFromGrosz(defaultTaxableAmountGrosz({
+      property: properties.find((property) => property.id === draft.propertyId)!,
+      amountGrosz: moneyToGrosz(amount),
+      rentalMonth: rentalPeriod,
+      priorEntries: document.incomeEntries.filter((entry) => entry.id !== editing?.id),
+    }));
     if (!isPositiveMoney(amount)) {
       Alert.alert(
         "Nieprawidłowa kwota",
@@ -266,7 +303,7 @@ export function IncomeScreen() {
     if (deletingId) return;
     Alert.alert(
       "Usunąć wpłatę?",
-      `Wpłata ${formatPlnAmount(entry.amount)} z dnia ${formatPolishDate(entry.receivedAt, "long")} zostanie usunięta.`,
+      `Wpłata ${formatPlnAmount(entry.amount)}${propertyNames.get(entry.propertyId) ? ` za ${propertyNames.get(entry.propertyId)}` : ""} zostanie usunięta z przychodu i może zmienić wyliczenie podatku.`,
       [
         { text: "Anuluj", style: "cancel" },
         {
@@ -330,107 +367,63 @@ export function IncomeScreen() {
   );
 
   return (
-    <View style={{ ...ui.page, paddingTop: 18 }}>
-      <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-        <Text
-          style={{
-            color: theme.colors.textPrimary,
-            fontSize: 26,
-            fontWeight: "700",
-            marginTop: 8,
-          }}
-        >
-          Przychód
-        </Text>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            marginTop: 12,
-          }}
-        >
-          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok" disabled={taxYear <= Math.min(...SUPPORTED_TAX_YEARS)} onPress={() => setSelectedTaxYear(taxYear - 1)}>
-            <Text style={[action, taxYear <= Math.min(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>‹</Text>
-          </Pressable>
-          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{taxYear}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Następny rok" disabled={taxYear >= Math.max(...SUPPORTED_TAX_YEARS)} onPress={() => setSelectedTaxYear(taxYear + 1)}>
-            <Text style={[action, taxYear >= Math.max(...SUPPORTED_TAX_YEARS) && { opacity: 0.4 }]}>›</Text>
-          </Pressable>
-          {taxYear !== configuredTaxYear ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setSelectedTaxYear(null)}
-            >
-              <Text style={action}>Bieżący</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        {error ? (
-          <Text
-            accessibilityRole="alert"
-            style={{ color: theme.colors.danger, marginTop: 8 }}
-          >
-            {error}
-          </Text>
-        ) : null}
-      </View>
-      <FlatList
-        data={orderedEntries}
+    <View style={{ ...ui.page, paddingTop: 12 }}>
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{
-          paddingHorizontal: 18,
-          paddingBottom: 32,
-          flexGrow: 1,
-        }}
-        ListHeaderComponent={
-          <View>
-            <View style={ui.card}>
-              <Text style={{ color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" }}>{formatPln(annualIncomeGrosz)}</Text>
-              <Text style={muted}>potwierdzonych wpływów · {taxYear}</Text>
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 32, flexGrow: 1 }}
+        ListHeaderComponent={<View style={{ paddingBottom: 8 }}>
+          <View style={headerRow}>
+            <View style={{ flex: 1 }}><Text style={pageTitle}>Przychód</Text>
+              <PeriodSelector value={String(taxYear)} valueLabel={`Rok ${taxYear}`} previousLabel="Poprzedni rok" nextLabel="Następny rok"
+                previousDisabled={taxYearIndex <= 0} nextDisabled={taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear}
+                onPrevious={() => setSelectedTaxYear(incomeYears[taxYearIndex - 1]!)} onNext={() => setSelectedTaxYear(incomeYears[taxYearIndex + 1]!)} />
             </View>
-            {(() => {
-              const rentStates = properties.map((property) => {
-                const summary = summarizeRentMonth(property, document.incomeEntries, rentalMonth);
-                return { property, summary, state: summary.status === "unknown" ? { kind: "unknown" as const } : rentDisplayState(summary.expectedGrosz, summary.confirmedGrosz, summary.remainingGrosz) };
-              });
-              const { pending, allPaid } = rentConfirmationGroups(rentStates);
-              return <>
-                {pending.length ? <>
-                <Text style={screenSection}>{sectionLabels.currentRent}</Text>
-                {pending.map(({ property, state }) => <View key={property.id} style={[ui.card, { padding: 14 }]}>
-                  <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{property.name}</Text>
-                  {state.kind === "unknown" ? <Text style={muted}>Czynsz {rentalMonth} nieustalony</Text>
-                    : state.kind === "partial" ? <><Text style={muted}>Częściowo opłacone · {formatPln(state.confirmedGrosz)} / {formatPln(state.expectedGrosz)}</Text><Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>Pozostało {formatPln(state.remainingGrosz)}</Text></>
-                    : state.kind === "unpaid" ? <Text style={{ ...muted, color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPln(state.remainingGrosz)} do potwierdzenia</Text> : null}
-                  <Pressable accessibilityRole="button" onPress={() => openNew(property.id, rentalMonth)} style={secondaryAction}><Text style={action}>Potwierdź wpłatę</Text></Pressable>
-                </View>)}
-                </> : allPaid ? <Text style={successState}>✓ Wszystkie czynsze za {formatPolishMonth(rentalMonth)} są potwierdzone.</Text> : null}
-                {rentStates.flatMap(({ property, summary }) => {
-                  const warning = unallocatedRentWarning(summary.unallocatedGrosz);
-                  return warning ? [<Text key={property.id} style={muted}>{property.name} · {warning}</Text>] : [];
-                })}
-              </>;
-            })()}
-            <Pressable accessibilityRole="button" onPress={() => openNew()} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
-            <Text style={screenSection}>{sectionLabels.paymentHistory}</Text>
           </View>
-        }
-        ListEmptyComponent={
-          <View style={{ ...ui.emptyState, marginTop: 18 }}>
-            <Text style={{ color: theme.colors.textSecondary }}>{properties.length
-              ? "Brak potwierdzonych wpłat."
-              : "Dodaj mieszkanie w zakładce Ustawienia, aby zapisać wpłatę."}</Text>
+          {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
+          <View style={[ui.card, summaryCard]}>
+            <Text style={summaryEyebrow}>Przychód opodatkowany z zapisanych wpływów</Text>
+            <Text style={summaryAmount}>{formatPln(summary.totalGrosz).replace(",00 zł", " zł")}</Text>
+            <Text style={muted}>{summary.count ? `Na podstawie ${formatPolishCount(summary.count, ["potwierdzonego wpływu", "potwierdzonych wpływów", "potwierdzonych wpływów"])} · ${formatPolishCount(summary.propertyCount, ["mieszkanie", "mieszkania", "mieszkań"])}` : `Brak potwierdzonych wpływów w ${taxYear}.`}</Text>
           </View>
-        }
-        renderItem={({ item }) => <IncomeEntryRow
-          entry={item}
-          propertyName={properties.find((property) => property.id === item.propertyId)?.name ?? "Usunięte mieszkanie"}
-          onEdit={() => openEdit(item)}
-          onRemove={() => remove(item)}
-        />}
-        ListFooterComponent={<IncomeHistoryChart entries={document.incomeEntries} properties={properties} />}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} accessibilityHint="Otwiera wybór mieszkania" onPress={() => setFilterOpen(true)} style={filterControl}>
+            <Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text><Text style={action}>▼</Text>
+          </Pressable>
+          {taxYear === Number(currentMonth.slice(0, 4)) && rentRows.length > 0 ? <View style={[ui.card, rentStatusCard]}>
+            <Text style={rentStatusHeading}>Czynsz za {formatPolishMonth(currentMonth)}</Text>
+            {rentRows.map((row) => <View key={row.propertyId} style={rentStatusRow}>
+              <View style={rentStatusTop}><Text style={rentPropertyName}>{row.address}</Text><StatusBadge label={row.status === "paid" ? "Potwierdzone" : row.status === "partial" ? "Częściowo otrzymano" : row.status === "unpaid" ? "Do potwierdzenia" : "Nieustalony"} tone={row.status === "paid" ? "positive" : row.status === "partial" || row.status === "unpaid" ? "attention" : "neutral"} /></View>
+              {row.status === "paid" ? <Text style={rentDetailText}>{formatPln(row.confirmedGrosz)}</Text>
+                : row.status === "partial" ? <><Text style={rentDetailText}>{formatPln(row.confirmedGrosz)} z {formatPln(row.expectedGrosz ?? 0)}</Text><Text style={rentDetailText}>Pozostało: {formatPln(row.remainingGrosz ?? 0)}</Text></>
+                  : row.status === "unpaid" ? <Text style={rentDetailText}>{formatPln(row.remainingGrosz ?? 0)}</Text>
+                    : <Text style={rentDetailText}>Oczekiwany czynsz: nieustalony</Text>}
+            </View>)}
+          </View> : null}
+          <IncomeHistoryChart entries={orderedEntries} propertyId={selectedPropertyId} year={taxYear} expectedCurrentGrosz={taxYear === Number(currentMonth.slice(0, 4)) ? expectedCurrentGrosz : undefined} />
+          <Text style={historyTitle}>Potwierdzone wpłaty</Text>
+          <Pressable accessibilityRole="button" onPress={openAddMenu} style={addPaymentButton}><Text style={addPaymentText}>＋ Dodaj wpłatę</Text></Pressable>
+        </View>}
+        renderSectionHeader={({ section }) => {
+          const currentSection = section.month === currentMonth;
+          const amountSummary = `Otrzymano ${formatPln(section.totalGrosz).replace(",00 zł", " zł")} · ${formatPolishCount(section.paymentCount, ["wpłata", "wpłaty", "wpłat"])}`;
+          return <Pressable accessibilityRole="button" accessibilityState={{ expanded: expandedMonths.includes(section.month) }} accessibilityLabel={`${formatPolishMonth(section.month)}, ${amountSummary}`} onPress={() => setExpandedMonths((items) => toggleIncomeMonth(items, section.month))} style={[monthHeader, currentSection && currentMonthHeader]}>
+          <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonth(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><Text style={monthChevron}>{expandedMonths.includes(section.month) ? "⌃" : "⌄"}</Text>
+          </Pressable>;
+        }}
+        renderItem={({ item }) => <IncomeEntryRow entry={item} propertyName={propertyNames.get(item.propertyId) ?? "Usunięte mieszkanie"} onOpen={() => openEntryMenu(item)} />}
+        ListEmptyComponent={<View style={emptyHistory}><Text style={emptyText}>{selectedPropertyName ? `Brak potwierdzonych wpłat dla ${selectedPropertyName} w ${taxYear}.` : `Brak potwierdzonych wpłat w ${taxYear}.`}</Text></View>}
       />
+      <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
+        <View style={filterBackdrop}><SafeAreaView edges={modalSafeAreaEdges} style={filterSheet}>
+          <View style={sheetHeader}><Text style={sheetTitle}>Mieszkanie</Text><Pressable accessibilityRole="button" onPress={() => setFilterOpen(false)}><Text style={action}>Zamknij</Text></Pressable></View>
+          <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+            {[{ id: null, label: "Wszystkie mieszkania" }, ...availableProperties.map((property) => ({ id: property.id, label: property.address }))].map((item) => <Pressable key={item.id ?? "all"} accessibilityRole="radio" accessibilityState={{ checked: selectedPropertyId === item.id }} onPress={() => { setSelectedPropertyId(item.id); setFilterOpen(false); }} style={filterOption}>
+              <Text style={optionMark}>{selectedPropertyId === item.id ? "✓" : ""}</Text><Text numberOfLines={1} style={filterSelected}>{item.label}</Text>
+            </Pressable>)}
+          </ScrollView>
+        </SafeAreaView></View>
+      </Modal>
       <Modal
         visible={modalOpen}
         animationType="slide"
@@ -454,7 +447,7 @@ export function IncomeScreen() {
                 fontWeight: "700",
               }}
             >
-              {editing ? "Popraw wpłatę" : "Potwierdź wpłatę"}
+              {editing ? "Edytuj wpłatę" : "Potwierdź wpłatę"}
             </Text>
             <Text
               onPress={() => setModalOpen(false)}
@@ -487,13 +480,13 @@ export function IncomeScreen() {
                   borderWidth: 1,
                   borderColor:
                     draft.propertyId === property.id
-                      ? theme.colors.primary
+                      ? theme.colors.selectedBorder
                       : theme.colors.inputBorder,
                   borderRadius: 8,
                   marginBottom: 7,
                   backgroundColor:
                     draft.propertyId === property.id
-                      ? theme.colors.accentSoft
+                      ? theme.colors.selectedSurface
                       : theme.colors.surface,
                 }}
               >
@@ -504,10 +497,11 @@ export function IncomeScreen() {
                       draft.propertyId === property.id ? "600" : "400",
                   }}
                 >
-                  {property.name}
+                  {property.address}
                 </Text>
               </Pressable>
             ))}
+            {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>Czynsz dla właściciela: {formatPlnAmount(property.ownerRent ?? "0")} · media: {property.mediaPaidByTenant ? "opłaca najemca" : "opłaca właściciel"}. Opodatkowana jest tylko część właściciela.</Text> : null; })()}
             {field("Otrzymana kwota (zł) *", "amount", {
               keyboardType: "decimal-pad",
               placeholder: "Wpisz faktycznie otrzymaną kwotę",
@@ -548,7 +542,7 @@ export function IncomeScreen() {
                 {saving
                   ? "Zapisywanie…"
                   : editing
-                    ? "Zapisz poprawki"
+                    ? "Zapisz zmiany"
                     : "Potwierdź wpłatę"}
               </Text>
             </Pressable>
@@ -565,12 +559,38 @@ const primaryText = {
   fontWeight: "700" as const,
   fontSize: 15,
 };
-const screenSection = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5, marginTop: 18, marginBottom: 8 };
-const successState = { color: theme.colors.success, fontWeight: "700" as const, paddingVertical: 12 };
-const secondaryAction = { minHeight: 40, justifyContent: "center" as const, marginTop: 6 };
 const muted = { color: theme.colors.textSecondary, marginTop: 5, fontSize: 14 };
 const action = {
   color: theme.colors.primary,
   fontWeight: "600" as const,
   paddingVertical: 5,
 };
+const pageTitle = { color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700" as const };
+const headerRow = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingVertical: 6 };
+const summaryCard = { marginTop: 4, padding: 16 };
+const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
+const summaryAmount = { color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" as const, marginTop: 2 };
+const rentStatusCard = { marginTop: 8, padding: 14 };
+const rentStatusHeading = { color: theme.colors.textPrimary, fontSize: 15, fontWeight: "700" as const, marginBottom: 6 };
+const rentStatusRow = { borderTopWidth: 1, borderColor: theme.colors.divider, paddingVertical: 8 };
+const rentPropertyName = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "600" as const };
+const rentDetailText = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 };
+const rentStatusTop = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };
+const filterControl = { marginTop: 8, minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8, paddingHorizontal: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12 };
+const filterSelected = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, flex: 1 };
+const addPaymentButton = { minHeight: 44, alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 12, marginTop: 6 };
+const addPaymentText = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 14 };
+const historyTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" as const, marginTop: 12, marginBottom: 2 };
+const monthHeader = { minHeight: 58, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.colors.divider };
+const currentMonthHeader = { backgroundColor: theme.colors.surfaceMuted, paddingHorizontal: 8, borderRadius: 8 };
+const monthLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.4 };
+const monthTotal = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "600" as const, marginTop: 3 };
+const monthChevron = { color: theme.colors.textSecondary, fontSize: 17, paddingHorizontal: 7 };
+const emptyHistory = { paddingVertical: 20 };
+const emptyText = { color: theme.colors.textSecondary, fontSize: 14 };
+const filterBackdrop = { flex: 1, justifyContent: "flex-end" as const, backgroundColor: "rgba(0,0,0,0.35)" };
+const filterSheet = { maxHeight: "75%" as const, paddingHorizontal: 20, paddingTop: 16, backgroundColor: theme.colors.background, borderTopLeftRadius: 18, borderTopRightRadius: 18 };
+const sheetHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingBottom: 12 };
+const sheetTitle = { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" as const };
+const filterOption = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderTopWidth: 1, borderColor: theme.colors.divider };
+const optionMark = { width: 20, color: theme.colors.primary, fontSize: 16, fontWeight: "700" as const };

@@ -61,7 +61,7 @@ Not Investory (no portfolio analytics, valuations or retirement planning); not `
 
 ## Status
 
-- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, recurring bills, agreement reminders, apartment links, local notification scheduling, one-time/monthly/yearly custom reminders and compact statistics.
+- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, recurring bills, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent notifications, one-time/monthly/yearly custom reminders and compact statistics.
 - **Implemented:** validated local-document writes retain one previous valid snapshot; startup can recover from a corrupted/missing primary and reports recovery. This is app-local recovery only, not encrypted storage or user-controlled export/import.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
 - **Functional scope complete:** 0.4 includes recurring custom reminders. This does not establish private-beta readiness.

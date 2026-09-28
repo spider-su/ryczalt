@@ -23,6 +23,15 @@ export type AssistantTask = {
   dismissible: boolean;
   manuallyCompletable: boolean;
 };
+export type TaskNotification = {
+  key: string;
+  signature: string;
+  title: string;
+  body: string;
+  fireAt: Date;
+  data: { category: "rent" | "tax" | "bill" | "agreement" | "custom"; propertyId?: string; period?: string; billId?: string; taskId?: string; taskIds?: string[] };
+};
+export type ReturnTypeTaskNotification = TaskNotification;
 
 export function groupActiveTasks(tasks: AssistantTask[]) {
   return {
@@ -35,16 +44,17 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   const tasks: AssistantTask[] = [];
   const current = monthOf(now);
   for (const property of document.properties) {
-    if (property.expectedPaymentDay) {
+    if ((property.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
+    if (property.paymentDay) {
       for (let offset = -2; offset <= 6; offset++) {
         const period = shiftMonth(current, offset);
         const amounts = rentMonthAmounts(property, document.incomeEntries, period, now);
         if (amounts.expectedGrosz === null || amounts.expectedGrosz === 0 || amounts.remainingGrosz === null) continue;
-        const dueAt = paymentDay(period, property.expectedPaymentDay);
-        const notificationAt = addDays(dueAt, property.paymentReminderDelayDays ?? 1);
+        const dueAt = paymentDay(period, property.paymentDay);
+        const notificationAt = addDays(dueAt, document.settings.rentReminderDelayDays);
         const remaining = amounts.remainingGrosz;
         const done = remaining === 0;
-        const title = done ? `Czynsz potwierdzony — ${property.name}` : `Sprawdź czynsz — ${property.name}`;
+        const title = done ? `Czynsz potwierdzony — ${property.address}` : `Sprawdź czynsz — ${property.address}`;
         const detail = `Za ${monthLabel(period)}: oczekiwano ${formatPln(amounts.expectedGrosz)}, potwierdzono ${formatPln(amounts.confirmedGrosz)}${remaining ? `, do potwierdzenia ${formatPln(remaining)}` : ""}.`;
         tasks.push(makeTask(document, now, {
           id: `TENANT_PAYMENT_CHECK:${property.id}:${period}`, type: "TENANT_PAYMENT_CHECK", title, detail,
@@ -53,14 +63,12 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
         }));
       }
     }
-    if (property.rentalEndDate) {
-      const dueAt = localDate(property.rentalEndDate);
-      const offsets = property.rentalEndReminderDays ?? [];
-      const firstOffset = offsets.length ? Math.max(...offsets) : 30;
-      const notificationAt = addDays(dueAt, -firstOffset);
+    if (property.leaseEndDate) {
+      const dueAt = localDate(property.leaseEndDate);
+      const notificationAt = addDays(dueAt, -30);
       tasks.push(makeTask(document, now, {
-        id: `RENTAL_AGREEMENT_END:${property.id}:${property.rentalEndDate}`, type: "RENTAL_AGREEMENT_END",
-        title: `Umowa najmu — ${property.name}`, detail: `Umowa kończy się ${formatDate(property.rentalEndDate)}.`,
+        id: `RENTAL_AGREEMENT_END:${property.id}:${property.leaseEndDate}`, type: "RENTAL_AGREEMENT_END",
+        title: `Umowa najmu — ${property.address}`, detail: `Umowa kończy się ${formatDate(property.leaseEndDate)}.`,
         propertyId: property.id, dueAt, notificationAt, resolved: false, manuallyCompletable: true,
       }));
     }
@@ -69,7 +77,10 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   if ([2025, 2026].includes(document.settings.taxYear)) {
     const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
       taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
-      jointSpouseThreshold: document.settings.jointSpouseThreshold, today: localIso(now) });
+      jointSpouseThreshold: document.settings.jointSpouseThreshold,
+      openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
+      openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
+      today: localIso(now) });
     for (const settlement of settlements) {
       if (settlement.obligationGrosz <= 0) continue;
       const dueAt = localDate(settlement.dueDate);
@@ -77,9 +88,9 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
       tasks.push(makeTask(document, now, {
         id: `TAX_PAYMENT:${settlement.period}`, type: "TAX_PAYMENT",
         title: settlement.outstandingGrosz ? `Podatek za ${periodLabel(settlement.period)}` : `Podatek opłacony — ${periodLabel(settlement.period)}`,
-        detail: `Obowiązek ${formatPln(settlement.obligationGrosz)}, wpłacono ${formatPln(settlement.paidGrosz)}, pozostało ${formatPln(settlement.outstandingGrosz)}. Termin ${formatDate(settlement.dueDate)}.`,
+        detail: `Należny podatek ${formatPln(settlement.obligationGrosz)}, zapłacono ${formatPln(settlement.allocatedPaidGrosz)}, pozostało do zapłaty ${formatPln(settlement.outstandingGrosz)}. Termin ${formatDate(settlement.dueDate)}.`,
         period: settlement.period, dueAt, notificationAt, expectedGrosz: settlement.obligationGrosz,
-        confirmedGrosz: settlement.paidGrosz, remainingGrosz: settlement.outstandingGrosz,
+        confirmedGrosz: settlement.allocatedPaidGrosz, remainingGrosz: settlement.outstandingGrosz,
         resolved: settlement.outstandingGrosz === 0,
       }));
     }
@@ -88,6 +99,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   {
     for (const bill of document.recurringBills) {
       if (!bill.dueDay) continue;
+      if ((document.properties.find((property) => property.id === bill.propertyId)?.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
       for (let offset = -1; offset <= 3; offset++) {
         const period = shiftMonth(current, offset);
         const dueAt = paymentDay(period, bill.dueDay);
@@ -108,7 +120,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
         tasks.push(makeTask(document, now, {
           id: `RECURRING_BILL:${bill.id}:${period}`, type: "RECURRING_BILL",
           title: paid ? `${bill.name} — opłacono` : `Płatność: ${bill.name}`,
-          detail: `${property?.name ? `${property.name} · ` : ""}${amountDetail}`,
+          detail: `${property?.address ? `${property.address} · ` : ""}${amountDetail}`,
           propertyId: bill.propertyId, period, dueAt, notificationAt: dueAt,
           expectedGrosz, confirmedGrosz, remainingGrosz,
           resolved: paid,
@@ -119,9 +131,10 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
 
   {
     for (const reminder of document.customReminders) {
+      if (reminder.propertyId && (document.properties.find((property) => property.id === reminder.propertyId)?.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
       for (const date of reminderOccurrenceDates(reminder, now)) {
         const dueAt = localDate(date);
-        const propertyName = reminder.propertyId ? document.properties.find((p) => p.id === reminder.propertyId)?.name : undefined;
+        const propertyName = reminder.propertyId ? document.properties.find((p) => p.id === reminder.propertyId)?.address : undefined;
         const recurringContext = reminder.recurrence === "ONCE" ? undefined : recurrenceLabel(reminder.recurrence, reminder.dueDate);
         tasks.push(makeTask(document, now, {
           id: customReminderTaskId(reminder, date), type: "CUSTOM_REMINDER", title: reminder.title,
@@ -151,32 +164,38 @@ export function nextTaskNotificationAt(task: AssistantTask, document: RentalDocu
   return task.notificationAt > now ? task.notificationAt : null;
 }
 
-export function taskNotificationPlan(document: RentalDocument, now = new Date()) {
+export function taskNotificationPlan(document: RentalDocument, now = new Date()): TaskNotification[] {
   const cutoff = addDays(now, 90);
-  return deriveTasks(document, now).flatMap((task) => {
+  const tasks = deriveTasks(document, now);
+  const notifications: TaskNotification[] = [];
+  const rentGroups = new Map<string, AssistantTask[]>();
+  for (const task of tasks) {
     const category = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bills", RENTAL_AGREEMENT_END: "agreements", CUSTOM_REMINDER: "custom" } as const)[task.type];
-    if (!document.settings.reminderCategories[category]) return [];
-    if (task.type === "TENANT_PAYMENT_CHECK" && !document.properties.find((property) => property.id === task.propertyId)?.paymentReminderEnabled) return [];
-    if (task.type === "RECURRING_BILL" && !document.recurringBills.find((bill) => bill.id === task.id.split(":")[1])?.reminderEnabled) return [];
+    if (!document.settings.reminderCategories[category]) continue;
+    if (task.type === "RECURRING_BILL" && !document.recurringBills.find((bill) => bill.id === task.id.split(":")[1])?.reminderEnabled) continue;
+    if (task.type === "TENANT_PAYMENT_CHECK") {
+      const fireAt = nextTaskNotificationAt(task, document, now);
+      if (!fireAt || fireAt > cutoff) continue;
+      const groupKey = `${task.period}:${localIso(fireAt)}`;
+      rentGroups.set(groupKey, [...(rentGroups.get(groupKey) ?? []), task]);
+      continue;
+    }
     const routeCategory = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bill", RENTAL_AGREEMENT_END: "agreement", CUSTOM_REMINDER: "custom" } as const)[task.type];
     const state = document.taskStates.find((item) => item.taskId === task.id);
     const activelySnoozed = Boolean(state?.snoozedUntil && new Date(state.snoozedUntil) > now);
     if (task.type === "RENTAL_AGREEMENT_END" && !activelySnoozed && task.status !== "completed" && task.status !== "dismissed") {
-      const property = document.properties.find((item) => item.id === task.propertyId);
-      const offsets = property?.rentalEndReminderDays?.length ? property.rentalEndReminderDays : [30];
-      return offsets.flatMap((days) => {
-        const fireAt = addDays(task.dueAt, -days);
-        if (fireAt <= now || fireAt > cutoff) return [];
-        const key = `${task.id}:${days}`;
-        const title = days ? `Umowa najmu kończy się za ${days} dni` : "Umowa najmu kończy się dzisiaj";
-        const body = "Otwórz Ryczałt, aby sprawdzić szczegóły terminu.";
-        return [{ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
-          data: { category: routeCategory, propertyId: task.propertyId, taskId: task.id } }];
-      });
+      const fireAt = addDays(task.dueAt, -30);
+      if (fireAt <= now || fireAt > cutoff) continue;
+      const key = `${task.id}:30`;
+      const title = "Umowa najmu kończy się za 30 dni";
+      const body = "Otwórz Ryczałt, aby sprawdzić szczegóły terminu.";
+      notifications.push({ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
+        data: { category: routeCategory, propertyId: task.propertyId, taskId: task.id } });
+      continue;
     }
     const fireAt = nextTaskNotificationAt(task, document, now);
-    if (!fireAt || fireAt <= now) return [];
-    if (task.status !== "snoozed" && task.type !== "CUSTOM_REMINDER" && fireAt > cutoff) return [];
+    if (!fireAt || fireAt <= now) continue;
+    if (task.status !== "snoozed" && task.type !== "CUSTOM_REMINDER" && fireAt > cutoff) continue;
     const key = task.id;
     const displayText = {
       TENANT_PAYMENT_CHECK: ["Sprawdź wpłatę czynszu", "Otwórz Ryczałt, aby sprawdzić status wpłaty."],
@@ -186,15 +205,22 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
       RENTAL_AGREEMENT_END: ["Sprawdź termin umowy najmu", "Otwórz Ryczałt, aby sprawdzić szczegóły terminu."],
     } as const;
     const [title, body] = displayText[task.type];
-    return [{ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
+    notifications.push({ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
       data: { category: routeCategory, propertyId: task.propertyId, period: task.period,
         billId: task.type === "RECURRING_BILL" ? task.id.split(":")[1] : undefined,
-        expectedAmount: task.type === "TENANT_PAYMENT_CHECK" && task.remainingGrosz !== undefined ? (task.remainingGrosz / 100).toFixed(2) : undefined,
-        taskId: task.id } }];
-  }).sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime()).slice(0, 60);
+        taskId: task.id } });
+  }
+  for (const [groupKey, group] of rentGroups) {
+    const first = group[0]!;
+    const fireAt = nextTaskNotificationAt(first, document, now)!;
+    const addresses = [...new Set(group.map((task) => document.properties.find((property) => property.id === task.propertyId)?.address).filter((address): address is string => Boolean(address)))];
+    const title = "Sprawdź wpłaty czynszu";
+    const body = `Termin dzisiaj: ${addresses.join(", ")}`;
+    notifications.push({ key: `TENANT_PAYMENT_CHECK:group:${groupKey}`, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
+      data: { category: "rent", period: first.period, propertyId: first.propertyId, taskIds: group.map((task) => task.id) } });
+  }
+  return notifications.sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime()).slice(0, 60);
 }
-
-export type ReturnTypeTaskNotification = ReturnType<typeof taskNotificationPlan>[number];
 
 export function setTaskState(states: TaskState[], taskId: string, change: Partial<Omit<TaskState, "taskId">>): TaskState[] {
   const previous = states.find((item) => item.taskId === taskId);

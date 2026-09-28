@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Simplified apartment entry with progressive disclosure, lifecycle states, compact property rows, a calculated tenant-paid total and global delayed rent reminders.
+- Added schema-v6 migration defaults and an idempotent completed-month rent bootstrap with separate tenant-total and taxable-owner amounts.
+
 This file records **delivered and verified changes**, not roadmap promises.
 
 ## Unreleased

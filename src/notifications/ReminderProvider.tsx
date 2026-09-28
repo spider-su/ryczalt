@@ -6,6 +6,7 @@ import { reconcileReminderSchedule } from "./reconcile";
 import { useRentalData } from "../data/RentalDataProvider";
 import { supportsLocalNotifications } from "./support";
 import { ensureAndroidReminderChannel } from "./androidChannel";
+import { shouldReconcileNotifications } from "../data/demoRentalDocument";
 
 export type ReminderPermission = "unknown" | "granted" | "denied" | "unavailable";
 type ReminderContextValue = { permission: ReminderPermission; requestPermission: () => Promise<ReminderPermission> };
@@ -21,11 +22,12 @@ Notifications.setNotificationHandler({
 });
 
 export function ReminderProvider({ children }: PropsWithChildren) {
-  const { document } = useRentalData();
+  const { document, isDemoMode } = useRentalData();
   const [permission, setPermission] = useState<ReminderPermission>(supportsLocalNotifications(Platform.OS) ? "unknown" : "unavailable");
   const queue = useRef(Promise.resolve());
 
   const requestPermission = useCallback(async () => {
+    if (isDemoMode) return permission;
     if (!supportsLocalNotifications(Platform.OS)) {
       setPermission("unavailable");
       return "unavailable";
@@ -46,10 +48,10 @@ export function ReminderProvider({ children }: PropsWithChildren) {
       setPermission("unavailable");
       return "unavailable";
     }
-  }, []);
+  }, [isDemoMode, permission]);
 
   const reconcile = useCallback(async () => {
-    if (!supportsLocalNotifications(Platform.OS) || !document || permission !== "granted") return;
+    if (!supportsLocalNotifications(Platform.OS) || !document || !shouldReconcileNotifications(isDemoMode, true, permission === "granted")) return;
     const plan = taskNotificationPlan(document);
     queue.current = queue.current.then(async () => {
       try {
@@ -80,7 +82,7 @@ export function ReminderProvider({ children }: PropsWithChildren) {
       }
     });
     await queue.current;
-  }, [document, permission]);
+  }, [document, isDemoMode, permission]);
 
   useEffect(() => {
     if (!supportsLocalNotifications(Platform.OS)) return;

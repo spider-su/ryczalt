@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type {
   BillPayment,
   CustomReminder,
+  AdministrationSuggestion,
   IncomeEntry,
   Property,
   PropertyLink,
@@ -13,11 +14,12 @@ import type {
 } from "../model/rental";
 import {
   RentalValidationError,
+  isValidHttpsUrl,
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
 import { SUPPORTED_TAX_YEARS } from "../domain/ryczaltTax";
 
-export const RENTAL_DOCUMENT_SCHEMA_VERSION = 4;
+export const RENTAL_DOCUMENT_SCHEMA_VERSION = 6;
 /** Stable namespace; the current document schema version is stored in its JSON. */
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
 export const RENTAL_DOCUMENT_BACKUP_KEY = `${RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
@@ -50,6 +52,7 @@ export const emptyDocument = (
   recurringBills: [],
   billPayments: [],
   propertyLinks: [],
+  administrationSuggestions: [],
   customReminders: [],
   taskStates: [],
   settings: {
@@ -58,6 +61,7 @@ export const emptyDocument = (
     jointSpouseThreshold: false,
     quarterlyEligible: false,
     reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true },
+    rentReminderDelayDays: 1,
   },
 });
 
@@ -141,7 +145,7 @@ async function recoverFromBackup(primaryError: unknown): Promise<RentalDocumentL
 function validateRentalDocument(data: unknown): RentalDocument {
   if (!isRecord(data))
     throw corrupted("Local rental document must be a JSON object.");
-  if (data.schemaVersion !== 1 && data.schemaVersion !== 2 && data.schemaVersion !== 3 && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
+  if (![1, 2, 3, 4, 5, RENTAL_DOCUMENT_SCHEMA_VERSION].includes(data.schemaVersion as number)) {
     throw new RentalStoreError(
       "UNSUPPORTED_VERSION",
       "Local rental document schema version is not supported.",
@@ -162,17 +166,24 @@ function validateRentalDocument(data: unknown): RentalDocument {
   const jointSpouseThreshold = settings.jointSpouseThreshold ?? false;
   const quarterlyEligible = settings.quarterlyEligible ?? false;
   const reminderCategories = validateReminderCategories(settings.reminderCategories);
+  const rentReminderDelayDays = settings.rentReminderDelayDays === undefined && data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION
+    ? 1
+    : typeof settings.rentReminderDelayDays === "number" ? settings.rentReminderDelayDays : NaN;
   if (
     (settlementMode !== "monthly" && settlementMode !== "quarterly") ||
     typeof jointSpouseThreshold !== "boolean" ||
-    typeof quarterlyEligible !== "boolean"
+    typeof quarterlyEligible !== "boolean" || !Number.isInteger(rentReminderDelayDays) || rentReminderDelayDays < 0 || rentReminderDelayDays > 30
   ) throw corrupted("Local tax settings are invalid.");
+  for (const field of ["openingTaxableRevenue", "openingTaxPaid"] as const) {
+    if (settings[field] !== undefined && !optionalDecimal(settings[field], field)) throw corrupted("Opening tax balance is invalid.");
+  }
   if (settlementMode === "quarterly" && !quarterlyEligible)
     throw corrupted("Quarterly settlement requires confirmed eligibility.");
 
+  const legacyPropertyLinks = Array.isArray(data.propertyLinks) ? data.propertyLinks : [];
   const properties = validateArray(
     data.properties,
-    validateProperty,
+    (property) => validateProperty(property, data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION, legacyPropertyLinks),
     "properties",
   );
   const incomeEntries = validateArray(
@@ -188,6 +199,10 @@ function validateRentalDocument(data: unknown): RentalDocument {
   const recurringBills = data.recurringBills === undefined ? [] : validateArray(data.recurringBills, validateRecurringBill, "recurringBills");
   const billPayments = data.billPayments === undefined ? [] : validateArray(data.billPayments, validateBillPayment, "billPayments");
   const propertyLinks = data.propertyLinks === undefined ? [] : validateArray(data.propertyLinks, validatePropertyLink, "propertyLinks");
+  const savedAdministrationSuggestions = data.schemaVersion === RENTAL_DOCUMENT_SCHEMA_VERSION && data.administrationSuggestions !== undefined
+    ? validateArray(data.administrationSuggestions, validateAdministrationSuggestion, "administrationSuggestions")
+    : [];
+  const administrationSuggestions = mergeAdministrationSuggestions(savedAdministrationSuggestions, properties);
   const customReminders = migrateCustomReminders(data.customReminders, reminderRecurrenceIsLegacy);
   const taskStates = data.taskStates === undefined ? [] : validateArray(data.taskStates, validateTaskState, "taskStates");
 
@@ -200,12 +215,15 @@ function validateRentalDocument(data: unknown): RentalDocument {
       recurringBills,
       billPayments,
       propertyLinks,
+      administrationSuggestions,
       customReminders,
       taskStates,
       settings: {
-        taxYear, settlementMode, jointSpouseThreshold, quarterlyEligible, reminderCategories,
+        taxYear, settlementMode, jointSpouseThreshold, quarterlyEligible, reminderCategories, rentReminderDelayDays,
         ...(optionalString(settings.taxRecipientName) ? { taxRecipientName: settings.taxRecipientName } : {}),
         ...(optionalString(settings.taxMicroAccount) ? { taxMicroAccount: settings.taxMicroAccount } : {}),
+        ...(optionalDecimal(settings.openingTaxableRevenue, "openingTaxableRevenue") ? { openingTaxableRevenue: settings.openingTaxableRevenue } : {}),
+        ...(optionalDecimal(settings.openingTaxPaid, "openingTaxPaid") ? { openingTaxPaid: settings.openingTaxPaid } : {}),
       },
     });
   } catch (error) {
@@ -214,20 +232,39 @@ function validateRentalDocument(data: unknown): RentalDocument {
   }
 }
 
-function validateProperty(value: unknown): Property {
-  if (
-    !isRecord(value) ||
-    !isStableId(value.id) ||
-    !isNonEmptyString(value.name)
-  )
-    throw corrupted("Property entry is invalid.");
+function validateProperty(value: unknown, migrateLegacy = false, legacyLinks: unknown[] = []): Property {
+  if (!isRecord(value) || !isStableId(value.id)) throw corrupted("Property entry is invalid.");
+  const address = isNonEmptyString(value.address) ? value.address : migrateLegacy && isNonEmptyString(value.name) ? value.name : undefined;
+  if (!address) throw corrupted("Property entry is invalid.");
+  const administrationLink = migrateLegacy ? legacyLinks.find((link) => isRecord(link) && link.propertyId === value.id && link.category === "ADMINISTRATION") : undefined;
+  const electricityLink = migrateLegacy ? legacyLinks.find((link) => isRecord(link) && link.propertyId === value.id && link.category === "UTILITY" && isLikelyElectricityProvider(link.label)) : undefined;
+  const ownerRentValue = migrateLegacy && value.ownerRent === undefined ? value.defaultMonthlyRent : value.ownerRent;
+  const mediaAmountValue = migrateLegacy && value.mediaAmount === undefined ? "0.00" : value.mediaAmount;
+  const leaseEndDateValue = migrateLegacy ? value.leaseEndDate ?? value.rentalEndDate : value.leaseEndDate;
+  const paymentDayValue = migrateLegacy ? value.paymentDay ?? value.expectedPaymentDay : value.paymentDay;
+  const lifecycle = value.lifecycle ?? "ACTIVE";
+  const rentalStartDate = optionalString(value.rentalStartDate) ? value.rentalStartDate : undefined;
+  const administrationNameValue = migrateLegacy ? value.administrationName ?? (isRecord(administrationLink) ? administrationLink.label : undefined) : value.administrationName;
+  const administrationUrlValue = migrateLegacy ? value.administrationUrl ?? value.administratorPortalUrl ?? (isRecord(administrationLink) ? administrationLink.url : undefined) : value.administrationUrl;
+  const electricityProviderValue = migrateLegacy ? value.electricityProvider ?? (isRecord(electricityLink) ? electricityLink.label : undefined) : value.electricityProvider;
+  const electricityUrlValue = migrateLegacy ? value.electricityUrl ?? (isRecord(electricityLink) ? electricityLink.url : undefined) : value.electricityUrl;
+  const ownerRent = optionalDecimal(ownerRentValue, "ownerRent") ? ownerRentValue : undefined;
+  const mediaAmount = optionalDecimal(mediaAmountValue, "mediaAmount") ? mediaAmountValue : undefined;
+  const leaseEndDate = optionalString(leaseEndDateValue) ? leaseEndDateValue : undefined;
+  const paymentDay = optionalNumber(paymentDayValue) ? paymentDayValue : undefined;
+  const administrationName = optionalString(administrationNameValue) ? administrationNameValue : undefined;
+  const administrationUrl = optionalString(administrationUrlValue) ? administrationUrlValue : undefined;
+  const electricityProvider = optionalString(electricityProviderValue) ? electricityProviderValue : undefined;
+  const electricityUrl = optionalString(electricityUrlValue) ? electricityUrlValue : undefined;
   return {
     id: value.id,
-    name: value.name,
-    ...(optionalDecimal(value.defaultMonthlyRent, "defaultMonthlyRent")
-      ? { defaultMonthlyRent: value.defaultMonthlyRent }
-      : {}),
+    address,
+    lifecycle: lifecycle as Property["lifecycle"],
+    ...(rentalStartDate ? { rentalStartDate } : {}),
+    ...(ownerRent !== undefined ? { ownerRent } : {}),
     ...(value.rentSchedule === undefined ? {} : { rentSchedule: validateArray(value.rentSchedule, validateRentRate, "rentSchedule") }),
+    ...(mediaAmount !== undefined ? { mediaAmount } : {}),
+    mediaPaidByTenant: optionalBoolean(value.mediaPaidByTenant) ? value.mediaPaidByTenant : false,
     ...(optionalString(value.tenantName)
       ? { tenantName: value.tenantName }
       : {}),
@@ -240,14 +277,32 @@ function validateProperty(value: unknown): Property {
     ...(optionalString(value.tenantSince)
       ? { tenantSince: value.tenantSince }
       : {}),
-    ...(optionalString(value.rentalEndDate) ? { rentalEndDate: value.rentalEndDate } : {}),
-    ...(optionalNumberArray(value.rentalEndReminderDays) ? { rentalEndReminderDays: value.rentalEndReminderDays } : {}),
-    ...(optionalNumber(value.expectedPaymentDay) ? { expectedPaymentDay: value.expectedPaymentDay } : {}),
-    ...(optionalBoolean(value.paymentReminderEnabled) ? { paymentReminderEnabled: value.paymentReminderEnabled } : {}),
-    ...(optionalNumber(value.paymentReminderDelayDays) ? { paymentReminderDelayDays: value.paymentReminderDelayDays } : {}),
-    ...(optionalString(value.administratorPortalUrl) ? { administratorPortalUrl: value.administratorPortalUrl } : {}),
+    ...(leaseEndDate ? { leaseEndDate } : {}),
+    ...(paymentDay !== undefined ? { paymentDay } : {}),
+    ...(administrationName ? { administrationName } : {}),
+    ...(administrationUrl ? { administrationUrl } : {}),
+    ...(electricityProvider ? { electricityProvider } : {}),
+    ...(electricityUrl ? { electricityUrl } : {}),
     ...(optionalString(value.notes) ? { notes: value.notes } : {}),
   };
+}
+
+function validateAdministrationSuggestion(value: unknown): AdministrationSuggestion {
+  if (!isRecord(value) || !isNonEmptyString(value.name) || (value.url !== undefined && (!isNonEmptyString(value.url) || !isValidHttpsUrl(value.url)))) throw corrupted("Administration suggestion is invalid.");
+  return { name: value.name, ...(optionalString(value.url) ? { url: value.url } : {}) };
+}
+
+function mergeAdministrationSuggestions(existing: AdministrationSuggestion[], properties: Property[]): AdministrationSuggestion[] {
+  const byName = new Map<string, AdministrationSuggestion>();
+  for (const value of [...existing, ...properties.flatMap((property) => property.administrationName ? [{ name: property.administrationName, ...(property.administrationUrl ? { url: property.administrationUrl } : {}) }] : [])]) {
+    const key = value.name.trim().toLocaleLowerCase("pl-PL");
+    if (key) byName.set(key, { name: value.name.trim(), ...(value.url ? { url: value.url } : byName.get(key)?.url ? { url: byName.get(key)!.url } : {}) });
+  }
+  return [...byName.values()];
+}
+
+function isLikelyElectricityProvider(value: unknown): boolean {
+  return typeof value === "string" && /tauron|pge|enea|energa|e\.on/i.test(value);
 }
 
 function validateRentRate(value: unknown): { effectiveFrom: string; amount: string } {
@@ -332,6 +387,7 @@ function validateIncomeEntry(value: unknown): IncomeEntry {
     ...(optionalString(value.description)
       ? { description: value.description }
       : {}),
+    ...(value.source === "MANUAL" || value.source === "INITIAL_IMPORT" ? { source: value.source } : {}),
   };
 }
 
@@ -385,12 +441,6 @@ function optionalBoolean(value: unknown): value is boolean {
   if (value === undefined) return false;
   if (typeof value === "boolean") return true;
   throw corrupted("Optional boolean field must be true or false.");
-}
-
-function optionalNumberArray(value: unknown): value is number[] {
-  if (value === undefined) return false;
-  if (Array.isArray(value) && value.every((item) => typeof item === "number" && Number.isInteger(item))) return true;
-  throw corrupted("Reminder day list is invalid.");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

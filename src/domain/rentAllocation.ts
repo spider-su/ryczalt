@@ -66,19 +66,28 @@ export function allocateRentReceipts(
 }
 
 export function expectedRentForMonth(property: Property, month: string, now = new Date()): number | null {
+  const ownerRentGrosz = ownerRentForMonth(property, month, now);
+  if (ownerRentGrosz === null) return null;
+  const tenantMediaGrosz = property.mediaPaidByTenant ? moneyToGrosz(property.mediaAmount ?? "0") : 0;
+  const expected = ownerRentGrosz + tenantMediaGrosz;
+  if (!Number.isSafeInteger(expected)) throw new Error("Expected rent is too large");
+  return expected;
+}
+
+export function ownerRentForMonth(property: Property, month: string, now = new Date()): number | null {
   if (!isRentalMonth(month)) return null;
-  if (property.rentalEndDate && month > property.rentalEndDate.slice(0, 7)) return null;
+  if (property.leaseEndDate && month > property.leaseEndDate.slice(0, 7)) return null;
   const rates = [...(property.rentSchedule ?? [])].sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom));
   const applicable = rates.find((rate) => rate.effectiveFrom <= month);
   if (applicable) return moneyToGrosz(applicable.amount);
   const currentMonth = localMonth(now);
-  if (!rates.length && month >= currentMonth && property.defaultMonthlyRent !== undefined) return moneyToGrosz(property.defaultMonthlyRent);
+  if (!rates.length && month >= currentMonth && property.ownerRent !== undefined) return moneyToGrosz(property.ownerRent);
   return null;
 }
 
-export function rentMonthAmounts(property: Property, entries: IncomeEntry[], month: string, now = new Date()) {
+export function rentMonthAmounts(property: Property, entries: IncomeEntry[], month: string, now = new Date(), futureMonths = 6) {
   const expectedGrosz = expectedRentForMonth(property, month, now);
-  const allocation = allocateRentReceipts(property, entries, now);
+  const allocation = allocateRentReceipts(property, entries, now, futureMonths);
   const confirmedGrosz = allocation.byMonth.get(month) ?? 0;
   return {
     expectedGrosz,

@@ -5,10 +5,10 @@ import { deriveTasks, taskNotificationPlan } from "./tasks";
 import { reconcileReminderSchedule } from "../notifications/reconcile";
 
 const document = (reminder: CustomReminder): RentalDocument => ({
-  schemaVersion: 4, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [],
-  propertyLinks: [], customReminders: [reminder], taskStates: [],
+  schemaVersion: 6, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [],
+  propertyLinks: [], administrationSuggestions: [], customReminders: [reminder], taskStates: [],
   settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
 });
 
 const monthly = (dueDate = "2026-10-15"): CustomReminder => ({ id: "r1", title: "Sprawdź polisę", dueDate, recurrence: "MONTHLY" });
