@@ -1,3 +1,3 @@
-/** The app owns the top inset; React Navigation owns the tab bar bottom inset. */
-export const appSafeAreaEdges = ["top"] as const;
+/** The app frame owns system bar insets; the tab bar sits inside that frame. */
+export const appSafeAreaEdges = ["top", "bottom"] as const;
 export const modalSafeAreaEdges = ["top", "bottom"] as const;
