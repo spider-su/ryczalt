@@ -143,20 +143,18 @@ export function PulpitScreen() {
 
   if (document.properties.length === 0) return <View style={ui.page}>
     <ScrollView contentContainerStyle={ui.content}>
-      <Text style={pageTitle}>Pulpit</Text>
       <View accessibilityLabel="Skonfiguruj pierwszy najem" style={setupCard}>
         <Text style={setupTitle}>Skonfiguruj pierwszy najem</Text>
         <Text style={muted}>Dodaj mieszkanie, aby zapisać oczekiwany czynsz i terminy. Wpłaty ani płatności nie zostaną utworzone automatycznie.</Text>
         <Pressable accessibilityRole="button" onPress={() => openSetupAction("apartment")} style={primaryButton}><Text style={primaryText}>Dodaj mieszkanie</Text></Pressable>
       </View>
-      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
+      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne tutaj.</Text> : null}
     </ScrollView>
   </View>;
 
   return <View style={ui.page}>
     <ScrollView ref={taskListRef} contentContainerStyle={ui.content}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <View><Text style={pageTitle}>Pulpit</Text><Text style={muted}>Dzień dobry</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Dodaj osobiste przypomnienie" onPress={openCustom} style={iconButton}><Text style={action}>＋</Text></Pressable>
       </View>
 
@@ -205,7 +203,7 @@ export function PulpitScreen() {
         total={setup.totalRequiredSteps}
         onPress={() => openSetupAction(setup.nextAction!.action, setup.nextAction!.propertyId)}
       /> : null}
-      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
+      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne tutaj.</Text> : null}
 
 
 
@@ -267,7 +265,6 @@ function rentDueLabel(month: string, day: number) {
 }
 function compactPln(amountGrosz: number) { return formatPln(amountGrosz).replace(/,00(?= zł)/, ""); }
 
-const pageTitle = { color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700" as const };
 const setupCard = { ...ui.card, marginTop: 14 };
 const setupTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 5 };
 const sectionTitle = ui.sectionTitle;
