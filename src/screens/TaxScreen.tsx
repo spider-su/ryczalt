@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import { calculateSettlements, formatPln, formatPlnAmount, settlementPeriodForMonth } from "../domain/ryczaltTax";
+import { calculateSettlements, formatPln, formatPlnAmount, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
 import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
@@ -37,6 +37,8 @@ export function TaxScreen() {
     taxYear,
     mode: document.settings.settlementMode,
     jointSpouseThreshold: document.settings.jointSpouseThreshold,
+    openingTaxableRevenueGrosz: document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
+    openingTaxPaidGrosz: document.settings.taxYear === taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
   }) : [], [document, taxYear]);
   useEffect(() => {
     if (document?.settings.settlementMode === "quarterly" && /^\d{4}-\d{2}$/.test(selectedPeriod)) {
@@ -86,7 +88,7 @@ export function TaxScreen() {
     { text: "Anuluj", style: "cancel" },
     { text: "Usuń", style: "destructive", onPress: () => void update((current) => removeTaxPayment(current, payment.id)).catch(() => undefined) },
   ]);
-  const annualIncome = annualRentalIncome(document.incomeEntries, taxYear);
+  const annualIncome = annualRentalIncome(document.incomeEntries, taxYear, document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0);
   const annualThreshold = annualRentalThreshold(taxYear, document.settings.jointSpouseThreshold);
   const annualProgress = dashboardProgress(annualIncome, annualThreshold);
   const taxPaymentDetails = {

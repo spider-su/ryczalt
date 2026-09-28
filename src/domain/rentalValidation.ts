@@ -131,6 +131,9 @@ export function validateRentalDocumentShape(
     throw new RentalValidationError("Tax year is not supported.");
   if (!Number.isInteger(document.settings.rentReminderDelayDays) || document.settings.rentReminderDelayDays < 0 || document.settings.rentReminderDelayDays > 30)
     throw new RentalValidationError("Rent reminder delay is invalid.");
+  for (const amount of [document.settings.openingTaxableRevenue, document.settings.openingTaxPaid]) {
+    if (amount !== undefined && !isNonnegativeMoney(amount)) throw new RentalValidationError("Opening tax balance is invalid.");
+  }
   const propertyIds = new Set<string>();
   for (const property of document.properties) {
     if (propertyIds.has(property.id))

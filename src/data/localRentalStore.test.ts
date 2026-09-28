@@ -86,6 +86,14 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).resolves.toEqual(validDocument);
   });
 
+  it("round-trips optional opening balances without adding income or tax payment rows", async () => {
+    const withOpening = { ...validDocument, settings: { ...validDocument.settings, openingTaxableRevenue: "21600.00", openingTaxPaid: "1836.00" } };
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(withOpening));
+    await expect(loadRentalDocument()).resolves.toEqual(withOpening);
+    expect(withOpening.incomeEntries).toHaveLength(validDocument.incomeEntries.length);
+    expect(withOpening.taxPayments).toHaveLength(validDocument.taxPayments.length);
+  });
+
   it("drops removed apartment contact fields from legacy local records", async () => {
     const legacy = {
       ...validDocument,

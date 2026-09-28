@@ -53,9 +53,9 @@ export function daysOverdue(month: string, day: number, now: Date) {
   return Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86_400_000));
 }
 
-export function annualRentalIncome(entries: IncomeEntry[], taxYear: number) {
+export function annualRentalIncome(entries: IncomeEntry[], taxYear: number, openingRevenueGrosz = 0) {
   return entries.filter((entry) => entry.receivedAt.startsWith(`${taxYear}-`))
-    .reduce((sum, entry) => sum + moneyToGrosz(entry.taxableAmount), 0);
+    .reduce((sum, entry) => sum + moneyToGrosz(entry.taxableAmount), openingRevenueGrosz);
 }
 
 export function annualRentalThreshold(taxYear: number, jointSpouseThreshold = false) {
@@ -93,6 +93,13 @@ export function dashboardTaskPresentation(attentionCount: number) {
     showActionableSection: attentionCount > 0,
     summary: attentionSummary(attentionCount),
   };
+}
+
+export function dashboardTaxIssueSummary(tasks: AssistantTask[], now = new Date()) {
+  const overdue = tasks.filter((task) => task.type === "TAX_PAYMENT" && task.status === "needs-attention" && task.dueAt < now);
+  return overdue.length > 1
+    ? { count: overdue.length, totalGrosz: overdue.reduce((total, task) => total + (task.remainingGrosz ?? 0), 0) }
+    : null;
 }
 
 export function rentIncomeAction(remainingRentGrosz: number) {

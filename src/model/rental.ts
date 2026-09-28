@@ -117,5 +117,7 @@ export type RentalDocument = {
     rentReminderDelayDays: number;
     taxRecipientName?: string;
     taxMicroAccount?: string;
+    openingTaxableRevenue?: string;
+    openingTaxPaid?: string;
   };
 };

@@ -88,6 +88,8 @@ export function SettingsScreen() {
   const [billPaymentAmount, setBillPaymentAmount] = useState("");
   const [taxRecipient, setTaxRecipient] = useState("");
   const [taxAccount, setTaxAccount] = useState("");
+  const [openingRevenueDraft, setOpeningRevenueDraft] = useState("");
+  const [openingTaxPaidDraft, setOpeningTaxPaidDraft] = useState("");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
 
   useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
@@ -96,6 +98,8 @@ export function SettingsScreen() {
     if (!document) return;
     setTaxRecipient(document.settings.taxRecipientName ?? "");
     setTaxAccount(document.settings.taxMicroAccount ?? "");
+    setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
+    setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
     const params = route.params as { propertyId?: string; billId?: string; period?: string; setupAction?: SetupAction; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     const bill = params?.billId ? document.recurringBills.find((item) => item.id === params.billId) : undefined;
@@ -241,8 +245,10 @@ export function SettingsScreen() {
         const today = todayIsoDate();
         const range = historicalBootstrapDefaultRange(today, draft.rentalStartDate || undefined);
         if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
-          setBootstrapProperty(property);
-          setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth! });
+          Alert.alert("Najem dodany", "Domyślnie śledzimy wpłaty od teraz. Jeśli chcesz, możesz osobno dodać szczegółowe wpłaty za wcześniejsze miesiące.", [
+            { text: "Śledź wpłaty od teraz", style: "cancel" },
+            { text: "Uzupełnij wcześniejsze miesiące", onPress: () => { setBootstrapProperty(property); setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth! }); } },
+          ]);
         }
       }
       setEditing(null);
@@ -336,6 +342,11 @@ export function SettingsScreen() {
       ...current,
       settings: change(current.settings),
     })).catch(() => undefined);
+  };
+  const saveOpeningAmount = (key: "openingTaxableRevenue" | "openingTaxPaid", raw: string) => {
+    const value = raw.trim().replace(",", ".");
+    if (value && !isNonnegativeMoney(value)) { Alert.alert("Nieprawidłowa kwota", "Wpisz kwotę równą lub większą od zera."); return; }
+    updateTaxSettings((settings) => ({ ...settings, [key]: value || undefined }));
   };
   const saveTaxPaymentSettings = async () => {
     const account = taxAccount.replace(/\s/g, "");
@@ -486,6 +497,12 @@ export function SettingsScreen() {
         }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
         <Text style={{ ...muted, marginTop: -4 }}>Dotyczy wspólności majątkowej i wymaga wyboru opodatkowania całości przychodów z najmu przez jednego małżonka oraz złożenia wymaganego oświadczenia w terminie.</Text>
         <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
+        <Text style={sectionTitle}>Stan początkowy za {document.settings.taxYear}</Text>
+        <Text style={muted}>Wpisz sumy otrzymane i zapłacone wcześniej w tym roku. Zwiększą rozliczenie roczne bez tworzenia fikcyjnych miesięcznych wpłat.</Text>
+        <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku (zł)</Text>
+        <TextInput accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} onEndEditing={(event) => saveOpeningAmount("openingTaxableRevenue", event.nativeEvent.text)} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+        <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku (zł)</Text>
+        <TextInput accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} onEndEditing={(event) => saveOpeningAmount("openingTaxPaid", event.nativeEvent.text)} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
         </> : null}
         {activeSection === "notifications" ? <>
       <Text style={sectionTitle}>Powiadomienia lokalne</Text>

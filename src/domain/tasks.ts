@@ -77,7 +77,10 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   if ([2025, 2026].includes(document.settings.taxYear)) {
     const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
       taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
-      jointSpouseThreshold: document.settings.jointSpouseThreshold, today: localIso(now) });
+      jointSpouseThreshold: document.settings.jointSpouseThreshold,
+      openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
+      openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
+      today: localIso(now) });
     for (const settlement of settlements) {
       if (settlement.obligationGrosz <= 0) continue;
       const dueAt = localDate(settlement.dueDate);

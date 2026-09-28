@@ -174,6 +174,9 @@ function validateRentalDocument(data: unknown): RentalDocument {
     typeof jointSpouseThreshold !== "boolean" ||
     typeof quarterlyEligible !== "boolean" || !Number.isInteger(rentReminderDelayDays) || rentReminderDelayDays < 0 || rentReminderDelayDays > 30
   ) throw corrupted("Local tax settings are invalid.");
+  for (const field of ["openingTaxableRevenue", "openingTaxPaid"] as const) {
+    if (settings[field] !== undefined && !optionalDecimal(settings[field], field)) throw corrupted("Opening tax balance is invalid.");
+  }
   if (settlementMode === "quarterly" && !quarterlyEligible)
     throw corrupted("Quarterly settlement requires confirmed eligibility.");
 
@@ -219,6 +222,8 @@ function validateRentalDocument(data: unknown): RentalDocument {
         taxYear, settlementMode, jointSpouseThreshold, quarterlyEligible, reminderCategories, rentReminderDelayDays,
         ...(optionalString(settings.taxRecipientName) ? { taxRecipientName: settings.taxRecipientName } : {}),
         ...(optionalString(settings.taxMicroAccount) ? { taxMicroAccount: settings.taxMicroAccount } : {}),
+        ...(optionalDecimal(settings.openingTaxableRevenue, "openingTaxableRevenue") ? { openingTaxableRevenue: settings.openingTaxableRevenue } : {}),
+        ...(optionalDecimal(settings.openingTaxPaid, "openingTaxPaid") ? { openingTaxPaid: settings.openingTaxPaid } : {}),
       },
     });
   } catch (error) {

@@ -50,6 +50,18 @@ describe("Polish private-rental ryczałt", () => {
     expect(settlements[2]?.obligationGrosz).toBe(125_000);
   });
 
+  it("applies opening revenue to the annual threshold and opening tax paid to the remaining balance without creating transactions", () => {
+    const receivedLater = [entry("later", "2026-09-10", "4600.00")];
+    const settledOpening = calculateSettlements({ entries: receivedLater, payments: [], taxYear: 2026, mode: "monthly",
+      openingTaxableRevenueGrosz: 2_160_000, openingTaxPaidGrosz: 183_600, today: "2026-09-28" });
+    expect(settledOpening[8]).toMatchObject({ revenueGrosz: 460_000, cumulativeRevenueGrosz: 2_620_000, obligationGrosz: 39_100, outstandingGrosz: 39_100 });
+    const unpaidOpening = calculateSettlements({ entries: receivedLater, payments: [], taxYear: 2026, mode: "monthly",
+      openingTaxableRevenueGrosz: 2_160_000, openingTaxPaidGrosz: 100_000, today: "2026-09-28" });
+    expect(unpaidOpening[0]?.obligationGrosz).toBe(83_600);
+    expect(unpaidOpening[8]?.outstandingGrosz).toBe(39_100);
+    expect(receivedLater).toHaveLength(1);
+  });
+
   it("rounds tax amounts to whole PLN after calculating the rate", () => {
     expect(taxOnRevenue(10_000, 2026)).toBe(900); // PLN 8.50 -> PLN 9
     expect(taxOnRevenue(6_00, 2026)).toBe(100); // PLN 0.51 -> PLN 1

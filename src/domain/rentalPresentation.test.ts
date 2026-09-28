@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardProgress, dashboardTaskPresentation, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, rentIncomeAction, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, rentIncomeAction, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "./presentationFormat";
 
 function task(id: string, status: AssistantTask["status"], days: number): AssistantTask {
@@ -30,11 +30,20 @@ describe("rental presentation helpers", () => {
       { id: "old", propertyId: "p", receivedAt: "2025-12-10", amount: "1000.00", taxableAmount: "1000.00" },
     ];
     expect(annualRentalIncome(entries, 2026)).toBe(450_000);
+    expect(annualRentalIncome(entries, 2026, 2_160_000)).toBe(2_610_000);
     expect(annualRentalThreshold(2026)).toBe(10_000_000);
     expect(annualRentalThreshold(2026, true)).toBe(20_000_000);
     expect(dashboardProgress(annualRentalIncome(entries, 2026), annualRentalThreshold(2026)).fraction).toBeCloseTo(0.045);
     const overThreshold = [...entries, { id: "c", propertyId: "p", receivedAt: "2026-03-10", amount: "98000.00", taxableAmount: "98000.00" }];
     expect(dashboardProgress(annualRentalIncome(overThreshold, 2026), annualRentalThreshold(2026)).fraction).toBe(1);
+  });
+
+  it("aggregates multiple overdue tax tasks but leaves a single issue compact", () => {
+    const taxTask = (id: string, daysLate: number, remainingGrosz: number): AssistantTask => ({
+      ...task(id, "needs-attention", -daysLate), type: "TAX_PAYMENT", remainingGrosz,
+    });
+    expect(dashboardTaxIssueSummary([taxTask("one", 1, 42_500)], new Date(2026, 8, 27))).toBeNull();
+    expect(dashboardTaxIssueSummary([taxTask("one", 1, 42_500), taxTask("two", 10, 340_000)], new Date(2026, 8, 27))).toEqual({ count: 2, totalGrosz: 382_500 });
   });
 
   it("collapses paid and unpaid rent while retaining detail for partial payment", () => {

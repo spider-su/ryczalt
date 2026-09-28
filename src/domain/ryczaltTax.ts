@@ -95,6 +95,8 @@ export function calculateSettlements(args: {
   taxYear: number;
   mode: SettlementMode;
   jointSpouseThreshold?: boolean;
+  openingTaxableRevenueGrosz?: number;
+  openingTaxPaidGrosz?: number;
   today?: string;
 }): Settlement[] {
   const { entries, payments, taxYear, mode, jointSpouseThreshold = false } = args;
@@ -105,9 +107,13 @@ export function calculateSettlements(args: {
       ? `${taxYear}-${String(i + 1).padStart(2, "0")}`
       : `${taxYear}-Q${i + 1}`,
   );
-  let cumulativeRevenueGrosz = 0;
-  let cumulativeTaxableBaseGrosz = 0;
-  let previousTaxGrosz = 0;
+  const openingRevenueGrosz = args.openingTaxableRevenueGrosz ?? 0;
+  const openingTaxPaidGrosz = args.openingTaxPaidGrosz ?? 0;
+  if (![openingRevenueGrosz, openingTaxPaidGrosz].every((value) => Number.isSafeInteger(value) && value >= 0)) throw new Error("Opening tax balance is out of range");
+  const openingTaxGrosz = taxOnRevenue(openingRevenueGrosz, taxYear, jointSpouseThreshold);
+  let cumulativeRevenueGrosz = openingRevenueGrosz;
+  let cumulativeTaxableBaseGrosz = roundTaxBaseGrosz(openingRevenueGrosz);
+  let previousTaxGrosz = openingTaxGrosz;
   const paymentTotals = periods.map((period) => payments
     .filter((payment) => payment.period === period)
     .reduce((total, payment) => {
@@ -116,7 +122,8 @@ export function calculateSettlements(args: {
       return next;
     }, 0));
   const unpaidByPeriod = new Map<number, number>();
-  let taxCreditGrosz = 0;
+  const openingUnpaidGrosz = Math.max(0, openingTaxGrosz - openingTaxPaidGrosz);
+  let taxCreditGrosz = Math.max(0, openingTaxPaidGrosz - openingTaxGrosz);
   const settlements = periods.map((period, index) => {
     const periodEntries = entries.filter((entry) => {
       if (!entry.receivedAt.startsWith(`${taxYear}-`)) return false;
@@ -133,19 +140,20 @@ export function calculateSettlements(args: {
     const taxRules = RYCZALT_RULES[taxYear as keyof typeof RYCZALT_RULES];
     if (!taxRules) throw new Error(`Tax rules for ${taxYear} are not available`);
     const taxableBaseGrosz = roundTaxBaseGrosz(revenueGrosz);
-    const obligationGrosz = taxOnBaseAfter(taxableBaseGrosz, cumulativeTaxableBaseGrosz, taxRules, jointSpouseThreshold);
+    const periodObligationGrosz = taxOnBaseAfter(taxableBaseGrosz, cumulativeTaxableBaseGrosz, taxRules, jointSpouseThreshold);
+    const obligationGrosz = periodObligationGrosz + (index === 0 ? openingUnpaidGrosz : 0);
     cumulativeRevenueGrosz += revenueGrosz;
     if (!Number.isSafeInteger(cumulativeRevenueGrosz)) throw new Error("Annual revenue is too large");
     cumulativeTaxableBaseGrosz += taxableBaseGrosz;
     if (!Number.isSafeInteger(cumulativeTaxableBaseGrosz)) throw new Error("Annual taxable base is too large");
-    const cumulativeTaxGrosz = previousTaxGrosz + obligationGrosz;
+    const cumulativeTaxGrosz = previousTaxGrosz + periodObligationGrosz;
     if (!Number.isSafeInteger(cumulativeTaxGrosz)) throw new Error("Calculated tax is too large");
     previousTaxGrosz = cumulativeTaxGrosz;
     let outstandingGrosz = obligationGrosz;
     const creditUsedGrosz = Math.min(taxCreditGrosz, outstandingGrosz);
     taxCreditGrosz -= creditUsedGrosz;
     outstandingGrosz -= creditUsedGrosz;
-    unpaidByPeriod.set(index, outstandingGrosz);
+    unpaidByPeriod.set(index, (unpaidByPeriod.get(index) ?? 0) + outstandingGrosz);
 
     let remainingPaymentGrosz = paymentTotals[index]!;
     for (let prior = 0; prior <= index && remainingPaymentGrosz > 0; prior += 1) {
