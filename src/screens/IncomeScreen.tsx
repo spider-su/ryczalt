@@ -550,15 +550,20 @@ export function IncomeScreen() {
                       : theme.colors.surface,
                 }}
               >
-                <Text
-                  style={{
-                    color: theme.colors.textPrimary,
-                    fontWeight:
-                      draft.propertyId === property.id ? "600" : "400",
-                  }}
-                >
-                  {property.address}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <Text style={{ width: 22, textAlign: "center", fontSize: 20, color: draft.propertyId === property.id ? theme.colors.accent : theme.colors.textMuted }}>
+                    {draft.propertyId === property.id ? "●" : "○"}
+                  </Text>
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: theme.colors.textPrimary,
+                      fontWeight: draft.propertyId === property.id ? "600" : "400",
+                    }}
+                  >
+                    {property.address}
+                  </Text>
+                </View>
               </Pressable>
             ))}
             {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>{property.taxableTreatment ? `Podstawa wg ustawienia mieszkania: ${property.taxableTreatment === "OWNER_RENT" ? "czynsz dla właściciela" : "czynsz i opłaty dodatkowe"}.` : "Ustaw sposób wliczania opłat do przychodu w edycji mieszkania przed potwierdzeniem wpłaty."}</Text> : null; })()}
@@ -571,11 +576,14 @@ export function IncomeScreen() {
               onPress={() => setTaxableExpanded((value) => !value)}
               style={{ paddingVertical: 8 }}
             >
-              <Text style={action}>
-                {taxableExpanded
-                  ? "Ukryj kwotę podlegającą opodatkowaniu"
-                  : "Ustaw kwotę podlegającą opodatkowaniu"}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={action}>
+                  {taxableExpanded
+                    ? "Ukryj kwotę podlegającą opodatkowaniu"
+                    : "Ustaw kwotę podlegającą opodatkowaniu"}
+                </Text>
+                <Text style={monthChevron}>{taxableExpanded ? "⌃" : "⌄"}</Text>
+              </View>
             </Pressable>
             {taxableExpanded
               ? field("Kwota podlegająca opodatkowaniu (zł)", "taxableAmount", {
