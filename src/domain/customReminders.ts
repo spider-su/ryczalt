@@ -17,7 +17,7 @@ export function reminderOccurrenceDates(reminder: CustomReminder, now = new Date
 }
 
 export function customReminderTaskId(reminder: Pick<CustomReminder, "id" | "recurrence">, dueDate: string): string {
-  return reminder.recurrence === "ONCE" ? `CUSTOM_REMINDER:${reminder.id}` : `CUSTOM_REMINDER:${reminder.id}:${dueDate}`;
+  return `CUSTOM_REMINDER:${reminder.id}:${dueDate}`;
 }
 
 export function findCustomReminderForTask(reminders: CustomReminder[], taskId: string): CustomReminder | undefined {

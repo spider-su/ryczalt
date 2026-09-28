@@ -19,12 +19,12 @@ import {
   todayIsoDate,
   useRentalData,
 } from "../data/RentalDataProvider";
-import type { IncomeEntry } from "../model/rental";
+import type { IncomeEntry, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
 import { formatPln, formatPlnAmount, moneyToGrosz } from "../domain/ryczaltTax";
-import { decimalFromGrosz, defaultTaxableAmountGrosz, tenantMonthlyTotalGrosz } from "../domain/apartmentPayments";
+import { decimalFromGrosz, defaultTaxableAmountGrosz, tenantMonthlyTotalForMonthGrosz, tenantMonthlyTotalGrosz } from "../domain/apartmentPayments";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
 import { PeriodSelector } from "../components/PeriodSelector";
@@ -32,6 +32,8 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatPolishMonth, formatPolishMonthName, formatPolishCount, formatPlnSummary } from "../domain/presentationFormat";
 import { groupIncomeEntriesByReceivedMonth, historicalIncomeGroups, incomeEntriesForView, incomeRangeSummary, incomeViewSummary, propertiesWithIncomeInYear, rentMonthStatusRows } from "../domain/incomeHistory";
 import { toggleIncomeMonth } from "../domain/incomeHistory";
+import { closeRentalMonth } from "../domain/periodSnapshots";
+import { apartmentTermsForMonth } from "../domain/apartmentTerms";
 import { availableIncomeYears } from "../domain/dashboardPeriods";
 import {
   compareDecimalStrings,
@@ -76,6 +78,7 @@ export function IncomeScreen() {
   const currentMonth = todayIsoDate().slice(0, 7);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [historicalRangeExpanded, setHistoricalRangeExpanded] = useState(false);
+  const [expandedCurrentMonthReceipts, setExpandedCurrentMonthReceipts] = useState<string[]>([]);
   const currentYear = new Date().getFullYear();
   const incomeYears = availableIncomeYears(
     properties,
@@ -95,9 +98,22 @@ export function IncomeScreen() {
   useEffect(() => {
     setExpandedMonths([]);
     setHistoricalRangeExpanded(false);
+    setExpandedCurrentMonthReceipts([]);
   }, [taxYear, selectedPropertyId]);
   const visibleProperties = selectedPropertyId ? properties.filter((property) => property.id === selectedPropertyId) : properties;
   const rentRows = rentMonthStatusRows(visibleProperties, document?.incomeEntries ?? [], currentMonth);
+  const currentMonthEntries = useMemo(() => (document?.incomeEntries ?? [])
+    .filter((entry) => entry.receivedAt.startsWith(currentMonth))
+    .sort((left, right) => right.receivedAt.localeCompare(left.receivedAt) || right.id.localeCompare(left.id)), [document?.incomeEntries, currentMonth]);
+  const currentMonthEntriesByProperty = useMemo(() => {
+    const grouped = new Map<string, IncomeEntry[]>();
+    currentMonthEntries.forEach((entry) => {
+      const entries = grouped.get(entry.propertyId) ?? [];
+      entries.push(entry);
+      grouped.set(entry.propertyId, entries);
+    });
+    return grouped;
+  }, [currentMonthEntries]);
   const showHistoricalMonths = historyGroups.length <= 1 || historicalRangeExpanded;
   const sections = showHistoricalMonths ? historyGroups.map(({ entries, ...section }) => ({ ...section, paymentCount: entries.length, data: expandedMonths.includes(section.month) ? entries : [] })) : [];
   const summary = incomeViewSummary(orderedEntries);
@@ -108,12 +124,12 @@ export function IncomeScreen() {
     const params = route.params as { propertyId?: string; rentalMonth?: string; quickAdd?: boolean; expectedAmount?: string } | undefined;
     const property = params?.propertyId ? properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.quickAdd) {
-      const amount = params.expectedAmount ?? (property ? decimalFromGrosz(tenantMonthlyTotalGrosz(property)) : "");
+      const period = params.rentalMonth ?? todayIsoDate().slice(0, 7);
+      const amount = params.expectedAmount ?? (property ? decimalFromGrosz(tenantMonthlyTotalForMonthGrosz(property, period) ?? tenantMonthlyTotalGrosz(property)) : "");
       setEditing(null);
       setTaxableExpanded(false);
       const selected = property ?? properties[0];
-      const period = params.rentalMonth ?? todayIsoDate().slice(0, 7);
-      const taxable = selected?.taxableTreatment && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : "";
+      const taxable = selected && (apartmentTermsForMonth(selected, period)?.taxableTreatment ?? selected.taxableTreatment) && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : "";
       setDraft({ ...blankDraft(), propertyId: property?.id ?? selected?.id ?? "", amount,
         taxableAmount: taxable, rentalMonth: params.rentalMonth ?? "" });
       setModalOpen(true);
@@ -123,8 +139,9 @@ export function IncomeScreen() {
     if (!property || !params?.rentalMonth) return;
     setEditing(null);
     setTaxableExpanded(false);
-    const amount = decimalFromGrosz(tenantMonthlyTotalGrosz(property));
-    setDraft({ ...blankDraft(), propertyId: property.id, amount, taxableAmount: property.ownerRent ?? "", rentalMonth: params.rentalMonth });
+    const amount = decimalFromGrosz(tenantMonthlyTotalForMonthGrosz(property, params.rentalMonth) ?? tenantMonthlyTotalGrosz(property));
+    const terms = apartmentTermsForMonth(property, params.rentalMonth);
+    setDraft({ ...blankDraft(), propertyId: property.id, amount, taxableAmount: terms ? decimalFromGrosz(terms.ownerRentGrosz) : property.ownerRent ?? "", rentalMonth: params.rentalMonth });
     setModalOpen(true);
     navigation.setParams({ propertyId: undefined, rentalMonth: undefined });
   // Notification actions are consumed once the document has loaded.
@@ -142,8 +159,10 @@ export function IncomeScreen() {
     );
 
   const openEntryMenu = (entry: IncomeEntry) => Alert.alert("Wpłata", undefined, [
-    { text: "Edytuj", onPress: () => openEdit(entry) },
-    { text: "Usuń wpłatę", style: "destructive", onPress: () => remove(entry) },
+    ...(incomeEntryPeriodClosed(entry, document) ? [{ text: "Okres jest zamknięty", onPress: () => Alert.alert("Okres jest zamknięty", "Korekty zamkniętych okresów będą dostępne w osobnym, audytowanym przepływie.") }] : [
+      { text: "Edytuj", onPress: () => openEdit(entry) },
+      { text: "Usuń wpłatę", style: "destructive" as const, onPress: () => remove(entry) },
+    ]),
     { text: "Anuluj", style: "cancel" },
   ]);
   const openEdit = (entry: IncomeEntry) => {
@@ -178,7 +197,7 @@ export function IncomeScreen() {
       );
       return;
     }
-    if (!properties.find((property) => property.id === draft.propertyId)?.taxableTreatment && !editing) {
+    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || draft.receivedAt.slice(0, 7))?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment) && !editing) {
       Alert.alert("Ustaw sposób opodatkowania", "Wybierz go w Ustawieniach mieszkania zgodnie z warunkami umowy najmu.");
       return;
     }
@@ -215,6 +234,11 @@ export function IncomeScreen() {
         "Nieprawidłowy miesiąc",
         "Wpisz miesiąc najmu w formacie RRRR-MM.",
       );
+      return;
+    }
+    const candidatePeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
+    if ((editing && incomeEntryPeriodClosed(editing, document)) || (!editing && ((document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === draft.propertyId && snapshot.month === candidatePeriod) || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === draft.receivedAt.slice(0, 7))))) {
+      Alert.alert("Okres jest zamknięty", "Nie można zmieniać wpłat w zamkniętym okresie. Audytowane korekty historyczne będą dostępne w przyszłości.");
       return;
     }
     const selected = properties.find(
@@ -294,6 +318,10 @@ export function IncomeScreen() {
     void persist();
   };
   const remove = (entry: IncomeEntry) => {
+    if (incomeEntryPeriodClosed(entry, document)) {
+      Alert.alert("Okres jest zamknięty", "Korekty zamkniętych okresów będą dostępne w osobnym, audytowanym przepływie.");
+      return;
+    }
     if (deletingId) return;
     Alert.alert(
       "Usunąć wpłatę?",
@@ -382,13 +410,35 @@ export function IncomeScreen() {
           </Pressable>
           {taxYear === Number(currentMonth.slice(0, 4)) && rentRows.length > 0 ? <View style={[ui.card, rentStatusCard]}>
             <Text style={rentStatusHeading}>Czynsz za {formatPolishMonth(currentMonth)}</Text>
-            {rentRows.map((row) => <View key={row.propertyId} style={rentStatusRow}>
-              <View style={rentStatusTop}><Text style={rentPropertyName}>{row.address}</Text><StatusBadge label={row.status === "paid" ? "Potwierdzone" : row.status === "partial" ? "Częściowo otrzymano" : row.status === "unpaid" ? "Do potwierdzenia" : "Nieustalony"} tone={row.status === "paid" ? "positive" : row.status === "partial" || row.status === "unpaid" ? "attention" : "neutral"} /></View>
-              {row.status === "paid" ? <Text style={rentDetailText}>{formatPln(row.confirmedGrosz)}</Text>
-                : row.status === "partial" ? <><Text style={rentDetailText}>{formatPln(row.confirmedGrosz)} z {formatPln(row.expectedGrosz ?? 0)}</Text><Text style={rentDetailText}>Pozostało: {formatPln(row.remainingGrosz ?? 0)}</Text></>
-                  : row.status === "unpaid" ? <Text style={rentDetailText}>{formatPln(row.remainingGrosz ?? 0)}</Text>
-                    : <Text style={rentDetailText}>Oczekiwany czynsz: nieustalony</Text>}
-            </View>)}
+            {rentRows.map((row) => {
+              const receipts = currentMonthEntriesByProperty.get(row.propertyId) ?? [];
+              const expanded = expandedCurrentMonthReceipts.includes(row.propertyId);
+              return <View key={row.propertyId} style={rentStatusRow}>
+                <View style={rentStatusContent}>
+                  <View style={rentStatusTop}><Text style={rentPropertyName}>{row.address}</Text><StatusBadge label={row.status === "paid" ? "Potwierdzone" : row.status === "partial" ? "Częściowo otrzymano" : row.status === "unpaid" ? "Do potwierdzenia" : "Nieustalony"} tone={row.status === "paid" ? "positive" : row.status === "partial" || row.status === "unpaid" ? "attention" : "neutral"} /></View>
+                  {row.status === "paid" ? <Text style={rentDetailText}>{formatPln(row.confirmedGrosz)}</Text>
+                    : row.status === "partial" ? <><Text style={rentDetailText}>{formatPln(row.confirmedGrosz)} z {formatPln(row.expectedGrosz ?? 0)}</Text><Text style={rentDetailText}>Pozostało: {formatPln(row.remainingGrosz ?? 0)}</Text></>
+                      : row.status === "unpaid" ? <Text style={rentDetailText}>{formatPln(row.remainingGrosz ?? 0)}</Text>
+                        : <Text style={rentDetailText}>Oczekiwany czynsz: nieustalony</Text>}
+                </View>
+                {receipts.length > 0 ? <>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded }}
+                    accessibilityLabel={`${expanded ? "Ukryj" : "Pokaż"} ${formatPolishCount(receipts.length, ["wpłatę", "wpłaty", "wpłat"])} otrzymane w tym miesiącu dla ${row.address}`}
+                    onPress={() => setExpandedCurrentMonthReceipts((items) => toggleIncomeMonth(items, row.propertyId))}
+                    style={receiptDisclosure}
+                  >
+                    <Text style={receiptDisclosureText}>{expanded ? "Ukryj" : "Pokaż"} {formatPolishCount(receipts.length, ["wpłatę", "wpłaty", "wpłat"])}</Text>
+                    <Text style={monthChevron}>{expanded ? "⌃" : "⌄"}</Text>
+                  </Pressable>
+                  {expanded ? <View style={currentMonthReceiptList}>
+                    <Text style={receiptListHeading}>Wpłaty otrzymane w tym miesiącu</Text>
+                    {receipts.map((entry) => <IncomeEntryRow key={entry.id} entry={entry} propertyName={row.address} onOpen={() => openEntryMenu(entry)} />)}
+                  </View> : null}
+                </> : null}
+              </View>;
+            })}
           </View> : null}
           <IncomeHistoryChart entries={document.incomeEntries} propertyId={selectedPropertyId} year={taxYear} />
           <Text style={historyTitle}>Potwierdzone wpłaty</Text>
@@ -409,9 +459,17 @@ export function IncomeScreen() {
         renderSectionHeader={({ section }) => {
           const expanded = expandedMonths.includes(section.month);
           const amountSummary = `${formatPlnSummary(section.totalGrosz)} · ${formatPolishCount(section.paymentCount, ["wpłata", "wpłaty", "wpłat"])}`;
-          return <Pressable accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={`${formatPolishMonthName(section.month)}, ${amountSummary}`} onPress={() => setExpandedMonths((items) => toggleIncomeMonth(items, section.month))} style={monthHeader}>
-          <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonthName(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><Text style={monthChevron}>{expanded ? "⌃" : "⌄"}</Text>
-          </Pressable>;
+          const closed = (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === section.month);
+          const canClose = !selectedPropertyId && section.month < currentMonth && document.settings.settlementMode === "monthly";
+          return <View style={monthHeader}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={`${formatPolishMonthName(section.month)}, ${amountSummary}`} onPress={() => setExpandedMonths((items) => toggleIncomeMonth(items, section.month))} style={{ flex: 1, flexDirection: "row", alignItems: "center", minHeight: 48 }}>
+              <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonthName(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><Text style={monthChevron}>{expanded ? "⌃" : "⌄"}</Text>
+            </Pressable>
+            {closed ? <Text style={periodClosedLabel}>Zamknięty</Text> : canClose ? <Pressable accessibilityRole="button" accessibilityLabel={`Zamknij miesiąc ${formatPolishMonthName(section.month)}`} onPress={() => Alert.alert("Zamknąć miesiąc?", "Zapiszemy nieruchomościowe podsumowania czynszu i wynik podatku za ten miesiąc. Zamknięte okresy pozostaną bez zmian.", [
+              { text: "Anuluj", style: "cancel" },
+              { text: "Zamknij miesiąc", onPress: () => void update((current) => closeRentalMonth(current, section.month)).catch(() => Alert.alert("Nie można zamknąć miesiąca", "Sprawdź, czy okres i jego reguły podatkowe są dostępne.")) },
+            ])} style={{ paddingHorizontal: 8, paddingVertical: 10 }}><Text style={periodCloseAction}>Zamknij</Text></Pressable> : null}
+          </View>;
         }}
         renderItem={({ item }) => <IncomeEntryRow entry={item} propertyName={propertyNames.get(item.propertyId) ?? "Usunięte mieszkanie"} onOpen={() => openEntryMenu(item)} />}
         ListEmptyComponent={historyGroups.length === 0 ? <View style={emptyHistory}><Text style={emptyText}>{selectedPropertyName ? `Brak wcześniejszych potwierdzonych wpłat dla ${selectedPropertyName}.` : "Brak wcześniejszych potwierdzonych wpłat."}</Text></View> : null}
@@ -555,6 +613,12 @@ export function IncomeScreen() {
   );
 }
 
+function incomeEntryPeriodClosed(entry: IncomeEntry, document: RentalDocument) {
+  const rentalMonth = entry.rentalMonth ?? entry.receivedAt.slice(0, 7);
+  return (document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === entry.propertyId && snapshot.month === rentalMonth)
+    || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === entry.receivedAt.slice(0, 7));
+}
+
 const primaryButton = ui.primaryButton;
 const primaryText = {
   color: theme.colors.onAccent,
@@ -573,9 +637,14 @@ const summaryAmount = { color: theme.colors.textPrimary, fontSize: 30, fontWeigh
 const rentStatusCard = { marginTop: 8, padding: 14 };
 const rentStatusHeading = { color: theme.colors.textPrimary, fontSize: 15, fontWeight: "700" as const, marginBottom: 6 };
 const rentStatusRow = { borderTopWidth: 1, borderColor: theme.colors.divider, paddingVertical: 8 };
+const rentStatusContent = { paddingVertical: 2 };
 const rentPropertyName = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "600" as const };
 const rentDetailText = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 };
 const rentStatusTop = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };
+const receiptDisclosure = { minHeight: 36, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 4 };
+const receiptDisclosureText = { color: theme.colors.primary, fontSize: 12, fontWeight: "600" as const };
+const currentMonthReceiptList = { borderTopWidth: 1, borderColor: theme.colors.divider, marginTop: 4, paddingTop: 6 };
+const receiptListHeading = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const, marginBottom: 2 };
 const filterControl = { marginTop: 8, minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8, paddingHorizontal: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12 };
 const filterSelected = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, flex: 1 };
 const historyTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" as const, marginTop: 12, marginBottom: 2 };
@@ -585,6 +654,8 @@ const monthHeader = { minHeight: 58, flexDirection: "row" as const, justifyConte
 const monthLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.4 };
 const monthTotal = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "600" as const, marginTop: 3 };
 const monthChevron = { color: theme.colors.textSecondary, fontSize: 17, paddingHorizontal: 7 };
+const periodCloseAction = { color: theme.colors.primary, fontSize: 12, fontWeight: "700" as const };
+const periodClosedLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "600" as const, paddingHorizontal: 8 };
 const emptyHistory = { paddingVertical: 20 };
 const emptyText = { color: theme.colors.textSecondary, fontSize: 14 };
 const filterBackdrop = { flex: 1, justifyContent: "flex-end" as const, backgroundColor: "rgba(0,0,0,0.35)" };

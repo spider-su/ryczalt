@@ -4,7 +4,7 @@ Use this document as the default context for implementation tasks in this reposi
 
 ## Current capability snapshot (`main` and `develop`)
 
-- **Implemented:** Pulpit and three supporting tabs; schema-v7 local persistence/migrations; confirmed income and tax/bill payments; effective-month owner rent; separate tenant payment and explicit taxable-treatment settings; apartment lifecycle; historical rent bootstrap; shared tax engine and task projection; grouped rent reminders with global delay; administration/electricity links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
+- **Implemented:** Pulpit and three supporting tabs; schema-1 fresh-install local persistence; confirmed income and tax/bill payments; effective-month owner rent; separate tenant payment and explicit taxable-treatment settings; apartment lifecycle; historical rent bootstrap; shared tax engine and task projection; grouped rent reminders with global delay; administration/electricity links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
 - **Upcoming priorities:** year-to-date/annual tax and PIT-28 verification summary, and local JSON backup/restore. These are not implemented. Investory integration remains later/optional.
 
@@ -59,7 +59,7 @@ Do not introduce:
 Target responsibility split:
 
 - **Domain:** money/date rules, expected-vs-confirmed calculations, tax engine, task derivation.
-- **Application/data:** serialized document updates, migration, task interaction state, notification reconciliation.
+- **Application/data:** serialized document updates, strict document validation, task interaction state, notification reconciliation.
 - **Presentation:** forms/cards/navigation only; do not bury business calculations in screens.
 - **Infrastructure:** AsyncStorage, Expo notifications, Linking/share APIs.
 
@@ -74,7 +74,7 @@ Target responsibility split:
 - Historical tenant snapshots must not change when current tenant changes.
 - Historical expected rent must not change when the current default rent changes.
 
-Expected-vs-received views use the implemented effective-month `rentSchedule`. Do not fall back to today's rent for unknown legacy history.
+Expected-vs-received views use the implemented effective-month `rentSchedule`. Do not infer historical rent where no period terms were recorded.
 
 ## 5. Task model rules
 
@@ -205,9 +205,9 @@ If implementation pressure suggests adding one of these to solve another problem
 For every feature:
 
 1. Inspect current branch and related tests.
-2. Identify source of truth and migration impact.
+2. Identify source of truth and persisted-contract impact.
 3. Add/adjust pure domain operations first.
-4. Add persistence/migration changes with backward-compatibility tests.
+4. Keep schema-1 reads strict. Add a deliberate upgrade migration only when an installed release needs to preserve user data.
 5. Add UI.
 6. Add notification reconciliation only after domain state exists.
 7. Cover correction/deletion/failure paths, not only happy path.
@@ -233,14 +233,14 @@ At minimum consider:
 - app restart/reconciliation;
 - notification permission denied;
 - persistence failure/concurrent updates;
-- schema migration.
+- schema upgrade path (only when installed data requires it).
 
 ## 13. Release discipline
 
 Roadmap milestones are not releases. Do not bump versions or claim a feature shipped merely because its code exists on a feature branch.
 
 Before release, follow `docs/RELEASES.md`, especially:
-- local data migration;
+- local data migration, when there is a released prior schema;
 - real-device notification testing;
 - tax examples;
 - Android/iOS configuration;

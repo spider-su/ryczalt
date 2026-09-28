@@ -3,7 +3,7 @@ import { defaultTaxableAmountGrosz, tenantMonthlyTotalGrosz } from "./apartmentP
 import type { IncomeEntry, Property } from "../model/rental";
 
 const property: Property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT",
-  rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }] };
+  rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] };
 const entry = (amount: string, taxableAmount: string): IncomeEntry => ({ id: `${amount}-${taxableAmount}`, propertyId: "p1", receivedAt: "2026-09-10", rentalMonth: "2026-09", amount, taxableAmount });
 
 describe("apartment payment amounts", () => {
@@ -19,13 +19,13 @@ describe("apartment payment amounts", () => {
   });
 
   it("uses the tax-base choice independently of who pays media", () => {
-    const includeCharges = { ...property, mediaPaidByTenant: false, taxableTreatment: "RENT_AND_CHARGES" as const };
+    const includeCharges = { ...property, mediaPaidByTenant: false, taxableTreatment: "RENT_AND_CHARGES" as const, rentSchedule: property.rentSchedule?.map((rate) => ({ ...rate, taxableTreatment: "RENT_AND_CHARGES" as const })) };
     expect(defaultTaxableAmountGrosz({ property: includeCharges, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(300_000);
-    const ownerOnly = { ...property, mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT" as const };
+    const ownerOnly = { ...property, mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT" as const, rentSchedule: property.rentSchedule?.map((rate) => ({ ...rate, taxableTreatment: "OWNER_RENT" as const })) };
     expect(defaultTaxableAmountGrosz({ property: ownerOnly, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(250_000);
   });
 
   it("requires explicit treatment instead of inferring from the media toggle", () => {
-    expect(() => defaultTaxableAmountGrosz({ property: { ...property, taxableTreatment: undefined }, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toThrow("Choose the taxable rent treatment");
+    expect(() => defaultTaxableAmountGrosz({ property: { ...property, taxableTreatment: undefined, rentSchedule: property.rentSchedule?.map((rate) => ({ ...rate, taxableTreatment: undefined })) }, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toThrow("Choose the taxable rent treatment");
   });
 });

@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
-import { calculateTaxYear, formatPln, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
+import { calculateTaxYear, formatPln, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "../domain/ryczaltTax";
 import { taxSummaryForPeriod } from "../domain/taxPresentation";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
@@ -25,6 +25,9 @@ import { ProgressBar } from "../components/ProgressBar";
 import { PeriodSelector } from "../components/PeriodSelector";
 import { StatusBadge } from "../components/StatusBadge";
 import { currentRentalMonth, earliestDashboardMonth, shiftDashboardMonth } from "../domain/dashboardPeriods";
+import { lifecycleForMonth } from "../domain/apartmentLifecycle";
+import { effectivePaymentDay } from "../domain/apartmentTerms";
+import { taxSettlementFromSnapshot } from "../domain/periodSnapshots";
 
 export function PulpitScreen() {
   const { document, update, enterDemoMode } = useRentalData();
@@ -65,22 +68,31 @@ export function PulpitScreen() {
   if (!document) return <View style={ui.page} />;
   const now = new Date();
   const currentMonth = currentRentalMonth(now);
-  const earliestMonth = earliestDashboardMonth(document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE"), document.incomeEntries, now);
+  const earliestMonth = earliestDashboardMonth(document.properties, document.incomeEntries, now);
   const attention = dashboardAttentionTasks(tasks);
   const taxIssues = attention.filter((task) => task.type === "TAX_PAYMENT");
   const otherAttention = attention.filter((task) => task.type !== "TAX_PAYMENT");
   const selectedYear = Number(selectedMonth.slice(0, 4));
   const openingRevenue = selectedYear === document.settings.taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0;
   const openingTaxPaid = selectedYear === document.settings.taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0;
-  const taxCalculation = hasTaxRulesForYear(selectedYear) ? calculateTaxYear({
+  const selectedTaxSnapshot = document.taxSettlementSnapshots?.find((snapshot) => snapshot.period === selectedMonth);
+  const taxCalculation = !selectedTaxSnapshot && hasTaxRulesForYear(selectedYear) ? calculateTaxYear({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: selectedYear,
     mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: openingRevenue, openingTaxPaidGrosz: openingTaxPaid,
   }) : undefined;
-  const settlements = taxCalculation?.settlements ?? [];
-  const activeProperties = document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE"
-    && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth));
-  const monthAmounts = activeProperties.map((property) => rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now)));
+  const settlements = selectedTaxSnapshot
+    ? document.taxSettlementSnapshots!.filter((snapshot) => snapshot.rulesYear === selectedYear && snapshot.period <= selectedMonth).map((snapshot) => taxSettlementFromSnapshot(snapshot, todayIsoDate()))
+    : taxCalculation?.settlements ?? [];
+  const activeProperties = document.properties.filter((property) => (document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === property.id && snapshot.month === selectedMonth)
+    || (lifecycleForMonth(property, selectedMonth) === "ACTIVE" && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth)));
+  const monthAmounts = activeProperties.map((property) => {
+    const snapshot = document.apartmentPeriods?.find((item) => item.propertyId === property.id && item.month === selectedMonth);
+    if (!snapshot) return rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
+    const expectedGrosz = snapshot.expectedKnown && snapshot.expectedAmount !== undefined ? moneyToGrosz(snapshot.expectedAmount) : null;
+    const confirmedGrosz = moneyToGrosz(snapshot.confirmedAmount);
+    return { expectedGrosz, confirmedGrosz, remainingGrosz: expectedGrosz === null ? null : Math.max(0, expectedGrosz - confirmedGrosz), unallocatedGrosz: 0 };
+  });
   const rentExpectationKnown = monthAmounts.every((amount) => amount.expectedGrosz !== null);
   const expectedRent = monthAmounts.reduce((sum, amount) => sum + (amount.expectedGrosz ?? 0), 0);
   const remainingRent = monthAmounts.reduce((sum, amount) => {
@@ -93,7 +105,8 @@ export function PulpitScreen() {
   const currentPeriod = taxSummary.current;
   const projectedOlderPeriods = new Set(settlements.filter((item) => currentPeriodKey && item.period < currentPeriodKey && item.outstandingGrosz > 0).map((item) => item.period));
   const taxAttentionTasks = taxIssues.filter((task) => task.period !== currentPeriodKey && !projectedOlderPeriods.has(task.period ?? ""));
-  const hasOlderTaxIssue = taxSummary.previousOutstanding.count > 0 || (taxCalculation?.openingBalance.outstandingGrosz ?? 0) > 0;
+  const openingTaxOutstanding = hasTaxRulesForYear(selectedYear) ? Math.max(0, taxOnRevenue(openingRevenue, selectedYear, document.settings.jointSpouseThreshold) - openingTaxPaid) : 0;
+  const hasOlderTaxIssue = taxSummary.previousOutstanding.count > 0 || (taxCalculation?.openingBalance.outstandingGrosz ?? openingTaxOutstanding) > 0;
   const pendingRents = bulkRentItems(activeProperties, document.incomeEntries, selectedMonth, now);
   const selectedRentTotal = bulkSelectionTotal(pendingRents, bulkSelectedIds);
 
@@ -228,8 +241,9 @@ export function PulpitScreen() {
       {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : activeProperties.map((property) => {
         const amount = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
         const paymentState = rentDisplayState(amount.expectedGrosz, amount.confirmedGrosz, amount.remainingGrosz);
-        const overdueDays = paymentState.kind !== "paid" && paymentState.kind !== "unknown" && property.paymentDay ? daysOverdue(selectedMonth, property.paymentDay, now) : 0;
-        const dueDate = property.paymentDay ? rentDueIso(selectedMonth, property.paymentDay) : undefined;
+        const paymentDay = effectivePaymentDay(property, selectedMonth);
+        const overdueDays = paymentState.kind !== "paid" && paymentState.kind !== "unknown" && paymentDay ? daysOverdue(selectedMonth, paymentDay, now) : 0;
+        const dueDate = paymentDay ? rentDueIso(selectedMonth, paymentDay) : undefined;
         const checkDatePassed = Boolean(selectedMonth === todayIsoDate().slice(0, 7) && dueDate && dueDate < todayIsoDate() && paymentState.kind !== "paid");
         return <Pressable key={property.id} accessibilityRole="button" accessibilityLabel={`${property.address}, ${property.tenantName ?? ""}, ${rentStatusLabel(paymentState)}`} onPress={() => addIncome(property.id, selectedMonth)} style={[ui.card, propertyRow]}>
           <View style={compactPropertyHeader}><View style={{ flex: 1 }}><Text style={propertyName} numberOfLines={1}>{property.address}</Text>{property.tenantName ? <Text style={compactTenant} numberOfLines={1}>{property.tenantName}</Text> : null}</View>

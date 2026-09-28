@@ -28,7 +28,7 @@ describe("dashboard month periods", () => {
 
   it("does not expose months before a mid-year rental tracking start", () => {
     const properties: Property[] = [{ id: "p1", address: "Parkowa 1", rentalStartDate: "2026-03-12",
-      rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }] }];
+      rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] }];
     const openingBalanceOnly: IncomeEntry[] = [];
     const earliest = earliestDashboardMonth(properties, openingBalanceOnly, now);
     expect(earliest).toBe("2026-03");

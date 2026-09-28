@@ -126,9 +126,9 @@ describe("income history view", () => {
 
   it("projects apartment rent status for all properties without inventing income records", () => {
     const properties: Property[] = [
-      { id: "flat-a", address: "Reduta", ownerRent: "3010", rentSchedule: [{ effectiveFrom: "2026-01", amount: "3010" }] },
-      { id: "flat-b", address: "Parkowa", ownerRent: "2524", rentSchedule: [{ effectiveFrom: "2026-01", amount: "2524" }] },
-      { id: "flat-c", address: "Lipowa", ownerRent: "1700", rentSchedule: [{ effectiveFrom: "2026-01", amount: "1700" }] },
+      { id: "flat-a", address: "Reduta", ownerRent: "3010", rentSchedule: [{ effectiveFrom: "2026-01", amount: "3010", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] },
+      { id: "flat-b", address: "Parkowa", ownerRent: "2524", rentSchedule: [{ effectiveFrom: "2026-01", amount: "2524", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] },
+      { id: "flat-c", address: "Lipowa", ownerRent: "1700", rentSchedule: [{ effectiveFrom: "2026-01", amount: "1700", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] },
     ];
     const receipts = [
       { ...entry("reduta", "flat-a", "2026-10-02", "3010"), rentalMonth: "2026-09", taxableAmount: "2800" },

@@ -9,25 +9,26 @@ import { summarizeRentMonth } from "./reminders";
 import { deriveTasks, taskNotificationPlan } from "./tasks";
 
 const fixture = (): RentalDocument => ({
-  schemaVersion: 7,
+  schemaVersion: 1,
   properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 30,
-    rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00" }], leaseEndDate: "2026-12-31" }],
+    rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 30 }], leaseEndDate: "2026-12-31" }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "1000.00", taxableAmount: "300.00" }],
   taxPayments: [], recurringBills: [{ id: "b1", propertyId: "p1", name: "Prąd", reminderEnabled: true, dueDay: 15, variableAmount: true }],
-  billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
+  billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
     reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 0 },
 });
 
 describe("task reminders and payment details", () => {
   it("groups properties due on the same day and keeps different due days separate", () => {
     const doc = fixture();
-    doc.properties.push({ id: "p2", address: "Mogilska 12 / 8", ownerRent: "1800.00", paymentDay: 30, rentSchedule: [{ effectiveFrom: "2026-01", amount: "1800.00" }] });
+    doc.properties.push({ id: "p2", address: "Mogilska 12 / 8", ownerRent: "1800.00", paymentDay: 30, rentSchedule: [{ effectiveFrom: "2026-01", amount: "1800.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 30 }] });
     const now = new Date(2026, 8, 1, 8);
     const september = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:2026-09:"));
     expect(september).toHaveLength(1);
     expect(september[0]?.body).toContain("Parkowa, Mogilska 12 / 8");
     doc.properties[1]!.paymentDay = 25;
+    doc.properties[1]!.rentSchedule![0]!.paymentDay = 25;
     const split = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:2026-09:"));
     expect(split).toHaveLength(2);
   });
@@ -42,6 +43,7 @@ describe("task reminders and payment details", () => {
     const doc = fixture();
     const now = new Date(2026, 0, 1, 8);
     doc.properties[0]!.paymentDay = 31;
+    doc.properties[0]!.rentSchedule![0]!.paymentDay = 31;
     const plan = taskNotificationPlan(doc, now);
     const rent = plan.find((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"));
     expect(rent?.fireAt).toEqual(new Date(2026, 0, 31, 9));

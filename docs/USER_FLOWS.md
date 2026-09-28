@@ -22,7 +22,7 @@ Configured recurring bill and apartment → if fixed, show expected amount and t
 
 ## 4. Agreement expiration
 
-Optional end date → reminders at configured offsets → tap opens apartment agreement section → user can change date on renewal, snooze, dismiss or mark task handled. Changing date cancels stale schedules; indefinite agreement has no expiration task. Legacy tenancy start is not an end date.
+Optional end date → reminders at configured offsets → tap opens apartment agreement section → user can change date on renewal, snooze, dismiss or mark task handled. Changing date cancels stale schedules; indefinite agreement has no expiration task. Rental start and agreement end are separate dates.
 
 ## 5. Personal reminder
 

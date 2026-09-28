@@ -24,17 +24,17 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
   const properties: Property[] = [
     {
       id: "demo-piotrkowska", address: "ul. Piotrkowska 18 / 7, Łódź", lifecycle: "ACTIVE", rentalStartDate: `${supportedYear}-01-01`,
-      ownerRent: "2700", rentSchedule: [{ effectiveFrom: `${supportedYear}-01`, amount: "2700" }],
+      ownerRent: "2700", rentSchedule: [{ effectiveFrom: `${supportedYear}-01`, amount: "2700", mediaAmount: "910", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT", paymentDay: 5 }],
       mediaAmount: "910", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT", tenantName: "Zofia Kowalska", tenantPhone: "+48 600 123 456",
-      tenantEmail: "zofia@example.com", tenantSince: `${supportedYear}-01-01`, leaseEndDate,
+      tenantEmail: "zofia@example.com", leaseEndDate,
       paymentDay: 5, administrationName: "Administracja Piotrkowska", administrationUrl: "https://example.com/piotrkowska",
       electricityProvider: "TAURON",
     },
     {
       id: "demo-mogilska", address: "Mogilska 12 / 8", lifecycle: "ACTIVE", rentalStartDate: `${supportedYear}-02-01`,
-      ownerRent: "3200", rentSchedule: [{ effectiveFrom: `${supportedYear}-02`, amount: "3200" }],
+      ownerRent: "3200", rentSchedule: [{ effectiveFrom: `${supportedYear}-02`, amount: "3200", mediaAmount: "650", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT", paymentDay: 5 }],
       mediaAmount: "650", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT", tenantName: "Marek Wiśniewski", tenantPhone: "+48 600 987 654",
-      tenantEmail: "marek@example.com", tenantSince: `${supportedYear}-02-01`, leaseEndDate,
+      tenantEmail: "marek@example.com", leaseEndDate,
       paymentDay: 5, administrationName: "Administracja Mogilska", electricityProvider: "PGE",
     },
   ];
@@ -68,12 +68,12 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
       amount: (settlement.obligationGrosz / 100).toFixed(2),
     }));
   return {
-    schemaVersion: 7, properties, incomeEntries, taxPayments, recurringBills: [], billPayments: [], propertyLinks: [],
+    schemaVersion: 1, properties, incomeEntries, taxPayments, recurringBills: [], billPayments: [], apartmentPeriods: [], taxSettlementSnapshots: [],
     administrationSuggestions: [],
     customReminders: [{ id: "demo-reminder-inspection", title: "Przegląd mieszkania", propertyId: "demo-piotrkowska", dueDate: monthDay(monthShift(currentMonth, 1), 12), note: "Umów dogodny termin", recurrence: "ONCE" }],
     taskStates: [],
     settings: {
-      taxYear: supportedYear, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
+      taxYear: supportedYear, settlementMode: "monthly", jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1,
       taxRecipientName: "Urząd Skarbowy Kraków", taxMicroAccount: "12 1010 1270 0000 0000 0000 0000",
     },

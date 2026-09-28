@@ -22,7 +22,7 @@ Each apartment therefore stores an explicit `taxableTreatment`, independent of `
 - `OWNER_RENT`: cap taxable receipts for the rental month at the scheduled owner's rent, carrying that cap across partial receipts.
 - `RENT_AND_CHARGES`: treat the full confirmed receipt as taxable.
 
-The landlord must choose based on the actual agreement and payment arrangement. The labels are calculation choices, not statements that one option is universally correct. A migrated apartment without a confirmed choice cannot create new receipt tax amounts until the landlord selects one. Existing confirmed `IncomeEntry.taxableAmount` values are retained unchanged; migrations do not recalculate them.
+The landlord must choose based on the actual agreement and payment arrangement. The labels are calculation choices, not statements that one option is universally correct. An apartment without a confirmed choice cannot create new receipt tax amounts until the landlord selects one. Confirmed `IncomeEntry.taxableAmount` values are saved facts and are not recalculated when rent terms change.
 
 This single rule is applied by `defaultTaxableAmountGrosz` to individual confirmations, bulk confirmations and historical imports. `mediaPaidByTenant` controls expected tenant rent only; it does not decide taxable treatment. Users may edit an existing confirmed receipt's taxable amount as a correction, and that stored amount remains the tax engine input.
 
@@ -40,7 +40,7 @@ The Ministry of Finance specifies payment by the 20th of the following month for
 
 The Ministry specifies **PPE** as the payment form symbol for interim monthly/quarterly rental ryczałt and PIT-28 for annual return tax. The app shows PPE, the selected human-readable settlement period, the due date and configured micro-account. It does not invent a bank-specific period code or generate a payment QR. Users must verify payment details with their bank and tax account. PPE guidance is not annual filing support.
 
-Quarterly settlement appears only after the user confirms eligibility. One statutory eligibility path uses a previous-year revenue ceiling of EUR 200,000; the PLN equivalent is year-specific (PLN 856,920 for 2025; PLN 851,720 for 2026). The app does not validate every condition. Confirm current limits and eligibility before selecting quarterly settlement.
+The app supports monthly settlement only. Quarterly settlement is not offered or selectable.
 
 Tax payments do not change income or tax obligations. Recorded payments allocate oldest outstanding period first, with excess carried as credit into later periods. Opening taxable revenue and paid tax are aggregate prior-to-tracking context: any difference is displayed separately and is not assigned a fabricated month or deadline.
 

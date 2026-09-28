@@ -6,7 +6,7 @@
 
 `TENANT_PAYMENT_CHECK`, `TAX_PAYMENT`, `RECURRING_BILL`, `RENTAL_AGREEMENT_END`, `CUSTOM_REMINDER`.
 
-Stable identity: category + source ID + relevant rental/tax/bill period or agreement event. Personal reminder occurrences use `CUSTOM_REMINDER:<id>:<YYYY-MM-DD>`; one-time reminders retain the legacy `CUSTOM_REMINDER:<id>` identity so existing completion/snooze state survives migration. Avoid duplicate instances after restart.
+Stable identity: category + source ID + relevant rental/tax/bill period or agreement event. Personal reminder occurrences use `CUSTOM_REMINDER:<id>:<YYYY-MM-DD>`, including one-time reminders. Avoid duplicate instances after restart.
 
 ## Lifecycle
 
@@ -20,11 +20,11 @@ Financial task completion is derived from manually confirmed records. A fixed re
 
 ## Reconciliation
 
-Project reminders from current domain records → compare desired future notifications to scheduled stable keys/signatures → cancel obsolete and duplicate entries and schedule missing ones. Reconcile after permission grant, data/preferences changes, app restart and foreground resume. Avoid duplicates and past schedules; fire at 09:00 device-local time and recalculate on resume after timezone/DST changes. Rent reminders are derived from payment days, use the global `rentReminderDelayDays` preference (0–30; existing users migrate to 1), and are grouped into one notification per due date; the body lists all active apartment addresses due that day. Paused and archived apartments generate no rent/agreement tasks or reminders. Rent and bill due days clamp to shorter months. Agreement reminders use a fixed 30-day lead time.
+Project reminders from current domain records → compare desired future notifications to scheduled stable keys/signatures → cancel obsolete and duplicate entries and schedule missing ones. Reconcile after permission grant, data/preferences changes, app restart and foreground resume. Avoid duplicates and past schedules; fire at 09:00 device-local time and recalculate on resume after timezone/DST changes. Rent reminders are derived from payment days, use the global `rentReminderDelayDays` preference (0–30; new documents start at 1), and are grouped into one notification per due date; the body lists all active apartment addresses due that day. Paused and archived apartments generate no rent/agreement tasks or reminders. Rent and bill due days clamp to shorter months. Agreement reminders use a fixed 30-day lead time.
 
 ## Navigation and permissions
 
-Notification tap maps to contextual apartment/month, tax period, bill settings, agreement settings or the custom task on Pulpit. Rent quick-add prefills the expected tenant total and uses the apartment's explicit `taxableTreatment`; migrated apartments without a selected treatment must be updated before a new receipt can be confirmed. Global categories and per-bill reminder switches control OS scheduling; there are no per-apartment rent reminder switches. Schema migration maps all-enabled legacy apartment reminders to enabled, all-disabled to disabled, and mixed/missing legacy preferences to disabled because the new category is global. Disabling a schedule does not hide its task from Pulpit. Denied permission leaves in-app reminders/status available. Expo Web does not schedule OS notifications. Delivery remains subject to OS scheduling constraints and needs device verification.
+Notification tap maps to contextual apartment/month, tax period, bill settings, agreement settings or the custom task on Pulpit. Rent quick-add prefills the expected tenant total and uses the apartment's explicit `taxableTreatment`; a property without a selected treatment must be updated before a new receipt can be confirmed. Global categories and per-bill reminder switches control OS scheduling; there are no per-apartment rent reminder switches. Disabling a schedule does not hide its task from Pulpit. Denied permission leaves in-app reminders/status available. Expo Web does not schedule OS notifications. Delivery remains subject to OS scheduling constraints and needs device verification.
 
 OS notification title/body use generic wording; never put tenant, property, bill, reminder-note, tax or payment amounts in lock-screen text. Context needed after a tap stays in the local notification data. Invalid, incomplete or unknown payloads must not navigate. These guarantees are covered by domain/mapping tests; actual OS delivery and tap behavior still require the manual Android checklist.
 

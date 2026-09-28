@@ -21,6 +21,8 @@ import { ProgressBar } from "../components/ProgressBar";
 import { PeriodSelector } from "../components/PeriodSelector";
 import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
+import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
+import { historicalTaxPaymentsForImportedRent } from "../domain/historicalRentBootstrap";
 
 export function TaxScreen() {
   const { document, error, update } = useRentalData();
@@ -33,12 +35,15 @@ export function TaxScreen() {
   const [saving, setSaving] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
+  const [previousTaxPaid, setPreviousTaxPaid] = useState<boolean | null>(null);
   const settlementMode = document?.settings.settlementMode ?? "monthly";
   const now = new Date();
   const currentYearStart = `${now.getFullYear()}-01`;
   const earliestMonth = document ? earliestDashboardMonth(document.properties, document.incomeEntries, now, currentYearStart) : currentYearStart;
   const earliestPeriod = document ? settlementPeriodForMonth(earliestMonth, settlementMode) ?? currentYearStart : currentYearStart;
   const taxYear = Number(selectedPeriod.slice(0, 4));
+  const persistedTaxSnapshot = document?.taxSettlementSnapshots?.find((snapshot) => snapshot.period === selectedPeriod);
   const calculation = useMemo(() => document && hasTaxRulesForYear(taxYear) ? calculateTaxYear({
     entries: document.incomeEntries,
     payments: document.taxPayments,
@@ -47,13 +52,8 @@ export function TaxScreen() {
     jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
     openingTaxPaidGrosz: document.settings.taxYear === taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
-  }) : undefined, [document, taxYear]);
+  }) : undefined, [document, taxYear, persistedTaxSnapshot]);
   const settlements = calculation?.settlements ?? [];
-  useEffect(() => {
-    if (document?.settings.settlementMode === "quarterly" && /^\d{4}-\d{2}$/.test(selectedPeriod)) {
-      setSelectedPeriod((period) => settlementPeriodForMonth(period, "quarterly") ?? period);
-    }
-  }, [document, selectedPeriod]);
   useEffect(() => {
     const period = (route.params as { period?: string } | undefined)?.period;
     if (!document || !period) return;
@@ -69,17 +69,64 @@ export function TaxScreen() {
   if (!document) return error
     ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text></View>
     : <ActivityIndicator style={{ flex: 1 }} />;
-  const activeIndex = settlements.findIndex((item) => item.period === selectedPeriod);
-  const settlement = activeIndex < 0 ? undefined : settlements[activeIndex];
+  const settlement = persistedTaxSnapshot ? taxSettlementFromSnapshot(persistedTaxSnapshot, todayIsoDate()) : settlements.find((item) => item.period === selectedPeriod);
   const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
   const openPayment = (payment?: TaxPayment) => {
+    if (payment && document.taxSettlementSnapshots?.some((snapshot) => snapshot.period === payment.period)) {
+      Alert.alert("Okres podatkowy jest zamknięty", "Nie można edytować ani usuwać zapisanej wpłaty z zamkniętego okresu. Korekty historyczne są zaplanowane na później.");
+      return;
+    }
     setEditing(payment ?? null);
     setPaymentDraft(payment
       ? { amount: payment.amount, paidAt: payment.paidAt }
       : { amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
     setModalOpen(true);
+  };
+  const priorPeriods = settlements.filter((item) => item.period < selectedPeriod);
+  const priorSnapshots = new Map((document.taxSettlementSnapshots ?? []).filter((item) => item.rulesYear === taxYear && item.period < selectedPeriod).map((item) => [item.period, item]));
+  const priorRevenueGrosz = (calculation?.openingBalance.taxableRevenueGrosz ?? 0) + priorPeriods.reduce((sum, item) => sum + item.revenueGrosz, 0);
+  const priorObligationGrosz = priorPeriods.reduce((sum, item) => sum + moneyToGrosz(priorSnapshots.get(item.period)?.obligation ?? decimalFromGrosz(item.obligationGrosz)), 0);
+  const priorPaidGrosz = (calculation?.openingBalance.paidTaxGrosz ?? 0) + document.taxPayments.filter((item) => item.period < selectedPeriod && item.period.startsWith(`${taxYear}-`)).reduce((sum, item) => sum + moneyToGrosz(item.amount), 0);
+  const priorOutstandingGrosz = priorPeriods.reduce((sum, item) => sum + moneyToGrosz(priorSnapshots.get(item.period)?.outstanding ?? decimalFromGrosz(item.outstandingGrosz)), 0);
+  const hasTaxYearPayment = document.taxPayments.some((item) => item.period.startsWith(`${taxYear}-`)) || (calculation?.openingBalance.paidTaxGrosz ?? 0) > 0;
+  const hasEarlierRentalPeriods = document.properties.some((property) => {
+    const hasConfiguredRent = Boolean(property.ownerRent || property.rentSchedule?.length);
+    const startMonth = property.rentalStartDate?.slice(0, 7) ?? property.rentSchedule?.[0]?.effectiveFrom ?? `${taxYear}-01`;
+    return hasConfiguredRent && startMonth < selectedPeriod;
+  });
+  const openPaymentWithHistoryReview = () => {
+    if (!hasTaxYearPayment && (priorRevenueGrosz > 0 || hasEarlierRentalPeriods)) {
+      setPreviousTaxPaid(null);
+      setHistoryReviewOpen(true);
+      return;
+    }
+    openPayment();
+  };
+  const continueAfterHistoryReview = async () => {
+    if (previousTaxPaid === null) return;
+    setSaving(true);
+    try {
+      if (previousTaxPaid) {
+        const periodsBeforeCurrent = new Set(priorPeriods.filter((item) => !priorSnapshots.has(item.period)).map((item) => item.period));
+        const historicalEntries = document.incomeEntries.filter((item) => item.receivedAt.startsWith(`${taxYear}-`) && item.receivedAt.slice(0, 7) < selectedPeriod);
+        const estimatedPayments = historicalTaxPaymentsForImportedRent(document, historicalEntries, true).filter((payment) => periodsBeforeCurrent.has(payment.period));
+        const confirmedOpeningTaxPaid = document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue && calculation
+          ? decimalFromGrosz(calculation.openingBalance.calculatedTaxGrosz)
+          : undefined;
+        if (estimatedPayments.length || confirmedOpeningTaxPaid !== undefined) {
+          await update((current) => ({
+            ...current,
+            taxPayments: [...current.taxPayments.filter((payment) => !estimatedPayments.some((item) => item.id === payment.id)), ...estimatedPayments],
+            ...(confirmedOpeningTaxPaid !== undefined ? { settings: { ...current.settings, openingTaxPaid: confirmedOpeningTaxPaid } } : {}),
+          }));
+        }
+      }
+      setHistoryReviewOpen(false);
+      openPayment();
+    } catch { /* The provider reports persistence errors. */ }
+    finally { setSaving(false); }
   };
   const savePayment = async () => {
     const amount = paymentDraft.amount.trim().replace(",", ".");
@@ -91,7 +138,7 @@ export function TaxScreen() {
     const next: TaxPayment = { id: editing?.id ?? createId("tax"), period: settlement.period, paidAt: paymentDraft.paidAt, amount };
     setSaving(true);
     try {
-      await update((current) => upsertTaxPayment(current, next));
+      await update((current) => refreshSavedTaxSettlementsAfterPayment(upsertTaxPayment(current, next), settlement.period));
       setModalOpen(false);
       setEditing(null);
     } catch { /* The provider reports persistence failure. */ }
@@ -99,7 +146,7 @@ export function TaxScreen() {
   };
   const deletePayment = (payment: TaxPayment) => Alert.alert("Usunąć potwierdzenie wpłaty?", `${formatPlnAmount(payment.amount)} z dnia ${formatPolishDate(payment.paidAt, "long")}.`, [
     { text: "Anuluj", style: "cancel" },
-    { text: "Usuń", style: "destructive", onPress: () => void update((current) => removeTaxPayment(current, payment.id)).catch(() => undefined) },
+    { text: "Usuń", style: "destructive", onPress: () => void update((current) => refreshSavedTaxSettlementsAfterPayment(removeTaxPayment(current, payment.id), payment.period)).catch(() => undefined) },
   ]);
   const annualIncome = annualRentalIncome(document.incomeEntries, taxYear, document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0);
   const annualThreshold = annualRentalThreshold(taxYear, document.settings.jointSpouseThreshold);
@@ -147,21 +194,42 @@ export function TaxScreen() {
           {calculation.openingBalance.overpaidGrosz > 0 ? <Text style={taxContext}>Nadpłata stanu początkowego: {formatPln(calculation.openingBalance.overpaidGrosz)}. Nie przypisano jej do miesięcznego okresu.</Text> : null}
         </View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Dane do przelewu. ${TAX_TRANSFER_HINT}`} onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><View><Text style={transferTitle}>Dane do przelewu</Text><Text style={transferHint}>{TAX_TRANSFER_HINT}</Text></View><Text style={action}>›</Text></Pressable>
-        {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={() => openPayment()} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
+        {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
         <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 15 }}>Przychód opodatkowany w {taxYear}</Text>
         <Text style={taxContext}>{formatPln(annualIncome)} / próg stawki 12,5% {annualThreshold > 0 ? formatPln(annualThreshold) : "niedostępny"}</Text>
         {annualThreshold > 0 ? <Text style={thresholdRemaining}>Do progu stawki 12,5%: {formatPln(remainingThreshold)}</Text> : null}
         {annualThreshold > 0 ? <View style={{ marginTop: 8 }}><ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Wykorzystanie progu stawki 12,5%" /></View> : null}
         {payments.length ? <><Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>{TAX_PAYMENT_ALLOCATION_HINT}</Text></> : null}
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}><Pressable accessibilityRole="button" onPress={() => openPayment(payment)} style={secondaryPaymentAction}><Text style={secondaryPaymentActionText}>Popraw</Text></Pressable><Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable></View>
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
+          {payment.source === "INITIAL_IMPORT" ? <Text style={taxContext}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
+          {persistedTaxSnapshot ? <Text style={taxHint}>Okres zamknięty · korekta wpłaty niedostępna</Text> : <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}><Pressable accessibilityRole="button" onPress={() => openPayment(payment)} style={secondaryPaymentAction}><Text style={secondaryPaymentActionText}>Popraw</Text></Pressable><Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable></View>}
         </View>)}
       </>}
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
       <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek? {infoOpen ? "⌃" : "›"}</Text></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
+    <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={() => setHistoryReviewOpen(false)}>
+      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700", flex: 1 }}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={() => setHistoryReviewOpen(false)} style={action}>Zamknij</Text></View>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w zakładce Przychód przed kontynuacją.</Text>
+          <View style={[ui.card, { marginTop: 16, padding: 16, gap: 8 }]}>
+            <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Od początku {taxYear}, przed okresem {taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}</Text>
+            <Text style={taxContext}>Przychód opodatkowany: {formatPln(priorRevenueGrosz)}</Text>
+            <Text style={taxContext}>Wyliczony podatek: {formatPln(priorObligationGrosz)}</Text>
+            <Text style={taxContext}>Zapisane wpłaty podatku: {formatPln(priorPaidGrosz)}</Text>
+            <Text style={{ color: priorOutstandingGrosz > 0 ? theme.colors.warning : theme.colors.success, fontWeight: "700" }}>Pozostało według zapisanych danych: {formatPln(priorOutstandingGrosz)}</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => { setHistoryReviewOpen(false); navigation.navigate("Przychód"); }} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 16, marginTop: 12 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600", textAlign: "center" }}>Sprawdź lub popraw wpływy</Text></Pressable>
+          <Text style={[fieldLabel, { marginTop: 20 }]}>Czy wcześniejszy podatek za ten rok został zapłacony?</Text>
+          {([{ value: true, title: "Tak, zapłaciłem" }, { value: false, title: "Nie, pozostał do zapłaty" }] as const).map((option) => <Pressable key={String(option.value)} accessibilityRole="radio" accessibilityState={{ checked: previousTaxPaid === option.value }} onPress={() => setPreviousTaxPaid(option.value)} style={[ui.card, { padding: 14, marginTop: 8, borderColor: previousTaxPaid === option.value ? theme.colors.selectedBorder : theme.colors.borderSubtle, flexDirection: "row", alignItems: "center", gap: 10 }]}><Text style={{ color: theme.colors.primary, fontWeight: "700" }}>{previousTaxPaid === option.value ? "◉" : "○"}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{option.title}</Text></Pressable>)}
+          <Text style={[taxHint, { marginTop: 10 }]}>Przy odpowiedzi „Tak” dodamy szacowane wpłaty dla wcześniejszych okresów, aby zachować je w historii. Daty będą odpowiadać terminom płatności. Przy odpowiedzi „Nie” starsze kwoty pozostaną nieopłacone.</Text>
+          <Pressable accessibilityRole="button" disabled={previousTaxPaid === null || saving} onPress={() => void continueAfterHistoryReview()} style={[primaryButton, { marginTop: 16 }, (previousTaxPaid === null || saving) && { opacity: 0.5 }]}><Text style={primaryText}>Dalej do potwierdzenia bieżącej wpłaty</Text></Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
     <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>{editing ? "Popraw potwierdzenie" : "Potwierdź wykonaną wpłatę"}</Text><Text accessibilityRole="button" onPress={() => setModalOpen(false)} style={action}>Zamknij</Text></View>

@@ -1,6 +1,7 @@
 import type { IncomeEntry, Property } from "../model/rental";
 import { ownerRentForMonth } from "./rentAllocation";
 import { moneyToGrosz } from "./ryczaltTax";
+import { apartmentTermsForMonth } from "./apartmentTerms";
 
 export function tenantMonthlyTotalGrosz(property: Pick<Property, "ownerRent" | "mediaAmount" | "mediaPaidByTenant">): number {
   const owner = property.ownerRent ? moneyToGrosz(property.ownerRent) : 0;
@@ -8,6 +9,14 @@ export function tenantMonthlyTotalGrosz(property: Pick<Property, "ownerRent" | "
   const total = owner + media;
   if (!Number.isSafeInteger(total)) throw new Error("Tenant monthly amount is too large");
   return total;
+}
+
+export function tenantMonthlyTotalForMonthGrosz(property: Property, month: string): number | null {
+  const terms = apartmentTermsForMonth(property, month);
+  if (!terms) return null;
+  const amount = terms.ownerRentGrosz + (terms.mediaPaidByTenant ? terms.mediaAmountGrosz : 0);
+  if (!Number.isSafeInteger(amount)) throw new Error("Tenant monthly amount is too large");
+  return amount;
 }
 
 export function decimalFromGrosz(grosz: number): string {
@@ -24,9 +33,11 @@ export function defaultTaxableAmountGrosz(args: {
   now?: Date;
 }): number {
   const { property, amountGrosz, rentalMonth, priorEntries, now = new Date() } = args;
-  if (!property.taxableTreatment) throw new Error("Choose the taxable rent treatment before confirming a receipt");
-  if (property.taxableTreatment === "RENT_AND_CHARGES") return amountGrosz;
-  const ownerRent = ownerRentForMonth(property, rentalMonth, now) ?? (property.ownerRent ? moneyToGrosz(property.ownerRent) : 0);
+  const terms = apartmentTermsForMonth(property, rentalMonth);
+  const taxableTreatment = terms?.taxableTreatment ?? property.taxableTreatment;
+  if (!taxableTreatment) throw new Error("Choose the taxable rent treatment before confirming a receipt");
+  if (taxableTreatment === "RENT_AND_CHARGES") return amountGrosz;
+  const ownerRent = terms?.ownerRentGrosz ?? ownerRentForMonth(property, rentalMonth, now) ?? (property.ownerRent ? moneyToGrosz(property.ownerRent) : 0);
   const alreadyTaxable = priorEntries.filter((entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === rentalMonth)
     .reduce((total, entry) => total + moneyToGrosz(entry.taxableAmount), 0);
   return Math.min(amountGrosz, Math.max(0, ownerRent - alreadyTaxable));

@@ -1,5 +1,7 @@
 # Final POC Correctness Review
 
+> Historical review snapshot. Its migration notes describe code at the time of that review and are superseded by the current fresh-install schema-1 contract in [DATA_MODEL.md](DATA_MODEL.md). No prior schema adapter is currently shipped because the app has not been installed on user devices.
+
 ## Executive result
 
 **NOT READY** — code and automated validation are complete, but the required Android smoke test did not complete. The attempted apartment entry left the rent field at its placeholder value; save correctly rejected the apartment. No application defect was established by this interaction. Per the emulator smoke procedure, testing stopped at the first failed scenario and the emulator state/evidence were preserved. Rerun the smoke with rent entered explicitly before starting the clean acceptance run.
@@ -10,7 +12,7 @@
 
 Status: **FIXED**
 
-`Property.taxableTreatment` requires an explicit `OWNER_RENT` or `RENT_AND_CHARGES` choice. `defaultTaxableAmountGrosz()` is the single domain policy used by normal, bulk, and historical confirmations. `mediaPaidByTenant` does not select the tax treatment. Existing receipt taxable amounts remain stored facts through migration. See [TAX_RULES.md](TAX_RULES.md) and tests in `apartmentPayments`, `bulkRentConfirmation`, `historicalRentBootstrap`, and `localRentalStore`.
+`Property.taxableTreatment` requires an explicit `OWNER_RENT` or `RENT_AND_CHARGES` choice. `defaultTaxableAmountGrosz()` is the single domain policy used by normal, bulk, and historical confirmations. `mediaPaidByTenant` does not select the tax treatment. Confirmed receipt taxable amounts remain saved facts when rent terms change. See [TAX_RULES.md](TAX_RULES.md) and tests in `apartmentPayments`, `bulkRentConfirmation`, and `historicalRentBootstrap`.
 
 ### Invented lease-end dates
 

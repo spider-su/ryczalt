@@ -1,8 +1,10 @@
 import { calculateSettlements, formatPln, hasTaxRulesForYear, moneyToGrosz } from "./ryczaltTax";
+import { taxSettlementFromSnapshot } from "./periodSnapshots";
 import { customReminderTaskId, recurrenceLabel, reminderOccurrenceDates } from "./customReminders";
 import type { RentalDocument, TaskState } from "../model/rental";
 import { rentMonthAmounts } from "./rentAllocation";
 import { formatPolishDate, formatPolishMonth } from "./presentationFormat";
+import { effectivePaymentDay } from "./apartmentTerms";
 export { expectedRentForMonth, rentMonthAmounts } from "./rentAllocation";
 
 export type TaskType = "TENANT_PAYMENT_CHECK" | "TAX_PAYMENT" | "RECURRING_BILL" | "RENTAL_AGREEMENT_END" | "CUSTOM_REMINDER";
@@ -45,12 +47,13 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   const current = monthOf(now);
   for (const property of document.properties) {
     if ((property.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
-    if (property.paymentDay) {
+    const dueDay = effectivePaymentDay(property, current);
+    if (dueDay) {
       for (let offset = -2; offset <= 6; offset++) {
         const period = shiftMonth(current, offset);
         const amounts = rentMonthAmounts(property, document.incomeEntries, period, now);
         if (amounts.expectedGrosz === null || amounts.expectedGrosz === 0 || amounts.remainingGrosz === null) continue;
-        const dueAt = paymentDay(period, property.paymentDay);
+        const dueAt = paymentDay(period, effectivePaymentDay(property, period));
         const notificationAt = addDays(dueAt, document.settings.rentReminderDelayDays);
         const remaining = amounts.remainingGrosz;
         const done = remaining === 0;
@@ -75,12 +78,15 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   }
 
   if (hasTaxRulesForYear(document.settings.taxYear)) {
-    const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
-      taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
-      jointSpouseThreshold: document.settings.jointSpouseThreshold,
-      openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
-      openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
-      today: localIso(now) });
+    const savedTaxPeriods = (document.taxSettlementSnapshots ?? []).filter((snapshot) => snapshot.rulesYear === document.settings.taxYear);
+    const settlements = savedTaxPeriods.length
+      ? savedTaxPeriods.map((snapshot) => taxSettlementFromSnapshot(snapshot, localIso(now)))
+      : calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
+        taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
+        jointSpouseThreshold: document.settings.jointSpouseThreshold,
+        openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
+        openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
+        today: localIso(now) });
     for (const settlement of settlements) {
       if (settlement.obligationGrosz <= 0) continue;
       const dueAt = localDate(settlement.dueDate);

@@ -24,7 +24,7 @@ describe("deriveSetupProgress", () => {
   });
 
   it("counts an effective rent schedule as configured expected rent", () => {
-    const document = emptyDocument(); document.properties = [apartment({ rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }], paymentDay: 10 })];
+    const document = emptyDocument(); document.properties = [apartment({ rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }], paymentDay: 10 })];
     expect(deriveSetupProgress(document)).toMatchObject({ totalRequiredSteps: 3, completedRequiredSteps: 3, showGuidance: false, nextAction: null });
   });
 
