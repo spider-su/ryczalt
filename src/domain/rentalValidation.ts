@@ -1,5 +1,4 @@
 import type { IncomeEntry, Property, RentalDocument } from "../model/rental";
-import { SUPPORTED_TAX_YEARS } from "./ryczaltTax";
 
 export const RENTAL_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const DECIMAL_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
@@ -127,12 +126,12 @@ export function validateIncomeValues(
 export function validateRentalDocumentShape(
   document: RentalDocument,
 ): RentalDocument {
-  if (document.schemaVersion !== 6)
+  if (document.schemaVersion !== 7)
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
-  if (!SUPPORTED_TAX_YEARS.includes(document.settings.taxYear as (typeof SUPPORTED_TAX_YEARS)[number]))
-    throw new RentalValidationError("Tax year is not supported.");
+  if (document.settings.taxYear < 2025 || document.settings.taxYear > new Date().getFullYear())
+    throw new RentalValidationError("Tax year is outside the available calendar range.");
   if (!Number.isInteger(document.settings.rentReminderDelayDays) || document.settings.rentReminderDelayDays < 0 || document.settings.rentReminderDelayDays > 30)
     throw new RentalValidationError("Rent reminder delay is invalid.");
   for (const amount of [document.settings.openingTaxableRevenue, document.settings.openingTaxPaid]) {
@@ -155,6 +154,7 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Owner rent is invalid.");
     if (property.mediaAmount && !isNonnegativeMoney(property.mediaAmount)) throw new RentalValidationError("Media amount is invalid.");
     if (property.mediaPaidByTenant !== undefined && typeof property.mediaPaidByTenant !== "boolean") throw new RentalValidationError("Media payment responsibility is invalid.");
+    if (property.taxableTreatment !== undefined && property.taxableTreatment !== "OWNER_RENT" && property.taxableTreatment !== "RENT_AND_CHARGES") throw new RentalValidationError("Taxable rent treatment is invalid.");
     if (property.leaseEndDate && !isValidCalendarDate(property.leaseEndDate))
       throw new RentalValidationError("Rental agreement end date is invalid.");
     if (property.paymentDay !== undefined && (!Number.isInteger(property.paymentDay) || property.paymentDay < 1 || property.paymentDay > 31))

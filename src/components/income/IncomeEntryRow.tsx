@@ -9,7 +9,7 @@ export function IncomeEntryRow({ entry, propertyName, onOpen }: {
   propertyName: string;
   onOpen: () => void;
 }) {
-  const details = [formatPolishDate(entry.receivedAt), entry.tenantNameSnapshot].filter(Boolean).join(" · ");
+  const details = [formatPolishDate(entry.receivedAt), entry.source === "INITIAL_IMPORT" ? "data szacunkowa" : undefined, entry.tenantNameSnapshot].filter(Boolean).join(" · ");
   return <Pressable accessibilityRole="button" accessibilityLabel={`${propertyName}, ${formatPlnAmount(entry.amount)}, ${details}. Opcje wpłaty`} onPress={onOpen} style={entryRow}>
     <View style={{ flex: 1 }}><Text numberOfLines={1} style={propertyNameStyle}>{propertyName}</Text><Text numberOfLines={1} style={muted}>{details}</Text></View>
     <Text style={amount}>{formatPlnAmount(entry.amount)}</Text>

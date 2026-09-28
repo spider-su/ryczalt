@@ -7,7 +7,7 @@ import { deriveTasks, rentMonthAmounts, taskNotificationPlan } from "./tasks";
 const now = new Date(2026, 8, 26, 12);
 function document(): RentalDocument {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     properties: [{ id: "p1", address: "Parkowa", tenantName: "Anna", ownerRent: "3000.00",
       rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
       paymentDay: 10, leaseEndDate: "2026-12-31" }],

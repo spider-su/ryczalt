@@ -4,7 +4,7 @@ Use this document as the default context for implementation tasks in this reposi
 
 ## Current capability snapshot (`main` and `develop`)
 
-- **Implemented:** Pulpit and three supporting tabs; schema-v6 local persistence/migrations; confirmed income and tax/bill payments; effective-month owner rent; separate media amount/responsibility; apartment lifecycle; historical rent bootstrap; shared tax engine and task projection; grouped rent reminders with global delay; administration/electricity links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
+- **Implemented:** Pulpit and three supporting tabs; schema-v7 local persistence/migrations; confirmed income and tax/bill payments; effective-month owner rent; separate tenant payment and explicit taxable-treatment settings; apartment lifecycle; historical rent bootstrap; shared tax engine and task projection; grouped rent reminders with global delay; administration/electricity links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
 - **Upcoming priorities:** year-to-date/annual tax and PIT-28 verification summary, and local JSON backup/restore. These are not implemented. Investory integration remains later/optional.
 

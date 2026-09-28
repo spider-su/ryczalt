@@ -5,9 +5,9 @@ import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEn
 
 const now = new Date("2026-09-28T12:00:00");
 const apartments: Property[] = [
-  { id: "paid", address: "Reduta 26B / 44", ownerRent: "3610.00", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-01", amount: "3610.00" }] },
-  { id: "partial", address: "Lublańska 13 / 134", ownerRent: "3760.00", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-01", amount: "3760.00" }], mediaPaidByTenant: true, mediaAmount: "200.00" },
-  { id: "unpaid", address: "Lublańska 13 / 168", ownerRent: "3900.00", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-01", amount: "3900.00" }] },
+  { id: "paid", address: "Reduta 26B / 44", ownerRent: "3610.00", paymentDay: 5, taxableTreatment: "OWNER_RENT", rentSchedule: [{ effectiveFrom: "2026-01", amount: "3610.00" }] },
+  { id: "partial", address: "Lublańska 13 / 134", ownerRent: "3760.00", paymentDay: 5, taxableTreatment: "OWNER_RENT", rentSchedule: [{ effectiveFrom: "2026-01", amount: "3760.00" }], mediaPaidByTenant: true, mediaAmount: "200.00" },
+  { id: "unpaid", address: "Lublańska 13 / 168", ownerRent: "3900.00", paymentDay: 5, taxableTreatment: "OWNER_RENT", rentSchedule: [{ effectiveFrom: "2026-01", amount: "3900.00" }] },
 ];
 const priorEntries: IncomeEntry[] = [
   { id: "p1", propertyId: "paid", receivedAt: "2026-09-05", rentalMonth: "2026-09", amount: "3610.00", taxableAmount: "3610.00" },
@@ -44,5 +44,14 @@ describe("bulk rent confirmation", () => {
       rentalMonth: "2026-09", amount: "2960.00", taxableAmount: "2760.00" })]);
     expect(makeBulkRentEntries({ properties: apartments, priorEntries: [...priorEntries, ...entries], selectedPropertyIds: ["partial"],
       rentalMonth: "2026-09", receivedAt: "2026-09-28", now, createId: () => "duplicate" })).toEqual([]);
+  });
+
+  it("uses the explicit include-charges tax treatment for bulk receipts regardless of media responsibility", () => {
+    const configured = apartments.map((property) => property.id === "partial"
+      ? { ...property, taxableTreatment: "RENT_AND_CHARGES" as const }
+      : property);
+    const entries = makeBulkRentEntries({ properties: configured, priorEntries, selectedPropertyIds: ["partial"],
+      rentalMonth: "2026-09", receivedAt: "2026-09-28", now, createId: () => "bulk-charges" });
+    expect(entries[0]).toMatchObject({ amount: "2960.00", taxableAmount: "2960.00" });
   });
 });

@@ -5,7 +5,7 @@ import { deriveTasks, taskNotificationPlan } from "./tasks";
 import { reconcileReminderSchedule } from "../notifications/reconcile";
 
 const document = (reminder: CustomReminder): RentalDocument => ({
-  schemaVersion: 6, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [],
+  schemaVersion: 7, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [],
   propertyLinks: [], administrationSuggestions: [], customReminders: [reminder], taskStates: [],
   settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
     reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },

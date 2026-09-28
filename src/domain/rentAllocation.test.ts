@@ -19,7 +19,7 @@ const receipt = (id: string, amount: string, receivedAt = "2026-09-27", property
 });
 function document(entries: IncomeEntry[]) {
   return {
-    schemaVersion: 6 as const, properties: [reduta, other], incomeEntries: entries, taxPayments: [], recurringBills: [],
+    schemaVersion: 7 as const, properties: [reduta, other], incomeEntries: entries, taxPayments: [], recurringBills: [],
     billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
     settings: { taxYear: 2026, settlementMode: "monthly" as const, jointSpouseThreshold: false, quarterlyEligible: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },

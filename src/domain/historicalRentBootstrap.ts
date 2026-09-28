@@ -2,7 +2,7 @@ import type { IncomeEntry, Property, RentalDocument } from "../model/rental";
 import { createIncomeEntry } from "./rentalOperations";
 import { ownerRentForMonth } from "./rentAllocation";
 import { isRentalMonth } from "./rentalValidation";
-import { decimalFromGrosz } from "./apartmentPayments";
+import { decimalFromGrosz, defaultTaxableAmountGrosz } from "./apartmentPayments";
 import { moneyToGrosz } from "./ryczaltTax";
 
 export type HistoricalBootstrapResult = { document: RentalDocument; created: IncomeEntry[]; skippedMonths: string[] };
@@ -47,9 +47,10 @@ export function bootstrapHistoricalRentPayments(args: {
     const expectedTenantGrosz = ownerGrosz + tenantMediaGrosz;
     if (!Number.isSafeInteger(expectedTenantGrosz)) throw new Error("Expected rent is too large");
     const day = Math.min(property.paymentDay ?? 5, daysInMonth(month));
-    const receivedAt = `${month}-${String(day).padStart(2, "0")}`;
+    const estimatedReceivedAt = `${month}-${String(day).padStart(2, "0")}`;
+    const receivedAt = property.rentalStartDate && estimatedReceivedAt < property.rentalStartDate ? property.rentalStartDate : estimatedReceivedAt;
     const amount = decimalFromGrosz(expectedTenantGrosz);
-    const taxableAmount = decimalFromGrosz(ownerGrosz);
+    const taxableAmount = decimalFromGrosz(defaultTaxableAmountGrosz({ property, amountGrosz: expectedTenantGrosz, rentalMonth: month, priorEntries: document.incomeEntries }));
     const entry = createIncomeEntry({
       propertyId: property.id,
       receivedAt,

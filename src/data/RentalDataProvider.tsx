@@ -118,6 +118,7 @@ export function RentalDataProvider({ children }: PropsWithChildren) {
         const current = requestedInDemo ? demoDocumentRef.current : realDocumentRef.current;
         if (!current) throw new Error("Rental document is still loading.");
         try {
+          // Drop queued demo-only changes if the user left demo before they reached the serialized queue.
           if (requestedInDemo && !isDemoModeRef.current) return;
           const next = await applyRentalDocumentChange(current, change, requestedInDemo, async (changed) => {
             const persisted = await persistRentalMutation(current, () => changed, saveRentalDocument);

@@ -2,15 +2,17 @@
 
 ## Unreleased
 
+This file records **delivered and verified changes**, not roadmap promises.
+
+### Added
+
 - Simplified apartment entry with progressive disclosure, lifecycle states, compact property rows, a calculated tenant-paid total and global delayed rent reminders.
 - Added schema-v6 migration defaults and an idempotent completed-month rent bootstrap with separate tenant-total and taxable-owner amounts.
 
-This file records **delivered and verified changes**, not roadmap promises.
-
-## Unreleased
-
 ### Fixed
 
+- Removed the invented default lease end, made taxable treatment explicit per apartment, and hardened schema-v7 migrations for reminders and legacy notes/contacts.
+- Kept calendar-year navigation available beyond the supported tax-rule table while blocking unsupported calculations; marked historical bootstrap receipt dates as estimates and clamped them to rental start.
 - Persisted-data validation rejects invalid dates and periods; recovery lets the user copy raw data and reset only after explicit confirmation.
 - Tax payments apply to the oldest outstanding periods first and carry excess credit forward without changing income records.
 - Android reminder channels are ensured at startup and foreground; transient scheduling failures remain retryable without changing permission state.
