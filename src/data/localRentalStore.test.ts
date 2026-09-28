@@ -82,6 +82,29 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).resolves.toEqual(validDocument);
   });
 
+  it("drops removed apartment contact fields from legacy local records", async () => {
+    const legacy = {
+      ...validDocument,
+      properties: [{
+        ...validDocument.properties[0],
+        address: "ul. Parkowa 12",
+        administratorName: "Administracja Parkowa",
+        administratorPhone: "+48 123 456 789",
+        administratorEmail: "kontakt@example.test",
+        administratorPortalUrl: "https://admin.example.test",
+      }],
+    };
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(legacy));
+
+    const loaded = await loadRentalDocument();
+    expect(loaded.properties[0]).toEqual({
+      id: "property-1",
+      name: "Mieszkanie testowe",
+      defaultMonthlyRent: "2500.00",
+      administratorPortalUrl: "https://admin.example.test",
+    });
+  });
+
   it("defaults legacy tax settings to monthly without discarding existing data", async () => {
     const legacy = { ...validDocument, schemaVersion: 1, recurringBills: undefined, billPayments: undefined, settings: { taxYear: 2026 } };
     storage.getItem.mockResolvedValueOnce(JSON.stringify(legacy));

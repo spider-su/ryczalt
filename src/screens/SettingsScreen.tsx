@@ -39,7 +39,6 @@ type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentRemind
 };
 const blankDraft: PropertyDraft = {
   name: "",
-  address: "",
   defaultMonthlyRent: "",
   tenantName: "",
   tenantPhone: "",
@@ -50,10 +49,7 @@ const blankDraft: PropertyDraft = {
   expectedPaymentDay: "",
   paymentReminderEnabled: false,
   paymentReminderDelayDays: "1",
-  administratorName: "",
   administratorPortalUrl: "",
-  administratorPhone: "",
-  administratorEmail: "",
   notes: "",
 };
 
@@ -129,7 +125,6 @@ export function SettingsScreen() {
       property
         ? {
             name: property.name,
-            address: property.address ?? "",
             defaultMonthlyRent: property.defaultMonthlyRent ?? "",
             tenantName: property.tenantName ?? "",
             tenantPhone: property.tenantPhone ?? "",
@@ -140,10 +135,7 @@ export function SettingsScreen() {
             expectedPaymentDay: property.expectedPaymentDay?.toString() ?? "",
             paymentReminderEnabled: property.paymentReminderEnabled ?? false,
             paymentReminderDelayDays: property.paymentReminderDelayDays?.toString() ?? "1",
-            administratorName: property.administratorName ?? "",
             administratorPortalUrl: property.administratorPortalUrl ?? "",
-            administratorPhone: property.administratorPhone ?? "",
-            administratorEmail: property.administratorEmail ?? "",
             notes: property.notes ?? "",
           }
         : blankDraft,
@@ -191,7 +183,6 @@ export function SettingsScreen() {
       ...editing,
       id: editing?.id ?? createId("property"),
       name,
-      ...optional("address", draft.address),
       ...(rent ? { defaultMonthlyRent: rent.replace(",", "."), rentSchedule: updatedRentSchedule(editing, rent.replace(",", ".")) } : {}),
       ...optional("tenantName", draft.tenantName),
       ...optional("tenantPhone", draft.tenantPhone),
@@ -202,10 +193,7 @@ export function SettingsScreen() {
       ...(paymentDay ? { expectedPaymentDay: paymentDay } : { expectedPaymentDay: undefined }),
       paymentReminderEnabled: draft.paymentReminderEnabled,
       paymentReminderDelayDays: reminderDelay,
-      ...optional("administratorName", draft.administratorName),
       ...optional("administratorPortalUrl", portalUrl),
-      ...optional("administratorPhone", draft.administratorPhone),
-      ...optional("administratorEmail", draft.administratorEmail),
       ...optional("notes", draft.notes),
     };
     const propertyLinks = linkDrafts.map((link) => ({ ...link, propertyId: property.id }));
@@ -276,7 +264,7 @@ export function SettingsScreen() {
   };
   const field = (
     label: string,
-    key: "name" | "address" | "defaultMonthlyRent" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalEndDate" | "administratorName" | "administratorPortalUrl" | "administratorPhone" | "administratorEmail" | "notes",
+    key: "name" | "defaultMonthlyRent" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalEndDate" | "administratorPortalUrl" | "notes",
     options: {
       keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad";
       multiline?: boolean;
@@ -548,9 +536,6 @@ export function SettingsScreen() {
                   >
                     {property.name}
                   </Text>
-                  {property.address ? (
-                    <Text style={muted}>{property.address}</Text>
-                  ) : null}
                 </View>
                 <View style={{ flexDirection: "row", gap: 16 }}>
                   <Text
@@ -586,9 +571,6 @@ export function SettingsScreen() {
                 <Text style={muted}>E-mail: {property.tenantEmail}</Text>
               ) : null}
               {property.rentalEndDate ? <Text style={muted}>Umowa do: {formatPolishDate(property.rentalEndDate, "long")}</Text> : null}
-              {property.administratorName ? <Text style={muted}>Administracja: {property.administratorName}</Text> : null}
-              {property.administratorPhone ? <Text style={muted}>Telefon administracji: {property.administratorPhone}</Text> : null}
-              {property.administratorEmail ? <Text style={muted}>E-mail administracji: {property.administratorEmail}</Text> : null}
               {property.administratorPortalUrl ? <Pressable accessibilityRole="link" onPress={() => void openPortal(property)} style={{ paddingVertical: 7 }}><Text style={action}>Otwórz panel administracji</Text></Pressable> : null}
               {property.notes ? (
                 <Text style={{ ...muted, marginTop: 5 }}>{property.notes}</Text>
@@ -661,7 +643,6 @@ export function SettingsScreen() {
             {field("Nazwa mieszkania *", "name", {
               placeholder: "np. Mieszkanie przy Parkowej",
             })}
-            {field("Adres", "address")}
             {field("Domyślny czynsz miesięczny (zł)", "defaultMonthlyRent", {
               keyboardType: "decimal-pad",
               placeholder: "np. 2500,00",
@@ -692,10 +673,7 @@ export function SettingsScreen() {
             </View>
             {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
             <Text style={sectionTitle}>Administracja</Text>
-            {field("Nazwa administratora", "administratorName")}
             {field("Adres panelu administracji (HTTPS)", "administratorPortalUrl", { placeholder: "https://" })}
-            {field("Telefon administracji", "administratorPhone", { keyboardType: "phone-pad" })}
-            {field("E-mail administracji", "administratorEmail", { keyboardType: "email-address" })}
             <Text style={sectionTitle}>Przydatne linki</Text>
             <Text style={muted}>Linki otwierają się w przeglądarce. Nie zapisuj tu haseł.</Text>
             <TextInput accessibilityLabel="Nazwa przydatnego linku" value={linkLabel} onChangeText={setLinkLabel} placeholder="np. Dostawca prądu" style={inputStyle} />
@@ -787,16 +765,12 @@ function updatedRentSchedule(property: Property | null, amount: string) {
 
 function optional(
   key:
-    | "address"
     | "tenantName"
     | "tenantPhone"
     | "tenantEmail"
     | "tenantSince"
     | "rentalEndDate"
-    | "administratorName"
     | "administratorPortalUrl"
-    | "administratorPhone"
-    | "administratorEmail"
     | "notes",
   value?: string,
 ): Partial<Property> {

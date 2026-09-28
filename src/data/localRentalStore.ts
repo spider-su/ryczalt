@@ -224,7 +224,6 @@ function validateProperty(value: unknown): Property {
   return {
     id: value.id,
     name: value.name,
-    ...(optionalString(value.address) ? { address: value.address } : {}),
     ...(optionalDecimal(value.defaultMonthlyRent, "defaultMonthlyRent")
       ? { defaultMonthlyRent: value.defaultMonthlyRent }
       : {}),
@@ -246,10 +245,7 @@ function validateProperty(value: unknown): Property {
     ...(optionalNumber(value.expectedPaymentDay) ? { expectedPaymentDay: value.expectedPaymentDay } : {}),
     ...(optionalBoolean(value.paymentReminderEnabled) ? { paymentReminderEnabled: value.paymentReminderEnabled } : {}),
     ...(optionalNumber(value.paymentReminderDelayDays) ? { paymentReminderDelayDays: value.paymentReminderDelayDays } : {}),
-    ...(optionalString(value.administratorName) ? { administratorName: value.administratorName } : {}),
     ...(optionalString(value.administratorPortalUrl) ? { administratorPortalUrl: value.administratorPortalUrl } : {}),
-    ...(optionalString(value.administratorPhone) ? { administratorPhone: value.administratorPhone } : {}),
-    ...(optionalString(value.administratorEmail) ? { administratorEmail: value.administratorEmail } : {}),
     ...(optionalString(value.notes) ? { notes: value.notes } : {}),
   };
 }
