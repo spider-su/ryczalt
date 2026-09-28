@@ -8,17 +8,9 @@ export type SetupAction =
   | "agreement-end"
   | "administrator-portal";
 
-export type SetupSuggestion = {
-  propertyId: string;
-  propertyName: string;
-  action: Exclude<SetupAction, "apartment" | "rent" | "payment-day">;
-  label: string;
-};
-
 export type SetupProgress = {
   totalRequiredSteps: number;
   completedRequiredSteps: number;
-  optionalSuggestions: SetupSuggestion[];
   nextAction: { propertyId?: string; propertyName?: string; action: SetupAction; label: string } | null;
   showGuidance: boolean;
 };
@@ -37,25 +29,12 @@ const requiredSteps = (property: Property) => [
   },
 ];
 
-function suggestionsFor(document: RentalDocument, property: Property): SetupSuggestion[] {
-  const suggestions: SetupSuggestion[] = [];
-  const base = { propertyId: property.id, propertyName: property.address };
-  if (!property.tenantName?.trim()) suggestions.push({ ...base, action: "tenant", label: "Dodaj najemcę" });
-  if (!property.leaseEndDate) suggestions.push({ ...base, action: "agreement-end", label: "Dodaj datę końca umowy (opcjonalnie)" });
-  const hasPortal = Boolean(property.administrationUrl?.trim()) || document.propertyLinks.some(
-    (link) => link.propertyId === property.id && link.category === "ADMINISTRATION",
-  );
-  if (!hasPortal) suggestions.push({ ...base, action: "administrator-portal", label: "Dodaj portal administracji" });
-  return suggestions;
-}
-
 /** Derives lightweight property setup guidance from the real local rental document. */
 export function deriveSetupProgress(document: RentalDocument): SetupProgress {
   if (document.properties.length === 0) {
     return {
       totalRequiredSteps: 3,
       completedRequiredSteps: 0,
-      optionalSuggestions: [],
       nextAction: { action: "apartment", label: "Dodaj mieszkanie" },
       showGuidance: true,
     };
@@ -66,16 +45,14 @@ export function deriveSetupProgress(document: RentalDocument): SetupProgress {
   const completedRequiredSteps = evaluated.reduce((total, item) => total + item.steps.filter((step) => step.complete).length, 0);
   const incomplete = evaluated.find((item) => item.steps.some((step) => !step.complete));
   const missing = incomplete?.steps.find((step) => !step.complete);
-  const optionalSuggestions = document.properties.flatMap((property) => suggestionsFor(document, property));
   const nextAction = incomplete && missing
     ? { propertyId: incomplete.property.id, propertyName: incomplete.property.address, action: missing.action, label: missing.label }
-    : optionalSuggestions[0] ?? null;
+    : null;
 
   return {
     totalRequiredSteps,
     completedRequiredSteps,
-    optionalSuggestions,
     nextAction,
-    showGuidance: Boolean(incomplete || optionalSuggestions.length),
+    showGuidance: Boolean(incomplete),
   };
 }

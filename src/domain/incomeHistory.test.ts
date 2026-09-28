@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, Property } from "../model/rental";
-import { currentMonthIncomeLabel, defaultExpandedIncomeMonths, groupIncomeEntriesByReceivedMonth, incomeEntriesForView, incomeMonthStatus, incomeViewSummary, propertiesWithIncomeInYear, toggleIncomeMonth } from "./incomeHistory";
+import { currentMonthIncomeLabel, defaultExpandedIncomeMonths, groupIncomeEntriesByReceivedMonth, incomeEntriesForView, incomeMonthStatus, incomeViewSummary, propertiesWithIncomeInYear, rentMonthStatusRows, toggleIncomeMonth } from "./incomeHistory";
 import { incomeHistory } from "./rentalPresentation";
 
 const entry = (id: string, propertyId: string, receivedAt: string, amount: string, tenantNameSnapshot?: string): IncomeEntry => ({
@@ -75,7 +75,37 @@ describe("income history view", () => {
   });
 
   it("shows current-month confirmed and expected amounts together", () => {
-    expect(currentMonthIncomeLabel("2026-09", 301_000, 553_400)).toBe("wrzesień: 3 010,00 zł / 5 534,00 zł");
+    expect(currentMonthIncomeLabel("2026-09", 301_000, 553_400)).toBe("wrzesień · otrzymano 3 010,00 zł · oczekiwany czynsz 5 534,00 zł");
+  });
+
+  it("projects apartment rent status for all properties without inventing income records", () => {
+    const properties: Property[] = [
+      { id: "flat-a", address: "Reduta", ownerRent: "3010", rentSchedule: [{ effectiveFrom: "2026-01", amount: "3010" }] },
+      { id: "flat-b", address: "Parkowa", ownerRent: "2524", rentSchedule: [{ effectiveFrom: "2026-01", amount: "2524" }] },
+      { id: "flat-c", address: "Lipowa", ownerRent: "1700", rentSchedule: [{ effectiveFrom: "2026-01", amount: "1700" }] },
+    ];
+    const receipts = [
+      { ...entry("reduta", "flat-a", "2026-10-02", "3010"), rentalMonth: "2026-09", taxableAmount: "2800" },
+      { ...entry("parkowa-one", "flat-b", "2026-09-10", "1000"), rentalMonth: "2026-09" },
+      { ...entry("parkowa-two", "flat-b", "2026-09-20", "500"), rentalMonth: "2026-09" },
+    ];
+    const rows = rentMonthStatusRows(properties, receipts, "2026-09", new Date(2026, 9, 5));
+    expect(rows).toEqual([
+      { propertyId: "flat-a", address: "Reduta", expectedGrosz: 301_000, confirmedGrosz: 301_000, remainingGrosz: 0, status: "paid" },
+      { propertyId: "flat-b", address: "Parkowa", expectedGrosz: 252_400, confirmedGrosz: 150_000, remainingGrosz: 102_400, status: "partial" },
+      { propertyId: "flat-c", address: "Lipowa", expectedGrosz: 170_000, confirmedGrosz: 0, remainingGrosz: 170_000, status: "unpaid" },
+    ]);
+    expect(receipts).toHaveLength(3);
+    expect(rows.some((row) => "id" in row)).toBe(false);
+  });
+
+  it("uses effective historical rent while receipt history stays grouped by received date", () => {
+    const property: Property = { id: "flat-a", address: "Historyczna", ownerRent: "3500", rentSchedule: [
+      { effectiveFrom: "2026-01", amount: "2500" }, { effectiveFrom: "2026-09", amount: "3500" },
+    ] };
+    const receipt = { ...entry("late", "flat-a", "2026-10-03", "2500"), rentalMonth: "2026-08" };
+    expect(rentMonthStatusRows([property], [receipt], "2026-08", new Date(2026, 9, 5))[0]).toMatchObject({ expectedGrosz: 250_000, confirmedGrosz: 250_000, status: "paid" });
+    expect(groupIncomeEntriesByReceivedMonth([receipt]).map((group) => group.month)).toEqual(["2026-10"]);
   });
 
   it("returns six selected-year chart values and keeps zero months at zero", () => {

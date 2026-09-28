@@ -1,5 +1,6 @@
 import type { IncomeEntry, Property } from "../model/rental";
 import { formatPln, moneyToGrosz } from "./ryczaltTax";
+import { rentMonthAmounts } from "./rentAllocation";
 
 export type IncomeMonthGroup = { month: string; totalGrosz: number; entries: IncomeEntry[] };
 
@@ -37,7 +38,29 @@ export function incomeMonthStatus(totalGrosz: number, paymentCount: number, expe
 
 export function currentMonthIncomeLabel(month: string, confirmedGrosz: number, expectedGrosz: number): string {
   const monthLabel = new Intl.DateTimeFormat("pl-PL", { month: "long" }).format(new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1, 12));
-  return `${monthLabel}: ${formatPln(confirmedGrosz)} / ${formatPln(expectedGrosz)}`;
+  return `${monthLabel} · otrzymano ${formatPln(confirmedGrosz)} · oczekiwany czynsz ${formatPln(expectedGrosz)}`;
+}
+
+export type RentMonthStatus = {
+  propertyId: string;
+  address: string;
+  expectedGrosz: number | null;
+  confirmedGrosz: number;
+  remainingGrosz: number | null;
+  status: "unknown" | "unpaid" | "partial" | "paid";
+};
+
+/** Projects each apartment's rental-month status without synthesizing receipt records. */
+export function rentMonthStatusRows(properties: Property[], entries: IncomeEntry[], month: string, now = new Date()): RentMonthStatus[] {
+  return properties.map((property) => {
+    const amounts = rentMonthAmounts(property, entries, month, now);
+    const status = amounts.expectedGrosz === null || amounts.remainingGrosz === null
+      ? "unknown" as const
+      : amounts.remainingGrosz === 0 ? "paid" as const
+        : amounts.confirmedGrosz > 0 ? "partial" as const : "unpaid" as const;
+    return { propertyId: property.id, address: property.address, expectedGrosz: amounts.expectedGrosz,
+      confirmedGrosz: amounts.confirmedGrosz, remainingGrosz: amounts.remainingGrosz, status };
+  }).filter((row) => row.expectedGrosz !== null || row.confirmedGrosz > 0);
 }
 
 export function groupIncomeEntriesByReceivedMonth(entries: IncomeEntry[]): IncomeMonthGroup[] {

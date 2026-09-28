@@ -13,6 +13,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { PaymentDetail } from "../components/PaymentDetail";
+import { PeriodSelector } from "../components/PeriodSelector";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
@@ -463,11 +464,11 @@ export function SettingsScreen() {
         <Text style={{ color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700", marginBottom: 12 }}>Ustawienia</Text>
         {settingsSections.map((section) => {
           const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
-            : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
+            : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
                 : section.id === "notifications" ? `${formatPolishCount(Object.values(document.settings.reminderCategories).filter(Boolean).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : section.id === "bills" ? formatPolishCount(document.recurringBills.length, ["rachunek", "rachunki", "rachunków"]) : "Dane lokalne na tym urządzeniu";
-          return <Pressable key={section.id} accessibilityRole="button" onPress={() => setActiveSection(section.id)} style={categoryRow}>
+          return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
             <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={muted}>{summary}</Text></View><Text style={action}>›</Text>
           </Pressable>;
         })}
@@ -475,11 +476,10 @@ export function SettingsScreen() {
         <Pressable accessibilityRole="button" onPress={() => setActiveSection(null)} style={settingsBack}><Text style={action}>‹ Ustawienia</Text></Pressable>
         <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 12 }}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
         {activeSection === "tax" ? <>
-        <View style={{ flexDirection: "row", gap: 14, alignItems: "center", marginVertical: 10 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni rok podatkowy" disabled={document.settings.taxYear <= 2025} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}><Text style={[action, document.settings.taxYear <= 2025 && { opacity: 0.4 }]}>‹</Text></Pressable>
-          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{document.settings.taxYear}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Następny rok podatkowy" disabled={document.settings.taxYear >= 2026} onPress={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))}><Text style={[action, document.settings.taxYear >= 2026 && { opacity: 0.4 }]}>›</Text></Pressable>
-        </View>
+        <PeriodSelector value={String(document.settings.taxYear)} valueLabel={`Rok podatkowy ${document.settings.taxYear}`} previousLabel="Poprzedni rok podatkowy" nextLabel="Następny rok podatkowy"
+          previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= 2026}
+          onPrevious={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}
+          onNext={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} />
         <Text style={sectionTitle}>Rozliczenie</Text>
         <Text style={muted}>Częstotliwość wpłat ryczałtu</Text>
         <View style={{ flexDirection: "row", gap: 10, marginVertical: 10 }}>
@@ -513,7 +513,7 @@ export function SettingsScreen() {
           {quarterlyInfoOpen ? <Text style={legalText}>Rozliczenie kwartalne wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text> : null}
         </> : null}
         <Text style={[sectionTitle, { marginTop: 18 }]}>Stan początkowy {document.settings.taxYear}</Text>
-        <Text style={muted}>Wpisz przychód i podatek zapisane wcześniej w tym roku. Wartości wpływają na rozliczenie roczne bez tworzenia fikcyjnych miesięcznych wpłat.</Text>
+        <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w tym roku. Kwoty wpływają na roczny próg i pokazują zbiorczy stan, bez przypisywania różnicy do nieznanego miesiąca.</Text>
         <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
         <TextInput accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
         <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
@@ -530,7 +530,7 @@ export function SettingsScreen() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days, disabled: settingsNotificationsUnavailable(permission) }} disabled={settingsNotificationsUnavailable(permission)} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
         <Text style={sectionTitle}>Kategorie</Text>
         {([
-          ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
+          ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Rachunki cykliczne"], ["custom", "Przypomnienia osobiste"],
         ] as const).map(([category, label]) => <View key={category} style={[notificationRow, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={{ ...rowTitle, flex: 1 }}>{label}</Text><Switch disabled={settingsNotificationsUnavailable(permission)} value={settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission)} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission), disabled: settingsNotificationsUnavailable(permission) }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
         {reminderPlan.length ? settingsReminderList(reminderPlan, showAllReminders).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
@@ -601,7 +601,7 @@ export function SettingsScreen() {
         })}
         </>}
         </> : null}
-        {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}><View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text></View><View style={[ui.card, trustCard]}><Text style={sectionTitle}>Kopia zapasowa</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>W aplikacji działa lokalny mechanizm odzyskiwania po błędzie zapisu; nie zastępuje on kopii poza urządzeniem.</Text></View></View> : null}
+        {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}><View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text></View><View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>W aplikacji działa lokalny mechanizm odzyskiwania po błędzie zapisu; nie zastępuje on kopii poza urządzeniem.</Text></View></View> : null}
         </>}
       </ScrollView>
       <Modal
@@ -841,7 +841,7 @@ function textValue(key: "recipientName" | "bankAccount" | "paymentTitle", value:
   return trimmed ? { [key]: trimmed } : {};
 }
 const primaryButton = {
-  backgroundColor: theme.colors.brandAction,
+  backgroundColor: theme.colors.primary,
   minHeight: 48,
   borderRadius: 8,
   justifyContent: "center" as const,
@@ -870,7 +870,7 @@ const apartmentCard = { paddingHorizontal: 14, paddingVertical: 12, marginVertic
 const apartmentTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "600" as const };
 const apartmentTenant = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 };
 const apartmentMeta = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 7 };
-const settingsBack = { minHeight: 40, justifyContent: "center" as const, marginBottom: 6 };
+const settingsBack = { minHeight: 44, justifyContent: "center" as const, marginBottom: 6 };
 const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };

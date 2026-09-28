@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, rentIncomeAction, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "./presentationFormat";
+import { formatPln } from "./ryczaltTax";
 
 function task(id: string, status: AssistantTask["status"], days: number): AssistantTask {
   return { id, type: "TENANT_PAYMENT_CHECK", title: id, detail: "", dueAt: new Date(2026, 8, 27 + days), notificationAt: new Date(2026, 8, 27 + days),
@@ -16,11 +17,15 @@ describe("rental presentation helpers", () => {
     expect(dashboardProgress(12_000_000, 10_000_000).fraction).toBe(1);
   });
 
-  it("labels waiting rent by due day and counts overdue days from the next calendar day", () => {
+  it("labels a passed rent check date without asserting tenant arrears", () => {
     expect(daysOverdue("2026-09", 28, new Date(2026, 8, 28, 23, 59))).toBe(0);
     expect(daysOverdue("2026-09", 28, new Date(2026, 8, 29, 8))).toBe(1);
     expect(daysOverdue("2026-09", 30, new Date(2026, 8, 29, 8))).toBe(0);
     expect(daysOverdue("2026-02", 31, new Date(2026, 2, 1, 8))).toBe(1);
+    const expectedButUnconfirmed = rentDisplayState(270_000, 0, 270_000);
+    expect(rentStatusLabel(expectedButUnconfirmed)).toBe("Do potwierdzenia");
+    expect(rentCheckAgeLabel(daysOverdue("2026-09", 5, new Date(2026, 8, 28, 8)))).toBe("Termin sprawdzenia minął 23 dni temu");
+    expect(rentCheckAgeLabel(0)).toBeNull();
   });
 
   it("uses taxable annual rental income and the configured tax threshold", () => {
@@ -46,10 +51,33 @@ describe("rental presentation helpers", () => {
     expect(dashboardTaxIssueSummary([taxTask("one", 1, 42_500), taxTask("two", 10, 340_000)], new Date(2026, 8, 27))).toEqual({ count: 2, totalGrosz: 382_500 });
   });
 
+  it("puts only active operational tasks in attention; rent stays with the monthly rent summary", () => {
+    const operationalTypes: AssistantTask["type"][] = ["TAX_PAYMENT", "RECURRING_BILL", "RENTAL_AGREEMENT_END", "CUSTOM_REMINDER"];
+    const active = operationalTypes.map((type) => ({ ...task(type, "needs-attention", 0), type }));
+    const rent = { ...task("rent", "needs-attention", 0), type: "TENANT_PAYMENT_CHECK" as const };
+    const dismissed = { ...active[0]!, id: "dismissed", status: "dismissed" as const };
+    const snoozed = { ...active[1]!, id: "snoozed", status: "snoozed" as const };
+    expect(dashboardAttentionTasks([...active, rent, dismissed, snoozed]).map((item) => item.type)).toEqual(operationalTypes);
+  });
+
   it("collapses paid and unpaid rent while retaining detail for partial payment", () => {
     expect(rentDisplayState(270_000, 270_000, 0)).toEqual({ kind: "paid", expectedGrosz: 270_000 });
     expect(rentDisplayState(270_000, 0, 270_000)).toEqual({ kind: "unpaid", remainingGrosz: 270_000 });
     expect(rentDisplayState(270_000, 100_000, 170_000)).toEqual({ kind: "partial", confirmedGrosz: 100_000, expectedGrosz: 270_000, remainingGrosz: 170_000 });
+    expect(rentStatusLabel(rentDisplayState(270_000, 100_000, 170_000))).toBe("Częściowo otrzymano");
+    expect(rentStatusLabel(rentDisplayState(270_000, 270_000, 0))).toBe("Potwierdzone");
+  });
+
+  it("keeps the rent summary amounts distinct for partial and fully confirmed rent, including large values", () => {
+    const compact = (grosz: number) => formatPln(grosz).replace(/,00(?= zł)/, "");
+    const partial = rentDisplayState(553_400, 301_000, 252_400);
+    expect(partial).toMatchObject({ kind: "partial", confirmedGrosz: 301_000, remainingGrosz: 252_400, expectedGrosz: 553_400 });
+    expect([301_000, 252_400, 553_400].map(compact)).toEqual(["3 010 zł", "2 524 zł", "5 534 zł"]);
+
+    const fullyConfirmed = rentDisplayState(553_400, 553_400, 0);
+    expect(fullyConfirmed).toMatchObject({ kind: "paid", expectedGrosz: 553_400 });
+    expect(compact(553_400)).toBe("5 534 zł");
+    expect(compact(123_456_789_000)).toBe("1 234 567 890 zł");
   });
 
   it("excludes paid apartments from pending and reports the all-paid state", () => {
@@ -116,7 +144,8 @@ describe("rental presentation helpers", () => {
   });
 
   it("keeps settings capability reachable by category", () => {
-    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Powiadomienia", "Dane i kopia zapasowa", "Pozostałe rachunki"]);
+    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Rachunki cykliczne", "Powiadomienia", "Dane lokalne"]);
+    expect(settingsSections.map(({ label }) => label).join(" ")).not.toMatch(/kopia zapasowa|backup|restore/i);
   });
 
   it("keeps three dashboard values and six-month chart data available for income", () => {

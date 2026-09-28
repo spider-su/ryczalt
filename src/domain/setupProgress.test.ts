@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyDocument } from "../data/localRentalStore";
+import { dashboardAttentionTasks } from "./rentalPresentation";
+import { deriveTasks } from "./tasks";
 import type { Property } from "../model/rental";
 import { deriveSetupProgress } from "./setupProgress";
 
@@ -23,27 +25,29 @@ describe("deriveSetupProgress", () => {
 
   it("counts an effective rent schedule as configured expected rent", () => {
     const document = emptyDocument(); document.properties = [apartment({ rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }], paymentDay: 10 })];
-    expect(deriveSetupProgress(document)).toMatchObject({ totalRequiredSteps: 3, completedRequiredSteps: 3, showGuidance: true, nextAction: { action: "tenant" } });
+    expect(deriveSetupProgress(document)).toMatchObject({ totalRequiredSteps: 3, completedRequiredSteps: 3, showGuidance: false, nextAction: null });
   });
 
-  it("keeps tenant and portal optional and does not gate completion on them", () => {
+  it("hides setup guidance after required setup and keeps missing optional details out of attention", () => {
     const document = emptyDocument(); document.properties = [apartment({ ownerRent: "2500", paymentDay: 10 })];
     const progress = deriveSetupProgress(document);
-    expect(progress).toMatchObject({ completedRequiredSteps: 3, showGuidance: true, nextAction: { action: "tenant" } });
-    expect(progress.optionalSuggestions.map((item) => item.action)).toContain("tenant");
-    expect(progress.optionalSuggestions.map((item) => item.action)).toContain("administrator-portal");
+    expect(progress).toMatchObject({ completedRequiredSteps: 3, showGuidance: false, nextAction: null });
+    expect(document.properties[0]?.tenantName).toBeUndefined();
+    expect(document.properties[0]?.leaseEndDate).toBeUndefined();
+    expect(document.properties[0]?.administrationUrl).toBeUndefined();
+    expect(dashboardAttentionTasks(deriveTasks(document, new Date(2026, 8, 28, 12)))).toEqual([]);
   });
 
-  it("does not suggest apartment-level rent reminders", () => {
+  it("does not keep required setup guidance open for optional reminder preferences", () => {
     const document = emptyDocument(); document.properties = [apartment({ ownerRent: "2500", paymentDay: 10 })];
-    expect(deriveSetupProgress(document).nextAction?.action).toBe("tenant");
+    expect(deriveSetupProgress(document)).toMatchObject({ showGuidance: false, nextAction: null });
   });
 
   it("respects the user's disabled rent-reminder category", () => {
     const document = emptyDocument();
     document.properties = [apartment({ ownerRent: "2500", paymentDay: 10 })];
     document.settings.reminderCategories.rent = false;
-    expect(deriveSetupProgress(document)).toMatchObject({ showGuidance: true, nextAction: { action: "tenant" } });
+    expect(deriveSetupProgress(document)).toMatchObject({ showGuidance: false, nextAction: null });
   });
 
   it("targets the first incomplete apartment without making optional data mandatory for others", () => {
@@ -59,6 +63,6 @@ describe("deriveSetupProgress", () => {
     const document = emptyDocument(); document.properties = [apartment({ ownerRent: "2500" })];
     expect(deriveSetupProgress(document).completedRequiredSteps).toBe(2);
     document.properties[0]!.paymentDay = 10;
-    expect(deriveSetupProgress(document)).toMatchObject({ completedRequiredSteps: 3, showGuidance: true, nextAction: { action: "tenant" } });
+    expect(deriveSetupProgress(document)).toMatchObject({ completedRequiredSteps: 3, showGuidance: false, nextAction: null });
   });
 });

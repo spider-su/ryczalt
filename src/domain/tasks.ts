@@ -88,9 +88,9 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
       tasks.push(makeTask(document, now, {
         id: `TAX_PAYMENT:${settlement.period}`, type: "TAX_PAYMENT",
         title: settlement.outstandingGrosz ? `Podatek za ${periodLabel(settlement.period)}` : `Podatek opłacony — ${periodLabel(settlement.period)}`,
-        detail: `Obowiązek ${formatPln(settlement.obligationGrosz)}, wpłacono ${formatPln(settlement.paidGrosz)}, pozostało ${formatPln(settlement.outstandingGrosz)}. Termin ${formatDate(settlement.dueDate)}.`,
+        detail: `Należny podatek ${formatPln(settlement.obligationGrosz)}, zapłacono ${formatPln(settlement.allocatedPaidGrosz)}, pozostało do zapłaty ${formatPln(settlement.outstandingGrosz)}. Termin ${formatDate(settlement.dueDate)}.`,
         period: settlement.period, dueAt, notificationAt, expectedGrosz: settlement.obligationGrosz,
-        confirmedGrosz: settlement.paidGrosz, remainingGrosz: settlement.outstandingGrosz,
+        confirmedGrosz: settlement.allocatedPaidGrosz, remainingGrosz: settlement.outstandingGrosz,
         resolved: settlement.outstandingGrosz === 0,
       }));
     }

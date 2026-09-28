@@ -40,6 +40,19 @@ export function rentDisplayState(expectedGrosz: number | null, confirmedGrosz: n
   return { kind: "unpaid", remainingGrosz };
 }
 
+export function rentStatusLabel(state: RentDisplayState): string {
+  if (state.kind === "unknown") return "Nieustalony";
+  if (state.kind === "paid") return "Potwierdzone";
+  if (state.kind === "partial") return "Częściowo otrzymano";
+  return "Do potwierdzenia";
+}
+
+export function rentCheckAgeLabel(days: number): string | null {
+  if (days <= 0) return null;
+  const unit = days === 1 ? "dzień" : "dni";
+  return `Termin sprawdzenia minął ${days} ${unit} temu`;
+}
+
 export function dashboardProgress(value: number, total: number) {
   const safeTotal = Math.max(0, total);
   const safeValue = Math.max(0, value);
@@ -93,6 +106,11 @@ export function dashboardTaskPresentation(attentionCount: number) {
     showActionableSection: attentionCount > 0,
     summary: attentionSummary(attentionCount),
   };
+}
+
+/** Operational tasks needing action; rent checks are presented with the selected month's rent status. */
+export function dashboardAttentionTasks(tasks: AssistantTask[]) {
+  return tasks.filter((task) => task.status === "needs-attention" && task.type !== "TENANT_PAYMENT_CHECK");
 }
 
 export function dashboardTaxIssueSummary(tasks: AssistantTask[], now = new Date()) {
@@ -150,7 +168,7 @@ export const settingsSections = [
   { id: "properties", label: "Mieszkania" },
   { id: "tax", label: "Podatek i rozliczenia" },
   { id: "payment", label: "Dane do przelewu" },
+  { id: "bills", label: "Rachunki cykliczne" },
   { id: "notifications", label: "Powiadomienia" },
-  { id: "data", label: "Dane i kopia zapasowa" },
-  { id: "bills", label: "Pozostałe rachunki" },
+  { id: "data", label: "Dane lokalne" },
 ] as const;

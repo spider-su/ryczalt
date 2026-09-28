@@ -4,11 +4,13 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
-import { calculateSettlements, formatPln, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
+import { calculateTaxYear, formatPln, moneyToGrosz, settlementPeriodForMonth } from "../domain/ryczaltTax";
+import { taxSummaryForPeriod } from "../domain/taxPresentation";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
 import { setupActionIntent } from "../navigation/setupIntent";
 import { recurringBillTaskIntent } from "../navigation/billIntent";
+import { navigateToTaxDetails } from "../navigation/taxIntent";
 import type { CustomReminder, Property, ReminderRecurrence } from "../model/rental";
 import { deleteCustomReminder, findCustomReminderForTask, recurrenceLabel, saveCustomReminder } from "../domain/customReminders";
 import { useReminders } from "../notifications/ReminderProvider";
@@ -16,10 +18,12 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
-import { dashboardProgress, dashboardTaxIssueSummary, daysOverdue, rentDisplayState, unallocatedRentWarning } from "../domain/rentalPresentation";
+import { dashboardAttentionTasks, dashboardProgress, daysOverdue, rentCheckAgeLabel, rentDisplayState, rentStatusLabel, unallocatedRentWarning } from "../domain/rentalPresentation";
 import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEntries, toggleBulkSelection } from "../domain/bulkRentConfirmation";
 import { formatPolishCount, formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 import { ProgressBar } from "../components/ProgressBar";
+import { PeriodSelector } from "../components/PeriodSelector";
+import { StatusBadge } from "../components/StatusBadge";
 import { currentRentalMonth, earliestDashboardMonth, shiftDashboardMonth } from "../domain/dashboardPeriods";
 
 export function PulpitScreen() {
@@ -62,19 +66,18 @@ export function PulpitScreen() {
   const now = new Date();
   const currentMonth = currentRentalMonth(now);
   const earliestMonth = earliestDashboardMonth(document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE"), document.incomeEntries, now);
-  const attention = tasks.filter((task) => task.status === "needs-attention" && task.type !== "TENANT_PAYMENT_CHECK");
+  const attention = dashboardAttentionTasks(tasks);
   const taxIssues = attention.filter((task) => task.type === "TAX_PAYMENT");
-  const overdueTaxIssues = taxIssues.filter((task) => task.dueAt < now);
-  const overdueTaxSummary = dashboardTaxIssueSummary(tasks, now);
   const otherAttention = attention.filter((task) => task.type !== "TAX_PAYMENT");
   const selectedYear = Number(selectedMonth.slice(0, 4));
   const openingRevenue = selectedYear === document.settings.taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0;
   const openingTaxPaid = selectedYear === document.settings.taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0;
-  const settlements = selectedYear === 2025 || selectedYear === 2026 ? calculateSettlements({
+  const taxCalculation = selectedYear === 2025 || selectedYear === 2026 ? calculateTaxYear({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: selectedYear,
     mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: openingRevenue, openingTaxPaidGrosz: openingTaxPaid,
-  }) : [];
+  }) : undefined;
+  const settlements = taxCalculation?.settlements ?? [];
   const activeProperties = document.properties.filter((property) => (property.lifecycle ?? "ACTIVE") === "ACTIVE"
     && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth));
   const monthAmounts = activeProperties.map((property) => rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now)));
@@ -86,7 +89,11 @@ export function PulpitScreen() {
   const receivedRent = expectedRent - remainingRent;
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
   const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
-  const currentPeriod = settlements.find((item) => item.period === currentPeriodKey);
+  const taxSummary = currentPeriodKey ? taxSummaryForPeriod(settlements, currentPeriodKey) : { current: null, previousOutstanding: { count: 0, totalGrosz: 0 } };
+  const currentPeriod = taxSummary.current;
+  const projectedOlderPeriods = new Set(settlements.filter((item) => currentPeriodKey && item.period < currentPeriodKey && item.outstandingGrosz > 0).map((item) => item.period));
+  const taxAttentionTasks = taxIssues.filter((task) => task.period !== currentPeriodKey && !projectedOlderPeriods.has(task.period ?? ""));
+  const hasOlderTaxIssue = taxSummary.previousOutstanding.count > 0 || (taxCalculation?.openingBalance.outstandingGrosz ?? 0) > 0;
   const pendingRents = bulkRentItems(activeProperties, document.incomeEntries, selectedMonth, now);
   const selectedRentTotal = bulkSelectionTotal(pendingRents, bulkSelectedIds);
 
@@ -98,7 +105,7 @@ export function PulpitScreen() {
       quickAdd: true, propertyId: task.propertyId, rentalMonth: task.period,
       expectedAmount: task.remainingGrosz ? (task.remainingGrosz / 100).toFixed(2) : undefined,
     });
-    else if (task.type === "TAX_PAYMENT") navigation.navigate("Podatek", { period: task.period });
+    else if (task.type === "TAX_PAYMENT") navigateToTaxDetails(navigation, task.period);
     else if (task.type === "RECURRING_BILL") navigation.navigate("Ustawienia", recurringBillTaskIntent(task.id.split(":")[1]!, task.period!));
     else if (task.type === "RENTAL_AGREEMENT_END") navigation.navigate("Ustawienia", { propertyId: task.propertyId });
     else {
@@ -195,22 +202,25 @@ export function PulpitScreen() {
 
   return <View style={ui.page}>
     <ScrollView contentContainerStyle={ui.content}>
-      <View style={periodNavigation}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Poprzedni miesiąc" accessibilityState={{ disabled: selectedMonth <= earliestMonth }} disabled={selectedMonth <= earliestMonth} onPress={() => setSelectedMonth((month) => shiftDashboardMonth(month, -1, now, earliestMonth))} style={periodArrow}><Text style={[action, selectedMonth <= earliestMonth && disabledPeriodArrow]}>‹</Text></Pressable>
-        <Text style={periodTitle}>{monthLabel(selectedMonth)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Następny miesiąc" accessibilityState={{ disabled: selectedMonth >= currentMonth }} disabled={selectedMonth >= currentMonth} onPress={() => setSelectedMonth((month) => shiftDashboardMonth(month, 1, now, earliestMonth))} style={periodArrow}><Text style={[action, selectedMonth >= currentMonth && disabledPeriodArrow]}>›</Text></Pressable>
-      </View>
+      <PeriodSelector value={monthLabel(selectedMonth)} valueLabel={monthLabel(selectedMonth)} previousLabel="Poprzedni miesiąc" nextLabel="Następny miesiąc"
+        previousDisabled={selectedMonth <= earliestMonth} nextDisabled={selectedMonth >= currentMonth}
+        onPrevious={() => setSelectedMonth((month) => shiftDashboardMonth(month, -1, now, earliestMonth))}
+        onNext={() => setSelectedMonth((month) => shiftDashboardMonth(month, 1, now, earliestMonth))} />
       <View style={[ui.card, summaryCard]}>
-        <Text style={summaryLabel}>Czynsz</Text>
-        {!rentExpectationKnown ? <Text style={summaryDetail}>Uzupełnij oczekiwany czynsz</Text> : <>
-          <Text style={summaryAmount}>{compactPln(receivedRent)} / {compactPln(expectedRent)}</Text>
-          <ProgressBar fraction={rentProgress.fraction} accessibilityLabel="Postęp opłaconych czynszów" />
+        {!rentExpectationKnown ? <>
+          <Text style={summaryMainLine}>Czynsz: <Text style={summaryMainValue}>—</Text></Text>
+          <Text style={muted}>Uzupełnij oczekiwany czynsz</Text>
+        </> : <>
+          <Text style={summaryMainLine} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>Czynsz: <Text style={summaryMainValue}>{compactPln(receivedRent)}</Text></Text>
           {expectedRent > 0 && receivedRent < expectedRent
-            ? <Pressable accessibilityRole="button" accessibilityLabel={`Do potwierdzenia ${formatPln(remainingRent)}. Potwierdź wpłaty`} onPress={openBulkConfirmation}><Text style={muted}>Do potwierdzenia: {compactPln(remainingRent)}</Text></Pressable>
-            : <Text style={expectedRent === 0 ? muted : paidLabel}>{expectedRent === 0 ? "Brak oczekiwanego czynszu" : "✓ Wszystkie czynsze opłacone"}</Text>}
+            ? <Pressable accessibilityRole="button" accessibilityLabel={`${formatPln(remainingRent)} do potwierdzenia. Potwierdź wpłaty`} onPress={openBulkConfirmation}><Text style={muted}>{compactPln(remainingRent)} do potwierdzenia</Text></Pressable>
+            : <Text style={muted}>{expectedRent === 0 ? "Brak oczekiwanego czynszu" : "Wpłaty potwierdzone"}</Text>}
+          <ProgressBar fraction={rentProgress.fraction} accessibilityLabel="Postęp opłaconych czynszów" />
+          <Text style={summaryExpected}>z oczekiwanych {compactPln(expectedRent)}</Text>
         </>}
-        <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Podatek")} style={summaryTax}>
-          <Text style={summaryLabel}>Podatek</Text><Text style={summaryDetail}>{currentPeriod ? `${currentPeriod.status === "paid" ? "Opłacony" : currentPeriod.status === "overdue" ? `Zaległy ${compactPln(currentPeriod.outstandingGrosz)}` : compactPln(currentPeriod.outstandingGrosz)} · do ${formatPolishDate(currentPeriod.dueDate)}` : "—"}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${currentPeriod.status === "paid" ? "Opłacone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} onPress={() => navigateToTaxDetails(navigation)} style={summaryTax}>
+          <Text style={summaryMainLine} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>Podatek: <Text style={summaryMainValue}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text></Text>
+          <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Opłacone · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : "—"}</Text>
         </Pressable>
       </View>
 
@@ -220,25 +230,22 @@ export function PulpitScreen() {
         const paymentState = rentDisplayState(amount.expectedGrosz, amount.confirmedGrosz, amount.remainingGrosz);
         const overdueDays = paymentState.kind !== "paid" && paymentState.kind !== "unknown" && property.paymentDay ? daysOverdue(selectedMonth, property.paymentDay, now) : 0;
         const dueDate = property.paymentDay ? rentDueIso(selectedMonth, property.paymentDay) : undefined;
-        const isOverdue = Boolean(selectedMonth === todayIsoDate().slice(0, 7) && dueDate && dueDate < todayIsoDate() && paymentState.kind !== "paid");
-        return <Pressable key={property.id} accessibilityRole="button" accessibilityLabel={`${property.address}, ${property.tenantName ?? ""}, ${paymentState.kind}`} onPress={() => addIncome(property.id, selectedMonth)} style={[ui.card, propertyRow]}>
+        const checkDatePassed = Boolean(selectedMonth === todayIsoDate().slice(0, 7) && dueDate && dueDate < todayIsoDate() && paymentState.kind !== "paid");
+        return <Pressable key={property.id} accessibilityRole="button" accessibilityLabel={`${property.address}, ${property.tenantName ?? ""}, ${rentStatusLabel(paymentState)}`} onPress={() => addIncome(property.id, selectedMonth)} style={[ui.card, propertyRow]}>
           <View style={compactPropertyHeader}><View style={{ flex: 1 }}><Text style={propertyName} numberOfLines={1}>{property.address}</Text>{property.tenantName ? <Text style={compactTenant} numberOfLines={1}>{property.tenantName}</Text> : null}</View>
-            {paymentState.kind === "unknown" ? <Text style={compactMuted}>Nieustalony</Text>
-              : paymentState.kind === "paid" ? <Text style={paidLabel}>✓ Opłacone</Text>
-                : paymentState.kind === "partial" ? <Text style={pendingLabel}>Częściowo opłacone</Text>
-                  : isOverdue ? <Text style={overdueLabel}>Po terminie</Text>
-                    : <Text style={pendingLabel}>Do potwierdzenia</Text>}
+            <StatusBadge label={rentStatusLabel(paymentState)} tone={paymentState.kind === "paid" ? "positive" : paymentState.kind === "partial" || paymentState.kind === "unpaid" ? "attention" : "neutral"} />
           </View>
           {paymentState.kind === "unknown" ? <Text style={compactMuted}>Uzupełnij oczekiwany czynsz</Text>
             : <Text style={compactAmount}>{compactPln(paymentState.kind === "paid" ? paymentState.expectedGrosz : paymentState.remainingGrosz)}</Text>}
-          {isOverdue && overdueDays > 0 ? <Text style={overdueMeta}>{overdueDays} dni po terminie</Text> : null}
+          {checkDatePassed && rentCheckAgeLabel(overdueDays) ? <Text style={overdueMeta}>{rentCheckAgeLabel(overdueDays)}</Text> : null}
           {amount.unallocatedGrosz > 0 ? <Text style={overpaymentWarning}>{unallocatedRentWarning(amount.unallocatedGrosz)}</Text> : null}
         </Pressable>;
       })}
 
-      {attention.length ? <><View style={sectionHeader}><Text style={sectionTitle}>Wymaga uwagi</Text></View>
-        {overdueTaxSummary ? <View style={[ui.card, propertyRow]}><View style={{ flex: 1 }}><Text style={propertyName}>Podatek</Text><Text style={compactMuted}>{overdueTaxSummary.count} zaległych okresów · łącznie {compactPln(overdueTaxSummary.totalGrosz)}</Text></View><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Podatek")}><Text style={action}>Zobacz zaległości ›</Text></Pressable></View> : overdueTaxIssues.map((task) => <View key={task.id} style={[ui.card, propertyRow]}><View style={{ flex: 1 }}><Text style={propertyName}>{task.title}</Text><Text style={compactMuted}>{compactPln(task.remainingGrosz ?? 0)} · termin minął {formatPolishDate(task.dueAt)}</Text></View><Pressable accessibilityRole="button" onPress={() => openTask(task)}><Text style={action}>Otwórz</Text></Pressable></View>)}
-        {taxIssues.filter((task) => task.dueAt >= now).map((task) => <View key={task.id} style={[ui.card, propertyRow]}><View style={{ flex: 1 }}><Text style={propertyName}>{task.title}</Text><Text style={compactMuted}>{compactPln(task.remainingGrosz ?? 0)} · termin {formatPolishDate(task.dueAt)}</Text></View><Pressable accessibilityRole="button" onPress={() => openTask(task)}><Text style={action}>Otwórz</Text></Pressable></View>)}
+      {taxAttentionTasks.length || otherAttention.length || hasOlderTaxIssue ? <><View style={sectionHeader}><Text style={sectionTitle}>Wymaga uwagi</Text></View>
+        {taxSummary.previousOutstanding.count > 0 ? <View style={[ui.card, propertyRow]}><View style={{ flex: 1 }}><Text style={propertyName}>Podatek</Text><Text style={compactMuted}>{formatPolishCount(taxSummary.previousOutstanding.count, ["wcześniejszy okres", "wcześniejsze okresy", "wcześniejszych okresów"])} · {compactPln(taxSummary.previousOutstanding.totalGrosz)}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Zobacz zaległości podatkowe" onPress={() => navigateToTaxDetails(navigation)}><Text style={action}>Zobacz zaległości ›</Text></Pressable></View> : null}
+        {taxCalculation && taxCalculation.openingBalance.outstandingGrosz > 0 ? <View style={[ui.card, propertyRow]}><View style={{ flex: 1 }}><Text style={propertyName}>Podatek</Text><Text style={compactMuted}>Saldo sprzed śledzenia · {compactPln(taxCalculation.openingBalance.outstandingGrosz)} · bez okresu</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Zobacz dane podatku" onPress={() => navigateToTaxDetails(navigation)}><Text style={action}>Zobacz ›</Text></Pressable></View> : null}
+        {taxAttentionTasks.map((task) => <View key={task.id} style={[ui.card, propertyRow]}><View style={{ flex: 1 }}><Text style={propertyName}>{task.title}</Text><Text style={compactMuted}>{compactPln(task.remainingGrosz ?? 0)} · {task.dueAt < now ? "termin minął" : "termin"} {formatPolishDate(task.dueAt)}</Text></View><Pressable accessibilityRole="button" onPress={() => openTask(task)}><Text style={action}>Otwórz</Text></Pressable></View>)}
         {otherAttention.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)}</> : null}
 
       {setup?.showGuidance && setup.nextAction ? <SetupCard
@@ -272,7 +279,7 @@ export function PulpitScreen() {
           <TextInput accessibilityLabel="Data wpłat" value={bulkReceivedAt} onChangeText={setBulkReceivedAt} style={input} returnKeyType="done" />
         </ScrollView>
         <View style={bulkFooter}>
-          <Text style={summaryDetail}>{bulkSelectedIds.length} {bulkSelectedIds.length === 1 ? "wpłata" : bulkSelectedIds.length < 5 ? "wpłaty" : "wpłat"} · {formatPln(selectedRentTotal)}</Text>
+          <Text style={summaryDetail}>{formatPolishCount(bulkSelectedIds.length, ["wpłata", "wpłaty", "wpłat"])} · {formatPln(selectedRentTotal)}</Text>
           <Pressable accessibilityRole="button" disabled={bulkSaving || bulkSelectedIds.length === 0} onPress={() => void confirmBulkRent()} style={[primaryButton, (bulkSaving || bulkSelectedIds.length === 0) && disabledButton]}><Text style={primaryText}>{bulkSaving ? "Zapisywanie…" : `Potwierdź ${formatPolishCount(bulkSelectedIds.length, ["wpłatę", "wpłaty", "wpłat"])}`}</Text></Pressable>
         </View>
       </SafeAreaView>
@@ -348,10 +355,12 @@ const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSi
 const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 12 };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
 const summaryCard = { padding: 14, marginVertical: 4 };
-const summaryLabel = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
-const summaryAmount = { color: theme.colors.textPrimary, fontSize: 20, fontWeight: "700" as const, marginTop: 3 };
+const summaryMainLine = { color: theme.colors.textSecondary, fontSize: 14, fontWeight: "500" as const, marginTop: 1 };
+const summaryMainValue = { color: theme.colors.textPrimary, fontWeight: "700" as const };
 const summaryDetail = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, marginTop: 3 };
-const summaryTax = { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 13, paddingTop: 10 };
+const summaryExpected = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 1 };
+const summaryTax = { alignItems: "flex-start" as const, borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 10, paddingTop: 8, width: "100%" as const };
+const summaryTaxDetail = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "500" as const, marginTop: 2 };
 const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
 const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
 const selectedFilter = { backgroundColor: theme.colors.selectedSurface, borderColor: theme.colors.selectedBorder };
@@ -361,14 +370,8 @@ const compactPropertyHeader = { flexDirection: "row" as const, alignItems: "cent
 const propertyName = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const };
 const compactTenant = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 1 };
 const compactMuted = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
-const pendingLabel = { color: theme.colors.warning, fontSize: 13, fontWeight: "700" as const };
 const compactAmount = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const, textAlign: "right" as const, marginTop: 4 };
-const overdueMeta = { color: theme.colors.danger, fontSize: 11, textAlign: "right" as const, marginTop: 2 };
-const paidLabel = { color: theme.colors.success, fontWeight: "700" as const, fontSize: 14 };
-const periodNavigation = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 4, marginBottom: 5 };
-const periodTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, textTransform: "capitalize" as const };
-const periodArrow = { width: 44, height: 44, alignItems: "center" as const, justifyContent: "center" as const };
-const disabledPeriodArrow = { opacity: 0.35 };
+const overdueMeta = { color: theme.colors.danger, fontSize: 12, textAlign: "right" as const, marginTop: 2 };
 const bulkRow = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, paddingVertical: 8 };
 const bulkCheck = { color: theme.colors.selectedNavigation, fontSize: 22, width: 28, textAlign: "center" as const };
 const bulkItemName = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const };
@@ -387,7 +390,6 @@ const input = { borderWidth: 1, borderColor: theme.colors.inputBorder, backgroun
 const primaryButton = { ...ui.primaryButton, marginTop: 10 };
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const };
 const overpaymentWarning = { color: theme.colors.warning, fontSize: 12, fontWeight: "600" as const, marginTop: 8 };
-const overdueLabel = { color: theme.colors.danger, fontSize: 13, fontWeight: "700" as const, marginTop: 4 };
 const secondaryButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 8, marginTop: 9 };
 const buttonText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
 const destructiveButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 8, marginTop: 9 };

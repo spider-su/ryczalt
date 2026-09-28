@@ -1,5 +1,4 @@
-import type { SettlementMode } from "./ryczaltTax";
-import type { Settlement } from "./ryczaltTax";
+import type { Settlement, SettlementMode } from "./ryczaltTax";
 import { formatPolishMonth } from "./presentationFormat";
 
 export function shiftTaxPeriod(period: string, offset: number, mode: SettlementMode): string {
@@ -44,6 +43,7 @@ export function remainingTaxThresholdGrosz(incomeGrosz: number, thresholdGrosz: 
 
 export const TAX_TRANSFER_HINT = "PPE · mikrorachunek podatkowy";
 export const TAX_CALCULATION_EXPLANATION = "Podatek wynika z potwierdzonych wpływów przypisanych do okresu, uwzględnia zapisane wpłaty podatku oraz saldo otwarcia skonfigurowane dla roku. To wyliczenie pomocnicze i nie uwzględnia indywidualnych odliczeń.";
+export const TAX_PAYMENT_ALLOCATION_HINT = "Wpłaty są zaliczane od najstarszej nierozliczonej należności. Wpłata zarejestrowana dla tego okresu mogła pokryć wcześniejszy okres.";
 
 export function taxPeriodLabel(period: string, mode: SettlementMode): string {
   if (mode === "monthly") return formatPolishMonth(period);
@@ -56,21 +56,43 @@ export function taxRateLabel(cumulativeRevenueGrosz: number, thresholdGrosz: num
   return cumulativeRevenueGrosz > thresholdGrosz ? "8,5% / 12,5%" : "8,5%";
 }
 
-export type TaxPaymentDisplay =
-  | { kind: "no-tax" }
-  | { kind: "paid"; amountGrosz: number; paidAt?: string; viaCredit: boolean }
-  | { kind: "due" | "partial" | "overdue"; amountGrosz: number; paidGrosz: number; obligationGrosz: number; dueDate: string };
+export type TaxPaymentDisplay = {
+  kind: "no-tax" | "paid" | "due" | "partial" | "overdue";
+  obligationGrosz: number;
+  paidGrosz: number;
+  remainingGrosz: number;
+  dueDate: string;
+  viaCredit: boolean;
+};
 
-export function taxPaymentDisplay(settlement: Settlement, latestPaymentDate?: string): TaxPaymentDisplay {
-  if (settlement.obligationGrosz === 0) return { kind: "no-tax" };
+export function taxPaymentDisplay(settlement: Settlement): TaxPaymentDisplay {
+  if (settlement.obligationGrosz === 0) return { kind: "no-tax", obligationGrosz: 0, paidGrosz: 0, remainingGrosz: 0, dueDate: settlement.dueDate, viaCredit: false };
+  const paidGrosz = settlement.allocatedPaidGrosz;
   if (settlement.outstandingGrosz === 0) return {
-    kind: "paid", amountGrosz: settlement.obligationGrosz,
-    ...(latestPaymentDate ? { paidAt: latestPaymentDate } : {}),
-    viaCredit: settlement.paidGrosz < settlement.obligationGrosz,
+    kind: "paid", obligationGrosz: settlement.obligationGrosz, paidGrosz,
+    remainingGrosz: 0, dueDate: settlement.dueDate,
+    viaCredit: settlement.paidGrosz < settlement.obligationGrosz || settlement.creditAppliedGrosz > 0,
   };
   return {
-    kind: settlement.status === "overdue" ? "overdue" : settlement.paidGrosz > 0 ? "partial" : "due",
-    amountGrosz: settlement.outstandingGrosz, paidGrosz: settlement.paidGrosz,
-    obligationGrosz: settlement.obligationGrosz, dueDate: settlement.dueDate,
+    kind: settlement.status === "overdue" ? "overdue" : paidGrosz > 0 ? "partial" : "due",
+    obligationGrosz: settlement.obligationGrosz, paidGrosz,
+    remainingGrosz: settlement.outstandingGrosz, dueDate: settlement.dueDate,
+    viaCredit: false,
+  };
+}
+
+export function previousOutstandingTax(settlements: Settlement[], currentPeriod: string) {
+  const previous = settlements.filter((item) => item.period < currentPeriod && item.outstandingGrosz > 0);
+  return {
+    count: previous.length,
+    totalGrosz: previous.reduce((total, item) => total + item.outstandingGrosz, 0),
+  };
+}
+
+export function taxSummaryForPeriod(settlements: Settlement[], currentPeriod: string) {
+  const current = settlements.find((item) => item.period === currentPeriod) ?? null;
+  return {
+    current,
+    previousOutstanding: current ? previousOutstandingTax(settlements, current.period) : { count: 0, totalGrosz: 0 },
   };
 }
