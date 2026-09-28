@@ -47,6 +47,11 @@ export function formatPln(grosz: number): string {
   return `${sign}${whole},${String(absolute % 100).padStart(2, "0")} zł`;
 }
 
+/** Format a validated PLN amount stored as a decimal string. */
+export function formatPlnAmount(amount: string): string {
+  return formatPln(moneyToGrosz(amount));
+}
+
 /** Date used for tax deadline statuses, independent of the device's timezone. */
 export function todayInPoland(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

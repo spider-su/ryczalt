@@ -1,21 +1,27 @@
 /** Versioned local document; monetary amounts are decimal strings in PLN. */
 export type Property = {
   id: string;
-  name: string;
-  defaultMonthlyRent?: string;
+  address: string;
+  lifecycle?: "ACTIVE" | "PAUSED" | "ARCHIVED";
+  rentalStartDate?: string;
+  ownerRent?: string;
   rentSchedule?: RentRate[];
+  mediaAmount?: string;
+  mediaPaidByTenant?: boolean;
   tenantName?: string;
   tenantPhone?: string;
   tenantEmail?: string;
   tenantSince?: string;
-  rentalEndDate?: string;
-  rentalEndReminderDays?: number[];
-  expectedPaymentDay?: number;
-  paymentReminderEnabled?: boolean;
-  paymentReminderDelayDays?: number;
-  administratorPortalUrl?: string;
+  leaseEndDate?: string;
+  paymentDay?: number;
+  administrationName?: string;
+  administrationUrl?: string;
+  electricityProvider?: string;
+  electricityUrl?: string;
   notes?: string;
 };
+
+export type AdministrationSuggestion = { name: string; url?: string };
 
 export type RentRate = { effectiveFrom: string; amount: string };
 
@@ -75,6 +81,7 @@ export type IncomeEntry = {
   rentalMonth?: string;
   tenantNameSnapshot?: string;
   description?: string;
+  source?: "MANUAL" | "INITIAL_IMPORT";
 };
 
 export type TaxPayment = {
@@ -85,13 +92,14 @@ export type TaxPayment = {
 };
 
 export type RentalDocument = {
-  schemaVersion: 4;
+  schemaVersion: 6;
   properties: Property[];
   incomeEntries: IncomeEntry[];
   taxPayments: TaxPayment[];
   recurringBills: RecurringBill[];
   billPayments: BillPayment[];
   propertyLinks: PropertyLink[];
+  administrationSuggestions: AdministrationSuggestion[];
   customReminders: CustomReminder[];
   taskStates: TaskState[];
   settings: {
@@ -106,6 +114,7 @@ export type RentalDocument = {
       bills: boolean;
       custom: boolean;
     };
+    rentReminderDelayDays: number;
     taxRecipientName?: string;
     taxMicroAccount?: string;
   };

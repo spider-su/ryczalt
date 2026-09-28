@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, formatPln, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxOnRevenue, todayInPoland } from "./ryczaltTax";
+import { calculateSettlements, formatPln, formatPlnAmount, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxOnRevenue, todayInPoland } from "./ryczaltTax";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
   id, propertyId, receivedAt, amount: taxableAmount, taxableAmount,
@@ -198,6 +198,8 @@ describe("Polish private-rental ryczałt", () => {
     expect(formatPln(0)).toBe("0,00 zł");
     expect(formatPln(-12_345)).toBe("-123,45 zł");
     expect(formatPln(123_456_789)).toBe("1 234 567,89 zł");
+    expect(formatPlnAmount("3000")).toBe("3 000,00 zł");
+    expect(formatPlnAmount("2500.50")).toBe("2 500,50 zł");
   });
 
   it("moves a deadline past Easter Monday and rejects invalid or unsafe money", () => {

@@ -4,8 +4,6 @@ import { SUPPORTED_TAX_YEARS } from "./ryczaltTax";
 export const RENTAL_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const DECIMAL_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
 export const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-export const AGREEMENT_REMINDER_DAYS = [90, 60, 30, 14, 7, 0] as const;
-
 export class RentalValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -125,47 +123,56 @@ export function validateIncomeValues(
 export function validateRentalDocumentShape(
   document: RentalDocument,
 ): RentalDocument {
-  if (document.schemaVersion !== 4)
+  if (document.schemaVersion !== 6)
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
   if (!SUPPORTED_TAX_YEARS.includes(document.settings.taxYear as (typeof SUPPORTED_TAX_YEARS)[number]))
     throw new RentalValidationError("Tax year is not supported.");
+  if (!Number.isInteger(document.settings.rentReminderDelayDays) || document.settings.rentReminderDelayDays < 0 || document.settings.rentReminderDelayDays > 30)
+    throw new RentalValidationError("Rent reminder delay is invalid.");
   const propertyIds = new Set<string>();
   for (const property of document.properties) {
     if (propertyIds.has(property.id))
       throw new RentalValidationError("Property IDs must be unique.");
     propertyIds.add(property.id);
+    if (!property.address.trim()) throw new RentalValidationError("Property address is required.");
+    if (![undefined, "ACTIVE", "PAUSED", "ARCHIVED"].includes(property.lifecycle)) throw new RentalValidationError("Apartment lifecycle is invalid.");
+    if (property.rentalStartDate && !isValidCalendarDate(property.rentalStartDate)) throw new RentalValidationError("Rental start date is invalid.");
     if (property.tenantSince && !isValidCalendarDate(property.tenantSince))
       throw new RentalValidationError("Tenant start date is invalid.");
     if (
-      property.defaultMonthlyRent &&
-      !isNonnegativeMoney(property.defaultMonthlyRent)
+      property.ownerRent &&
+      !isNonnegativeMoney(property.ownerRent)
     )
-      throw new RentalValidationError("Default rent is invalid.");
-    if (property.rentalEndDate && !isValidCalendarDate(property.rentalEndDate))
+      throw new RentalValidationError("Owner rent is invalid.");
+    if (property.mediaAmount && !isNonnegativeMoney(property.mediaAmount)) throw new RentalValidationError("Media amount is invalid.");
+    if (property.mediaPaidByTenant !== undefined && typeof property.mediaPaidByTenant !== "boolean") throw new RentalValidationError("Media payment responsibility is invalid.");
+    if (property.leaseEndDate && !isValidCalendarDate(property.leaseEndDate))
       throw new RentalValidationError("Rental agreement end date is invalid.");
-    if (property.expectedPaymentDay !== undefined && (!Number.isInteger(property.expectedPaymentDay) || property.expectedPaymentDay < 1 || property.expectedPaymentDay > 31))
-      throw new RentalValidationError("Expected payment day is invalid.");
-    if (property.paymentReminderEnabled && property.expectedPaymentDay === undefined)
-      throw new RentalValidationError("Enabled rent reminders require an expected payment day.");
-    if (property.paymentReminderDelayDays !== undefined && (!Number.isInteger(property.paymentReminderDelayDays) || property.paymentReminderDelayDays < 0 || property.paymentReminderDelayDays > 30))
-      throw new RentalValidationError("Rent reminder delay is invalid.");
-    if (property.rentalEndReminderDays?.some((days) => !AGREEMENT_REMINDER_DAYS.includes(days as typeof AGREEMENT_REMINDER_DAYS[number])) || new Set(property.rentalEndReminderDays ?? []).size !== (property.rentalEndReminderDays ?? []).length)
-      throw new RentalValidationError("Agreement reminder preferences are invalid.");
-    if (property.administratorPortalUrl && !isValidHttpsUrl(property.administratorPortalUrl))
+    if (property.paymentDay !== undefined && (!Number.isInteger(property.paymentDay) || property.paymentDay < 1 || property.paymentDay > 31))
+      throw new RentalValidationError("Payment day is invalid.");
+    if (property.administrationUrl && !isValidHttpsUrl(property.administrationUrl))
       throw new RentalValidationError("Administrator portal must use a valid HTTPS URL.");
+    if (property.electricityUrl && !isValidHttpsUrl(property.electricityUrl)) throw new RentalValidationError("Electricity provider URL must use a valid HTTPS URL.");
     const rentRateMonths = new Set<string>();
     for (const rate of property.rentSchedule ?? []) {
       if (!isRentalMonth(rate.effectiveFrom) || !isNonnegativeMoney(rate.amount) || rentRateMonths.has(rate.effectiveFrom)) throw new RentalValidationError("Rent schedule is invalid.");
       rentRateMonths.add(rate.effectiveFrom);
     }
   }
+  const administrationNames = new Set<string>();
+  for (const administration of document.administrationSuggestions) {
+    const normalized = administration.name.trim().toLocaleLowerCase("pl-PL");
+    if (!normalized || administrationNames.has(normalized) || (administration.url && !isValidHttpsUrl(administration.url))) throw new RentalValidationError("Administration suggestions are invalid.");
+    administrationNames.add(normalized);
+  }
   const incomeIds = new Set<string>();
   for (const entry of document.incomeEntries) {
     if (incomeIds.has(entry.id))
       throw new RentalValidationError("Income entry IDs must be unique.");
     incomeIds.add(entry.id);
+    if (entry.source !== undefined && entry.source !== "MANUAL" && entry.source !== "INITIAL_IMPORT") throw new RentalValidationError("Income source is invalid.");
     validateIncomeValues(entry, document.properties);
     if (entry.rentalMonth && !isRentalMonth(entry.rentalMonth))
       throw new RentalValidationError("Rental month is invalid.");

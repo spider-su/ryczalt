@@ -7,18 +7,18 @@ import { deriveTasks, rentMonthAmounts, taskNotificationPlan } from "./tasks";
 const now = new Date(2026, 8, 26, 12);
 function document(): RentalDocument {
   return {
-    schemaVersion: 4,
-    properties: [{ id: "p1", name: "Parkowa", tenantName: "Anna", defaultMonthlyRent: "3000.00",
+    schemaVersion: 6,
+    properties: [{ id: "p1", address: "Parkowa", tenantName: "Anna", ownerRent: "3000.00",
       rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
-      expectedPaymentDay: 10, paymentReminderEnabled: true, rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
+      paymentDay: 10, leaseEndDate: "2026-12-31" }],
     incomeEntries: [], taxPayments: [],
     recurringBills: [
       { id: "fixed", propertyId: "p1", name: "Czynsz administracyjny", dueDay: 5, expectedAmount: "600.00", reminderEnabled: true },
       { id: "variable", propertyId: "p1", name: "Prąd", dueDay: 15, variableAmount: true, reminderEnabled: true },
     ],
-    billPayments: [], propertyLinks: [], customReminders: [], taskStates: [],
+    billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
     settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
-      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
   };
 }
 
@@ -88,12 +88,12 @@ describe("assistant workflows across domain modules", () => {
     const doc = document();
     const oldKeys = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("RENTAL_AGREEMENT_END:")).map((item) => item.key);
     expect(oldKeys.length).toBeGreaterThan(0);
-    doc.properties[0]!.rentalEndDate = "2026-12-15";
+    doc.properties[0]!.leaseEndDate = "2026-12-15";
     const newPlan = taskNotificationPlan(doc, now);
     expect(newPlan.some((item) => oldKeys.includes(item.key))).toBe(false);
     expect(newPlan.some((item) => item.key.startsWith("RENTAL_AGREEMENT_END:p1:2026-12-15"))).toBe(true);
     expect(deriveTasks(doc, now).find((task) => task.id.startsWith("RENTAL_AGREEMENT_END:"))?.manuallyCompletable).toBe(true);
-    doc.properties[0]!.rentalEndDate = undefined;
+    doc.properties[0]!.leaseEndDate = undefined;
     expect(taskNotificationPlan(doc, now).some((item) => item.key.startsWith("RENTAL_AGREEMENT_END:"))).toBe(false);
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { attentionSummary, dashboardTaskPresentation, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, rentIncomeAction, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardProgress, dashboardTaskPresentation, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, rentIncomeAction, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "./presentationFormat";
 
 function task(id: string, status: AssistantTask["status"], days: number): AssistantTask {
@@ -9,6 +9,34 @@ function task(id: string, status: AssistantTask["status"], days: number): Assist
 }
 
 describe("rental presentation helpers", () => {
+  it("calculates safe monthly and annual progress without exposing percentages", () => {
+    expect(dashboardProgress(300_000, 300_000)).toEqual({ value: 300_000, total: 300_000, fraction: 1 });
+    expect(dashboardProgress(150_000, 300_000).fraction).toBe(0.5);
+    expect(dashboardProgress(100, 0).fraction).toBe(0);
+    expect(dashboardProgress(12_000_000, 10_000_000).fraction).toBe(1);
+  });
+
+  it("labels waiting rent by due day and counts overdue days from the next calendar day", () => {
+    expect(daysOverdue("2026-09", 28, new Date(2026, 8, 28, 23, 59))).toBe(0);
+    expect(daysOverdue("2026-09", 28, new Date(2026, 8, 29, 8))).toBe(1);
+    expect(daysOverdue("2026-09", 30, new Date(2026, 8, 29, 8))).toBe(0);
+    expect(daysOverdue("2026-02", 31, new Date(2026, 2, 1, 8))).toBe(1);
+  });
+
+  it("uses taxable annual rental income and the configured tax threshold", () => {
+    const entries = [
+      { id: "a", propertyId: "p", receivedAt: "2026-01-10", amount: "3000.00", taxableAmount: "2500.00" },
+      { id: "b", propertyId: "p", receivedAt: "2026-02-10", amount: "2000.00", taxableAmount: "2000.00" },
+      { id: "old", propertyId: "p", receivedAt: "2025-12-10", amount: "1000.00", taxableAmount: "1000.00" },
+    ];
+    expect(annualRentalIncome(entries, 2026)).toBe(450_000);
+    expect(annualRentalThreshold(2026)).toBe(10_000_000);
+    expect(annualRentalThreshold(2026, true)).toBe(20_000_000);
+    expect(dashboardProgress(annualRentalIncome(entries, 2026), annualRentalThreshold(2026)).fraction).toBeCloseTo(0.045);
+    const overThreshold = [...entries, { id: "c", propertyId: "p", receivedAt: "2026-03-10", amount: "98000.00", taxableAmount: "98000.00" }];
+    expect(dashboardProgress(annualRentalIncome(overThreshold, 2026), annualRentalThreshold(2026)).fraction).toBe(1);
+  });
+
   it("collapses paid and unpaid rent while retaining detail for partial payment", () => {
     expect(rentDisplayState(270_000, 270_000, 0)).toEqual({ kind: "paid", expectedGrosz: 270_000 });
     expect(rentDisplayState(270_000, 0, 270_000)).toEqual({ kind: "unpaid", remainingGrosz: 270_000 });

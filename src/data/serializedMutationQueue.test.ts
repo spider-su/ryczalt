@@ -32,12 +32,12 @@ describe("serialized mutation queue", () => {
 
   it("does not publish a changed document when persistence fails", async () => {
     const current = emptyDocument();
-    current.properties.push({ id: "p1", name: "Before" });
+    current.properties.push({ id: "p1", address: "Before" });
     const persist = async () => { throw new Error("disk full"); };
     await expect(persistRentalMutation(current, (document) => ({
       ...document,
-      properties: document.properties.map((property) => ({ ...property, name: "After" })),
+      properties: document.properties.map((property) => ({ ...property, address: "After" })),
     }), persist)).rejects.toThrow("disk full");
-    expect(current.properties[0]?.name).toBe("Before");
+    expect(current.properties[0]?.address).toBe("Before");
   });
 });

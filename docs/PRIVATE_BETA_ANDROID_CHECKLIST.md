@@ -27,7 +27,7 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | DST boundary | Not run |
 | Reboot device | Not run |
 | Upgrade with existing schema 1/2/3 data and preserve records | Migration tests only; device upgrade not run |
-| Schema 1/2/3/4 normalized load-save-reload keeps records and reminder preferences | Automated round-trip tests; device upgrade not run |
+| Schema 1–4 normalized load-save-reload keeps records and reminder preferences | Automated round-trip tests; device upgrade not run |
 | Recover a damaged/missing primary from last-good local snapshot and show recovery notice | Automated storage tests; device recovery flow not yet run |
 | Both primary and backup damaged: retain recovery screen and offer explicit raw-data handling/reset | Automated storage tests cover preserving corruption error; device flow not yet run |
 | Tax status and deadline around Warsaw midnight, DST, weekend/public holiday, and December/Q4 January deadline | Domain tests only; device timezone/DST run not done |
@@ -38,10 +38,10 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 1. Install the candidate APK on a clean device and record its build/version.
 2. Repeat once with notification permission denied and once granted; confirm in-app tasks remain visible in both cases.
 3. Use test-only records with due times near the current time to verify each category, then tap notifications and inspect navigation context.
-4. Toggle each global category, per-apartment rent switch and per-bill switch off/on; restart between runs and check for stale or duplicate OS schedules.
+4. Toggle each global reminder category and per-bill switch off/on; rent reminders derive from payment days and must group apartments sharing a due date. Restart between runs and check for stale or duplicate OS schedules.
 5. Snooze a task, confirm a payment, edit/delete a receipt, mark a bill paid, change/remove an agreement end date, and complete a custom reminder. Confirm only explicit recorded source data resolves financial tasks.
 6. Force-stop/reopen, change device timezone, and reboot. Check schedule reconciliation and document Android version/OEM-specific differences.
-7. Upgrade from a backup/test fixture containing schema 1, 2 or 3 data; verify rent, income, tax and bill entries remain intact.
+7. Upgrade from a backup/test fixture containing schema 1–4 data; verify address, owner rent, media responsibility, due day, administration/provider data, rent/income/tax/bill entries, and personal reminders remain intact.
 8. Repeat the notification run on at least one physical Android device: test a fresh permission request and permission pre-granted in system settings, timed delivery, tap navigation, snooze, force-close/restart, duplicate prevention, and the expected local timezone/date. Record device, OS, timezone, build, and observed delivery timestamps.
 
 Do not use real tenant or financial records in screenshots, logs or shared beta evidence.

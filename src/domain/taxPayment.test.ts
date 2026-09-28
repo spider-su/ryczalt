@@ -3,13 +3,13 @@ import type { RentalDocument, TaxPayment } from "../model/rental";
 import { removeTaxPayment, upsertTaxPayment } from "./taxPayment";
 
 const document: RentalDocument = {
-  schemaVersion: 4,
-  properties: [{ id: "p1", name: "Mieszkanie" }],
+  schemaVersion: 6,
+  properties: [{ id: "p1", address: "Mieszkanie" }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", amount: "1000.00", taxableAmount: "1000.00" }],
   taxPayments: [{ id: "t1", period: "2026-01", paidAt: "2026-02-10", amount: "50.00" }],
-  recurringBills: [], billPayments: [], propertyLinks: [], customReminders: [], taskStates: [],
+  recurringBills: [], billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
   settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
 };
 
 describe("tax payment mutations", () => {

@@ -4,13 +4,13 @@ import { deriveTasks, expectedRentForMonth, setTaskState, taskNotificationPlan }
 
 function document(): RentalDocument {
   return {
-    schemaVersion: 4,
-    properties: [{ id: "p1", name: "Parkowa", defaultMonthlyRent: "3000.00", expectedPaymentDay: 10,
+    schemaVersion: 6,
+    properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 10,
       rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00" }, { effectiveFrom: "2026-09", amount: "3000.00" }],
-      rentalEndDate: "2026-12-31", rentalEndReminderDays: [30, 7] }],
-    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], propertyLinks: [], customReminders: [], taskStates: [],
+      leaseEndDate: "2026-12-31" }],
+    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], propertyLinks: [], administrationSuggestions: [], customReminders: [], taskStates: [],
     settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, quarterlyEligible: false,
-      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true } },
+      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
   };
 }
 
@@ -41,10 +41,27 @@ describe("personal assistant tasks", () => {
 
   it("does not generate rent tasks after the rental agreement end month", () => {
     const doc = document();
-    doc.properties[0]!.rentalEndDate = "2026-10-15";
+    doc.properties[0]!.leaseEndDate = "2026-10-15";
     const tasks = deriveTasks(doc, new Date(2026, 8, 26, 12));
     expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10")).toBe(true);
     expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-11")).toBe(false);
+  });
+
+  it("stops generating rent and related reminders while an apartment is paused, preserving history", () => {
+    const doc = document();
+    doc.properties[0]!.lifecycle = "PAUSED";
+    doc.incomeEntries = [{ id: "paid", propertyId: "p1", receivedAt: "2026-09-10", rentalMonth: "2026-09", amount: "3000.00", taxableAmount: "3000.00" }];
+    const tasks = deriveTasks(doc, new Date(2026, 8, 26, 12));
+    expect(tasks.some((task) => task.type === "TENANT_PAYMENT_CHECK" || task.type === "RENTAL_AGREEMENT_END")).toBe(false);
+    expect(doc.incomeEntries).toHaveLength(1);
+  });
+
+  it("applies the global rent reminder delay to reminder time, not the due date", () => {
+    const doc = document();
+    doc.settings.rentReminderDelayDays = 3;
+    const task = deriveTasks(doc, new Date(2026, 8, 26, 12)).find((item) => item.id === "TENANT_PAYMENT_CHECK:p1:2026-09")!;
+    expect(task.dueAt).toEqual(new Date(2026, 8, 10, 9));
+    expect(task.notificationAt).toEqual(new Date(2026, 8, 13, 9));
   });
 
   it("keeps variable bills amount-free and resolves them after one payment in the target period", () => {
@@ -63,7 +80,7 @@ describe("personal assistant tasks", () => {
     const doc = document();
     expect(expectedRentForMonth(doc.properties[0]!, "2026-08", new Date(2026, 8, 26))).toBe(250_000);
     expect(expectedRentForMonth(doc.properties[0]!, "2026-06", new Date(2026, 8, 26))).toBeNull();
-    expect(expectedRentForMonth({ id: "old", name: "Old", defaultMonthlyRent: "1000.00" }, "2026-01", new Date(2026, 8, 26))).toBeNull();
+    expect(expectedRentForMonth({ id: "old", address: "Old", ownerRent: "1000.00" }, "2026-01", new Date(2026, 8, 26))).toBeNull();
   });
 
   it("projects stable partial-rent tasks and resolves them only after recorded receipts cover the expectation", () => {
@@ -84,7 +101,7 @@ describe("personal assistant tasks", () => {
 
   it("uses the target month expected rent for upcoming rent after a large September receipt", () => {
     const doc = document();
-    doc.properties[0] = { ...doc.properties[0]!, name: "Reduta 26B", defaultMonthlyRent: "2600.00",
+    doc.properties[0] = { ...doc.properties[0]!, address: "Reduta 26B", ownerRent: "2600.00",
       rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00" }] };
     doc.incomeEntries = [{ id: "sep-overpayment", propertyId: "p1", receivedAt: "2026-09-27", rentalMonth: "2026-09", amount: "10000.00", taxableAmount: "10000.00" }];
     const october = deriveTasks(doc, new Date(2026, 8, 27, 12)).find((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10");
@@ -108,7 +125,7 @@ describe("personal assistant tasks", () => {
 
   it("derives paid bills and taxes from their actual payment records", () => {
     const doc = document();
-    doc.properties[0]!.expectedPaymentDay = undefined;
+    doc.properties[0]!.paymentDay = undefined;
     doc.incomeEntries = [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "10000.00", taxableAmount: "10000.00" }];
     const taxId = "TAX_PAYMENT:2026-01";
     expect(deriveTasks(doc, new Date(2026, 8, 26)).find((task) => task.id === taxId)?.status).toBe("needs-attention");
@@ -118,7 +135,6 @@ describe("personal assistant tasks", () => {
 
   it("keeps rent and bill tasks in-app while honoring their notification switches", () => {
     const doc = document();
-    doc.properties[0]!.paymentReminderEnabled = false;
     doc.recurringBills = [{ id: "electricity", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false }];
     const now = new Date(2026, 8, 26, 12);
     const tasks = deriveTasks(doc, now);

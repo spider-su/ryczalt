@@ -20,7 +20,7 @@ export const ui = {
   },
   sectionTitle: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: '700' as const, marginTop: 22, marginBottom: 8 },
   primaryButton: {
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.brandAction,
     minHeight: 48,
     borderRadius: 13,
     justifyContent: 'center' as const,

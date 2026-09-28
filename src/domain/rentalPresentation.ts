@@ -1,6 +1,6 @@
 import type { AssistantTask } from "./tasks";
 import type { IncomeEntry } from "../model/rental";
-import { formatPln, moneyToGrosz } from "./ryczaltTax";
+import { formatPln, moneyToGrosz, RYCZALT_RULES } from "./ryczaltTax";
 import { formatPolishCount, formatPolishMonth } from "./presentationFormat";
 
 export function primaryDashboardMetrics(received: string, remaining: string, tax: string) {
@@ -11,10 +11,15 @@ export function primaryDashboardMetrics(received: string, remaining: string, tax
   ];
 }
 
-export function incomeHistory(entries: IncomeEntry[], now = new Date(), propertyId: string | null = null) {
+export function incomeHistory(entries: IncomeEntry[], now = new Date(), propertyId: string | null = null, selectedYear?: number) {
+  const year = selectedYear ?? now.getFullYear();
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const endMonth = selectedYear === undefined || selectedYear === now.getFullYear()
+    ? currentYearMonth
+    : `${selectedYear}-12`;
   return Array.from({ length: 6 }, (_, index) => {
-    const month = shiftMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, index - 5);
-    const total = entries.filter((entry) => entry.receivedAt.startsWith(month) && (!propertyId || entry.propertyId === propertyId))
+    const month = shiftMonth(endMonth, index - 5);
+    const total = entries.filter((entry) => entry.receivedAt.startsWith(`${year}-`) && entry.receivedAt.startsWith(month) && (!propertyId || entry.propertyId === propertyId))
       .reduce((sum, entry) => sum + moneyToGrosz(entry.amount), 0);
     return { month, total };
   });
@@ -33,6 +38,29 @@ export function rentDisplayState(expectedGrosz: number | null, confirmedGrosz: n
   if (remainingGrosz === 0) return { kind: "paid", expectedGrosz };
   if (confirmedGrosz > 0) return { kind: "partial", confirmedGrosz, expectedGrosz, remainingGrosz };
   return { kind: "unpaid", remainingGrosz };
+}
+
+export function dashboardProgress(value: number, total: number) {
+  const safeTotal = Math.max(0, total);
+  const safeValue = Math.max(0, value);
+  return { value: safeValue, total: safeTotal, fraction: safeTotal === 0 ? 0 : Math.min(1, safeValue / safeTotal) };
+}
+
+export function daysOverdue(month: string, day: number, now: Date) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const due = new Date(year!, monthNumber! - 1, Math.min(day, new Date(year!, monthNumber!, 0).getDate()));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86_400_000));
+}
+
+export function annualRentalIncome(entries: IncomeEntry[], taxYear: number) {
+  return entries.filter((entry) => entry.receivedAt.startsWith(`${taxYear}-`))
+    .reduce((sum, entry) => sum + moneyToGrosz(entry.taxableAmount), 0);
+}
+
+export function annualRentalThreshold(taxYear: number, jointSpouseThreshold = false) {
+  const rules = RYCZALT_RULES[taxYear as keyof typeof RYCZALT_RULES];
+  return rules ? rules.lowerLimitPln * 100 * (jointSpouseThreshold ? 2 : 1) : 0;
 }
 
 export function rentConfirmationGroups<T extends { state: RentDisplayState }>(items: T[]) {

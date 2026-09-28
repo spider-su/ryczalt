@@ -9,7 +9,6 @@ import {
   Text,
   TextInput,
   View,
-  Linking,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -17,10 +16,10 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import type { Property, PropertyLink, RecurringBill, RentalDocument } from "../model/rental";
+import type { Property, RecurringBill, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
-import { AGREEMENT_REMINDER_DAYS, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
+import { isNonnegativeMoney, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount } from "../domain/rentalValidation";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
@@ -30,28 +29,36 @@ import { makeBillPayment } from "../domain/billPayment";
 import { settingsSections } from "../domain/rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
 import { formatPlnAmount } from "../domain/ryczaltTax";
+import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
+import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
+import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
+import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 
-type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
-  expectedPaymentDay: string;
-  paymentReminderEnabled: boolean;
-  paymentReminderDelayDays: string;
-  rentalEndReminderDays: number[];
+type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
+  address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
+  electricityProvider: string; electricityUrl: string; tenantName: string; tenantPhone: string; tenantEmail: string; notes: string;
+  ownerRent: string;
+  mediaAmount: string;
+  paymentDay: string;
 };
-const blankDraft: PropertyDraft = {
-  name: "",
-  defaultMonthlyRent: "",
+type PropertyDraftTextKey = "address" | "ownerRent" | "mediaAmount" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalStartDate" | "leaseEndDate" | "paymentDay" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "notes";
+const newPropertyDraft = (): PropertyDraft => ({
+  ...newApartmentDefaults(todayIsoDate()),
+  address: "",
+  ownerRent: "",
+  mediaAmount: "",
+  mediaPaidByTenant: false,
   tenantName: "",
   tenantPhone: "",
   tenantEmail: "",
   tenantSince: "",
-  rentalEndDate: "",
-  rentalEndReminderDays: [30, 7],
-  expectedPaymentDay: "",
-  paymentReminderEnabled: false,
-  paymentReminderDelayDays: "1",
-  administratorPortalUrl: "",
+  paymentDay: "5",
+  administrationName: "",
+  administrationUrl: "",
+  electricityProvider: "",
+  electricityUrl: "",
   notes: "",
-};
+});
 
 type BillDraft = { propertyId: string; name: string; recipientName: string; bankAccount: string; paymentTitle: string; expectedAmount: string; dueDay: string; reminderEnabled: boolean; variableAmount: boolean };
 const emptyBillDraft: BillDraft = { propertyId: "", name: "", recipientName: "", bankAccount: "", paymentTitle: "", expectedAmount: "", dueDay: "", reminderEnabled: false, variableAmount: false };
@@ -64,11 +71,15 @@ export function SettingsScreen() {
   const propertyEditorScrollRef = useRef<ScrollView>(null);
   const [editing, setEditing] = useState<Property | null>(null);
   const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
+  const [showAdvancedProperty, setShowAdvancedProperty] = useState(false);
+  const [showArchivedProperties, setShowArchivedProperties] = useState(false);
+  const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
+  const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
+  const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [draft, setDraft] = useState<PropertyDraft>(blankDraft);
+  const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [billEditing, setBillEditing] = useState<RecurringBill | null>(null);
   const [billModalOpen, setBillModalOpen] = useState(false);
   const [billDraft, setBillDraft] = useState<BillDraft>(emptyBillDraft);
@@ -77,10 +88,6 @@ export function SettingsScreen() {
   const [billPaymentAmount, setBillPaymentAmount] = useState("");
   const [taxRecipient, setTaxRecipient] = useState("");
   const [taxAccount, setTaxAccount] = useState("");
-  const [linkDrafts, setLinkDrafts] = useState<PropertyLink[]>([]);
-  const [linkLabel, setLinkLabel] = useState("");
-  const [linkUrl, setLinkUrl] = useState("");
-  const [linkCategory, setLinkCategory] = useState<PropertyLink["category"]>("UTILITY");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
 
   useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
@@ -118,96 +125,126 @@ export function SettingsScreen() {
   const openProperty = (property?: Property, focus?: SetupAction) => {
     setEditing(property ?? null);
     setSetupFocus(focus ?? null);
-    setLinkDrafts(property ? document.propertyLinks.filter((link) => link.propertyId === property.id) : []);
-    setLinkLabel(""); setLinkUrl(""); setLinkCategory("UTILITY");
+    setShowAdvancedProperty(false);
     setModalOpen(true);
     setDraft(
       property
         ? {
-            name: property.name,
-            defaultMonthlyRent: property.defaultMonthlyRent ?? "",
+            address: property.address,
+            ownerRent: property.ownerRent ?? "",
+            mediaAmount: property.mediaAmount ?? "0",
+            mediaPaidByTenant: property.mediaPaidByTenant ?? false,
             tenantName: property.tenantName ?? "",
             tenantPhone: property.tenantPhone ?? "",
             tenantEmail: property.tenantEmail ?? "",
             tenantSince: property.tenantSince ?? "",
-            rentalEndDate: property.rentalEndDate ?? "",
-            rentalEndReminderDays: property.rentalEndReminderDays ?? (property.rentalEndDate ? [30, 7] : [30, 7]),
-            expectedPaymentDay: property.expectedPaymentDay?.toString() ?? "",
-            paymentReminderEnabled: property.paymentReminderEnabled ?? false,
-            paymentReminderDelayDays: property.paymentReminderDelayDays?.toString() ?? "1",
-            administratorPortalUrl: property.administratorPortalUrl ?? "",
+            rentalStartDate: property.rentalStartDate ?? property.tenantSince ?? "",
+            leaseEndDate: property.leaseEndDate ?? "",
+            paymentDay: property.paymentDay?.toString() ?? "",
+            administrationName: property.administrationName ?? "",
+            administrationUrl: property.administrationUrl ?? "",
+            electricityProvider: property.electricityProvider ?? "",
+            electricityUrl: property.electricityUrl ?? "",
             notes: property.notes ?? "",
           }
-        : blankDraft,
+        : newPropertyDraft(),
     );
   };
   const save = async () => {
-    const name = draft.name.trim();
-    const rent = draft.defaultMonthlyRent?.trim() ?? "";
-    if (!name) {
-      Alert.alert("Brak nazwy", "Wpisz nazwę mieszkania.");
+    const address = draft.address.trim();
+    const ownerRent = draft.ownerRent.trim().replace(",", ".");
+    const mediaAmount = draft.mediaAmount.trim().replace(",", ".") || "0";
+    if (!address) {
+      Alert.alert("Brak adresu", "Wpisz adres mieszkania.");
       return;
     }
-    if (rent && !/^\d+(?:[.,]\d{1,2})?$/.test(rent)) {
-      Alert.alert(
-        "Nieprawidłowy czynsz",
-        "Wpisz kwotę w formacie 2500 lub 2500,50.",
-      );
+    if (!editing && !ownerRent) {
+      Alert.alert("Brak czynszu właściciela", "Wpisz miesięczną kwotę czynszu dla właściciela.");
       return;
     }
-    const endDate = draft.rentalEndDate?.trim() ?? "";
+    const normalizedAddress = address.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("pl-PL");
+    if (document.properties.some((item) => item.id !== editing?.id && item.address.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("pl-PL") === normalizedAddress)) {
+      Alert.alert("Mieszkanie już istnieje", "Adres jest identyfikatorem mieszkania. Otwórz istniejący wpis, aby go edytować.");
+      return;
+    }
+    if (ownerRent && !isNonnegativeMoney(ownerRent)) {
+      Alert.alert("Nieprawidłowy czynsz", "Wpisz kwotę, np. 2500 lub 2500,50.");
+      return;
+    }
+    if (!isNonnegativeMoney(mediaAmount)) {
+      Alert.alert("Nieprawidłowa kwota mediów", "Wpisz kwotę, np. 350 lub 350,50.");
+      return;
+    }
+    const endDate = draft.leaseEndDate.trim();
     if (endDate && !isValidCalendarDate(endDate)) {
-      Alert.alert("Nieprawidłowa data", "Podaj datę końca umowy w formacie RRRR-MM-DD.");
+      Alert.alert("Nieprawidłowa data", "Sprawdź datę wygaśnięcia umowy.");
       return;
     }
-    const paymentDay = draft.expectedPaymentDay.trim() ? Number(draft.expectedPaymentDay) : undefined;
-    const reminderDelay = Number(draft.paymentReminderDelayDays || "1");
+    const startDate = draft.rentalStartDate?.trim() ?? "";
+    if (startDate && !isValidCalendarDate(startDate)) {
+      Alert.alert("Nieprawidłowa data", "Sprawdź datę rozpoczęcia najmu.");
+      return;
+    }
+    const paymentDay = draft.paymentDay.trim() ? Number(draft.paymentDay) : undefined;
     if (paymentDay !== undefined && (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 31)) {
-      Alert.alert("Nieprawidłowy dzień", "Oczekiwany dzień płatności musi być liczbą od 1 do 31.");
+      Alert.alert("Nieprawidłowy termin", "Termin czynszu musi być dniem od 1 do 31.");
       return;
     }
-    if (draft.paymentReminderEnabled && paymentDay === undefined) {
-      Alert.alert("Brak terminu", "Wpisz oczekiwany dzień płatności, aby włączyć przypomnienie.");
+    const administrationName = draft.administrationName.trim();
+    const administrationUrl = draft.administrationUrl.trim();
+    const electricityProvider = draft.electricityProvider.trim();
+    const electricityUrl = draft.electricityUrl.trim();
+    if (administrationUrl && !isValidHttpsUrl(administrationUrl)) {
+      Alert.alert("Nieprawidłowy adres", "Adres panelu administracji musi używać HTTPS.");
       return;
     }
-    if (!Number.isInteger(reminderDelay) || reminderDelay < 0 || reminderDelay > 30) {
-      Alert.alert("Nieprawidłowe opóźnienie", "Wybierz opóźnienie od 0 do 30 dni.");
-      return;
-    }
-    const portalUrl = draft.administratorPortalUrl?.trim() ?? "";
-    if (portalUrl && !isValidHttpsUrl(portalUrl)) {
-      Alert.alert("Nieprawidłowy adres", "Panel administracji musi mieć prawidłowy adres HTTPS.");
+    if (electricityUrl && !isValidHttpsUrl(electricityUrl)) {
+      Alert.alert("Nieprawidłowy adres", "Adres dostawcy prądu musi używać HTTPS.");
       return;
     }
     const property: Property = {
-      ...editing,
       id: editing?.id ?? createId("property"),
-      name,
-      ...(rent ? { defaultMonthlyRent: rent.replace(",", "."), rentSchedule: updatedRentSchedule(editing, rent.replace(",", ".")) } : {}),
+      address,
+      ...(ownerRent ? { ownerRent } : {}),
+      ...(ownerRent ? { rentSchedule: updatedRentSchedule(editing, ownerRent, !editing && startDate ? startDate.slice(0, 7) : undefined) } : editing?.rentSchedule ? { rentSchedule: editing.rentSchedule } : {}),
+      lifecycle: editing ? effectiveLifecycle(editing) : "ACTIVE",
+      ...(startDate ? { rentalStartDate: startDate } : editing?.rentalStartDate ? { rentalStartDate: editing.rentalStartDate } : {}),
+      ...(draft.rentalStartDate ? { rentalStartDate: draft.rentalStartDate } : editing?.rentalStartDate ? { rentalStartDate: editing.rentalStartDate } : {}),
+      mediaAmount,
+      mediaPaidByTenant: draft.mediaPaidByTenant,
       ...optional("tenantName", draft.tenantName),
       ...optional("tenantPhone", draft.tenantPhone),
       ...optional("tenantEmail", draft.tenantEmail),
       ...(editing?.tenantSince ? { tenantSince: editing.tenantSince } : {}),
-      ...(endDate ? { rentalEndDate: endDate } : { rentalEndDate: undefined }),
-      ...(endDate ? { rentalEndReminderDays: draft.rentalEndReminderDays } : { rentalEndReminderDays: [] }),
-      ...(paymentDay ? { expectedPaymentDay: paymentDay } : { expectedPaymentDay: undefined }),
-      paymentReminderEnabled: draft.paymentReminderEnabled,
-      paymentReminderDelayDays: reminderDelay,
-      ...optional("administratorPortalUrl", portalUrl),
+      ...(endDate ? { leaseEndDate: endDate } : {}),
+      ...(paymentDay ? { paymentDay } : {}),
+      ...optional("administrationName", administrationName),
+      ...optional("administrationUrl", administrationUrl),
+      ...optional("electricityProvider", electricityProvider),
+      ...optional("electricityUrl", electricityUrl),
       ...optional("notes", draft.notes),
     };
-    const propertyLinks = linkDrafts.map((link) => ({ ...link, propertyId: property.id }));
     setSaving(true);
     try {
       await update((current) => ({
         ...current,
-        propertyLinks: [...current.propertyLinks.filter((link) => link.propertyId !== property.id), ...propertyLinks],
+        administrationSuggestions: administrationName
+          ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
+          : current.administrationSuggestions,
         properties: editing
           ? current.properties.map((item) =>
               item.id === editing.id ? property : item,
             )
           : [...current.properties, property],
       }));
+      if (!editing) {
+        const today = todayIsoDate();
+        const range = historicalBootstrapDefaultRange(today, draft.rentalStartDate || undefined);
+        if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
+          setBootstrapProperty(property);
+          setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth! });
+        }
+      }
       setEditing(null);
       setSetupFocus(null);
       setModalOpen(false);
@@ -217,58 +254,42 @@ export function SettingsScreen() {
       setSaving(false);
     }
   };
-  const addPropertyLink = () => {
-    const label = linkLabel.trim(); const url = linkUrl.trim();
-    if (!label || !isValidHttpsUrl(url)) {
-      Alert.alert("Nieprawidłowy link", "Podaj nazwę i poprawny adres HTTPS."); return;
-    }
-    setLinkDrafts((links) => [...links, { id: createId("link"), propertyId: editing?.id ?? "draft-property", label, url, category: linkCategory }]);
-    setLinkLabel(""); setLinkUrl("");
+  const changeLifecycle = (property: Property, lifecycle: "ACTIVE" | "PAUSED" | "ARCHIVED") => {
+    const apply = () => void update((current) => setApartmentLifecycle(current, property.id, lifecycle)).then(() => {
+      const next = { ...property, lifecycle };
+      if (editing?.id === property.id) setEditing(next);
+    }).catch(() => undefined);
+    if (lifecycle === "ACTIVE") apply();
+    else Alert.alert(lifecycle === "PAUSED" ? "Wstrzymać najem?" : "Zarchiwizować mieszkanie?",
+      lifecycle === "PAUSED" ? "Nie będą tworzone nowe oczekiwania czynszu ani przypomnienia. Historia pozostanie bez zmian." : "Mieszkanie zniknie z aktywnej listy. Zachowasz jego historię i będzie można je przywrócić.",
+      [{ text: "Anuluj", style: "cancel" }, { text: lifecycle === "PAUSED" ? "Wstrzymaj" : "Archiwizuj", style: lifecycle === "ARCHIVED" ? "destructive" : "default", onPress: apply }]);
   };
-  const remove = (property: Property) => {
-    if (deletingId) return;
-    if (
-      document.incomeEntries.some((income) => income.propertyId === property.id)
-    ) {
-      Alert.alert(
-        "Nie można usunąć mieszkania",
-        "To mieszkanie ma zapisane wpłaty. Zachowaj je, aby nie utracić historii.",
-      );
-      return;
-    }
-    Alert.alert(
-      "Usunąć mieszkanie?",
-      `Mieszkanie „${property.name}” zostanie usunięte.`,
-      [
-        { text: "Anuluj", style: "cancel" },
-        {
-          text: "Usuń",
-          style: "destructive",
-          onPress: () => {
-            setDeletingId(property.id);
-            void update((current) => ({
-        ...current,
-        recurringBills: current.recurringBills.filter((bill) => bill.propertyId !== property.id),
-        billPayments: current.billPayments.filter((payment) => !current.recurringBills.some((bill) => bill.id === payment.billId && bill.propertyId === property.id)),
-        propertyLinks: current.propertyLinks.filter((link) => link.propertyId !== property.id),
-        properties: current.properties.filter(
-                (item) => item.id !== property.id,
-              ),
-            }))
-              .catch(() => undefined)
-              .finally(() => setDeletingId(null));
-          },
-        },
-      ],
-    );
+  const setRentReminderDelay = (days: number) => update((current) => ({ ...current, settings: { ...current.settings, rentReminderDelayDays: days } })).catch(() => undefined);
+  const confirmHistoricalBootstrap = async () => {
+    if (!bootstrapProperty || !bootstrapRange) return;
+    const today = todayIsoDate();
+    setSaving(true);
+    try {
+      let created = 0;
+      await update((current) => {
+        const result = bootstrapHistoricalRentPayments({ document: current, property: bootstrapProperty, ...bootstrapRange, today });
+        created = result.created.length;
+        return result.document;
+      });
+      setBootstrapProperty(null);
+      setBootstrapRange(null);
+      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat. Możesz je później poprawić w historii.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
+    } catch { /* The provider reports persistence errors. */ }
+    finally { setSaving(false); }
   };
   const field = (
     label: string,
-    key: "name" | "defaultMonthlyRent" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalEndDate" | "administratorPortalUrl" | "notes",
+    key: PropertyDraftTextKey,
     options: {
-      keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad";
+      keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad" | "number-pad" | "url";
       multiline?: boolean;
       placeholder?: string;
+      selectTextOnFocus?: boolean;
     } = {},
   ) => (
     <View style={{ marginBottom: 14 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
@@ -293,7 +314,9 @@ export function SettingsScreen() {
         placeholder={options.placeholder}
         placeholderTextColor={theme.colors.textMuted}
         keyboardType={options.keyboardType ?? "default"}
+        autoCapitalize={key.endsWith("Url") ? "none" : undefined}
         multiline={options.multiline}
+        selectTextOnFocus={options.selectTextOnFocus}
         style={{
           color: theme.colors.textPrimary,
           backgroundColor: theme.colors.inputBackground,
@@ -389,11 +412,6 @@ export function SettingsScreen() {
       billPayments: current.billPayments.filter((payment) => payment.billId !== bill.id),
     })).catch(() => undefined) },
   ]);
-  const openPortal = async (property: Property) => {
-    if (!property.administratorPortalUrl) return;
-    try { await Linking.openURL(property.administratorPortalUrl); }
-    catch { Alert.alert("Nie można otworzyć panelu", "Sprawdź zapisany adres HTTPS."); }
-  };
   const copyPaymentValue = async (value: string | undefined, label: string) => {
     if (!value) return;
     try { await Clipboard.setStringAsync(value); Alert.alert("Skopiowano", label); }
@@ -455,7 +473,7 @@ export function SettingsScreen() {
                   { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, quarterlyEligible: true, settlementMode: "quarterly" })) },
                 ]);
               } else updateTaxSettings((settings) => ({ ...settings, settlementMode: mode }));
-            }} style={[modeButton, document.settings.settlementMode === mode && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}>
+            }} style={[modeButton, document.settings.settlementMode === mode && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }]}>
               <Text style={modeText}>{mode === "monthly" ? "Miesięcznie" : "Kwartalnie"}</Text>
             </Pressable>
           ))}
@@ -465,17 +483,19 @@ export function SettingsScreen() {
           Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
             { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
           ]);
-        }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
+        }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
         <Text style={{ ...muted, marginTop: -4 }}>Dotyczy wspólności majątkowej i wymaga wyboru opodatkowania całości przychodów z najmu przez jednego małżonka oraz złożenia wymaganego oświadczenia w terminie.</Text>
         <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
         </> : null}
         {activeSection === "notifications" ? <>
-        <Text style={sectionTitle}>Powiadomienia lokalne</Text>
+      <Text style={sectionTitle}>Powiadomienia lokalne</Text>
         <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : permission === "unavailable" ? "Powiadomienia urządzenia są niedostępne w przeglądarce; przypomnienia pozostają widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
+        <Text style={fieldLabel}>Przypomnij o nieopłaconym czynszu</Text>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days }} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
         {([
           ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
-        ] as const).map(([category, label]) => <View key={category} style={notificationRow}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
+        ] as const).map(([category, label]) => <View key={category} style={notificationRow}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
         {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
         </> : null}
@@ -510,10 +530,10 @@ export function SettingsScreen() {
             {error}
           </Text>
         ) : null}
-        {document.properties.length === 0 ? (
+        {document.properties.filter((property) => effectiveLifecycle(property) !== "ARCHIVED").length === 0 ? (
           <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Nie dodano jeszcze mieszkań.</Text></View>
         ) : (
-          document.properties.map((property) => (
+          document.properties.filter((property) => effectiveLifecycle(property) !== "ARCHIVED").map((property) => (
           <View
               key={property.id}
               style={ui.card}
@@ -534,7 +554,7 @@ export function SettingsScreen() {
                       fontWeight: "600",
                     }}
                   >
-                    {property.name}
+                    {property.address}
                   </Text>
                 </View>
                 <View style={{ flexDirection: "row", gap: 16 }}>
@@ -545,39 +565,16 @@ export function SettingsScreen() {
                   >
                     Edytuj
                   </Text>
-                  <Text
-                    onPress={() => remove(property)}
-                    accessibilityRole="button"
-                    style={{ ...action, color: theme.colors.danger }}
-                  >
-                    Usuń
-                  </Text>
                 </View>
               </View>
-              {property.defaultMonthlyRent ? (
-                <Text style={muted}>
-                  Domyślny czynsz: {formatPlnAmount(property.defaultMonthlyRent)} / mies.
-                </Text>
-              ) : null}
-              {property.expectedPaymentDay ? <Text style={muted}>Oczekiwany czynsz: {property.expectedPaymentDay}. dzień miesiąca</Text> : null}
-              {property.paymentReminderEnabled ? <Text style={muted}>Przypomnienie: {property.paymentReminderDelayDays ?? 1} dni po terminie</Text> : null}
-              {property.tenantName ? (
-                <Text style={muted}>Najemca: {property.tenantName}</Text>
-              ) : null}
-              {property.tenantPhone ? (
-                <Text style={muted}>Telefon: {property.tenantPhone}</Text>
-              ) : null}
-              {property.tenantEmail ? (
-                <Text style={muted}>E-mail: {property.tenantEmail}</Text>
-              ) : null}
-              {property.rentalEndDate ? <Text style={muted}>Umowa do: {formatPolishDate(property.rentalEndDate, "long")}</Text> : null}
-              {property.administratorPortalUrl ? <Pressable accessibilityRole="link" onPress={() => void openPortal(property)} style={{ paddingVertical: 7 }}><Text style={action}>Otwórz panel administracji</Text></Pressable> : null}
-              {property.notes ? (
-                <Text style={{ ...muted, marginTop: 5 }}>{property.notes}</Text>
-              ) : null}
+              <Text style={muted}>{property.tenantName || "Najemca nieuzupełniony"}</Text>
+              <Text style={muted}>{formatPlnAmount(decimalFromGrosz(tenantMonthlyTotalGrosz(property)))} / mies. · płatne do {property.paymentDay ?? 5}. dnia</Text>
+              {effectiveLifecycle(property) !== "ACTIVE" ? <Text style={muted}>{effectiveLifecycle(property) === "PAUSED" ? "Najem wstrzymany" : "Zarchiwizowane"}</Text> : null}
             </View>
           ))
         )}
+        <Pressable accessibilityRole="button" onPress={() => setShowArchivedProperties((visible) => !visible)} style={{ paddingVertical: 12 }}><Text style={action}>{showArchivedProperties ? "Ukryj archiwum" : `Archiwum · ${document.properties.filter((property) => effectiveLifecycle(property) === "ARCHIVED").length}`}</Text></Pressable>
+        {showArchivedProperties ? document.properties.filter((property) => effectiveLifecycle(property) === "ARCHIVED").map((property) => <View key={property.id} style={ui.card}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{property.address}</Text><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane</Text><Pressable accessibilityRole="button" onPress={() => openProperty(property)} style={{ paddingVertical: 8 }}><Text style={action}>Edytuj lub przywróć</Text></Pressable></View>) : null}
         </> : null}
         {activeSection === "bills" ? <>
         <View style={{ marginTop: 4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }}>
@@ -586,7 +583,7 @@ export function SettingsScreen() {
         {document.recurringBills.length === 0 ? <View style={ui.emptyState}><Text style={{ color: theme.colors.textSecondary }}>Brak pozostałych rachunków. Dodaj rachunki, aby mieć zapisane terminy i dane płatności.</Text></View> : document.recurringBills.map((bill) => {
           const property = document.properties.find((item) => item.id === bill.propertyId);
           return <View key={bill.id} style={[ui.card, { padding: 14 }]}>
-            <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.name ?? "Mieszkanie"}</Text>
+            <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.address ?? "Mieszkanie"}</Text>
             <Text style={muted}>{bill.variableAmount ? "Kwotę sprawdź na bieżąco" : bill.expectedAmount ? formatPlnAmount(bill.expectedAmount) : "Kwota do sprawdzenia"}{bill.dueDay ? ` · termin ${bill.dueDay}. dzień` : ""}</Text>
             <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => openBillDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
           </View>;
@@ -640,48 +637,44 @@ export function SettingsScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: 20 }}
           >
-            {field("Nazwa mieszkania *", "name", {
-              placeholder: "np. Mieszkanie przy Parkowej",
-            })}
-            {field("Domyślny czynsz miesięczny (zł)", "defaultMonthlyRent", {
-              keyboardType: "decimal-pad",
-              placeholder: "np. 2500,00",
-            })}
-            {field("Imię i nazwisko najemcy", "tenantName")}
-            {field("Telefon", "tenantPhone", { keyboardType: "phone-pad" })}
-            {field("E-mail", "tenantEmail", { keyboardType: "email-address" })}
-            {field("Umowa najmu do (RRRR-MM-DD)", "rentalEndDate", { placeholder: "2026-12-31" })}
-            <Text style={fieldLabel}>Przypomnij przed końcem umowy</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-              {AGREEMENT_REMINDER_DAYS.map((days) => {
-                const selected = draft.rentalEndReminderDays.includes(days);
-                return <Pressable key={days} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} onPress={() => setDraft((current) => ({ ...current, rentalEndReminderDays: selected ? current.rentalEndReminderDays.filter((item) => item !== days) : [...current.rentalEndReminderDays, days].sort((a, b) => b - a) }))} style={[modeButton, selected && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}><Text style={modeText}>{days === 0 ? "W dniu umowy" : `${days} dni`}</Text></Pressable>;
-              })}
+            <Text style={sectionTitle}>Mieszkanie</Text>
+            {field("Adres *", "address", { placeholder: "np. ul. Parkowa 12/4" })}
+            {field("Najemca", "tenantName", { placeholder: "Imię i nazwisko" })}
+            <Text style={sectionTitle}>Płatności</Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "2500", selectTextOnFocus: true })}</View>
+              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0", selectTextOnFocus: true })}</View>
             </View>
-            <Text style={sectionTitle}>Przypomnienie o czynszu</Text>
-            <View onLayout={setupFocus === "payment-day" ? (event) => {
-              propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
-              setSetupFocus(null);
-            } : undefined}>
-              <Text style={fieldLabel}>Oczekiwany dzień płatności (1–31)</Text><TextInput accessibilityLabel="Oczekiwany dzień płatności" value={draft.expectedPaymentDay} onChangeText={(value) => setDraft((current) => ({ ...current, expectedPaymentDay: value }))} keyboardType="number-pad" placeholder="np. 10" style={inputStyle} />
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
+            <Text style={{ ...muted, marginBottom: 8 }}>Razem od najemcy: {tenantDraftTotal(draft)} / mies.</Text>
+            <View onLayout={setupFocus === "payment-day" ? (event) => { propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); setSetupFocus(null); } : undefined}>
+              {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "5" })}
             </View>
-            <View onLayout={setupFocus === "payment-reminder" ? (event) => {
-              propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
-              setSetupFocus(null);
-            } : undefined}>
-              <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Przypominaj, aby sprawdzić wpłatę</Text><Switch value={draft.paymentReminderEnabled} onValueChange={(paymentReminderEnabled) => setDraft((current) => ({ ...current, paymentReminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Przypominaj o czynszu" accessibilityState={{ checked: draft.paymentReminderEnabled }} /></View>
-            </View>
-            {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
-            <Text style={sectionTitle}>Administracja</Text>
-            {field("Adres panelu administracji (HTTPS)", "administratorPortalUrl", { placeholder: "https://" })}
-            <Text style={sectionTitle}>Przydatne linki</Text>
-            <Text style={muted}>Linki otwierają się w przeglądarce. Nie zapisuj tu haseł.</Text>
-            <TextInput accessibilityLabel="Nazwa przydatnego linku" value={linkLabel} onChangeText={setLinkLabel} placeholder="np. Dostawca prądu" style={inputStyle} />
-            <TextInput accessibilityLabel="Adres przydatnego linku HTTPS" value={linkUrl} onChangeText={setLinkUrl} placeholder="https://" autoCapitalize="none" keyboardType="url" style={inputStyle} />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>{([ ["ADMINISTRATION", "Administracja"], ["UTILITY", "Media"], ["TAX", "Podatki"], ["OTHER", "Inne"] ] as const).map(([category, label]) => <Pressable key={category} accessibilityRole="radio" accessibilityState={{ checked: linkCategory === category }} onPress={() => setLinkCategory(category)} style={[modeButton, linkCategory === category && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}><Text style={modeText}>{label}</Text></Pressable>)}</View>
-            <Pressable accessibilityRole="button" onPress={addPropertyLink} style={secondaryButton}><Text style={modeText}>Dodaj link</Text></Pressable>
-            {linkDrafts.map((link) => <View key={link.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: theme.colors.divider }}><View style={{ flex: 1 }}><Text style={fieldLabel}>{link.label}</Text><Text style={muted}>{link.url}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`Usuń link ${link.label}`} onPress={() => setLinkDrafts((current) => current.filter((item) => item.id !== link.id))}><Text style={{ ...action, color: theme.colors.danger }}>Usuń</Text></Pressable></View>)}
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={{ paddingVertical: 14 }}><Text style={action}>{showAdvancedProperty ? "− Mniej ustawień" : "+ Więcej ustawień"}</Text></Pressable>
+            {showAdvancedProperty ? <>
+            <Text style={sectionTitle}>Daty najmu</Text>
+            {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
+            {field("Umowa wygasa", "leaseEndDate", { placeholder: "2027-09-28" })}
+            <Text style={sectionTitle}>Dane kontaktowe</Text>
+            <View style={{ flexDirection: "row", gap: 12 }}><View style={{ flex: 1 }}>{field("Telefon", "tenantPhone", { keyboardType: "phone-pad" })}</View><View style={{ flex: 1 }}>{field("E-mail", "tenantEmail", { keyboardType: "email-address" })}</View></View>
+            <Text style={sectionTitle}>Obsługa mieszkania</Text>
+            {field("Administracja", "administrationName", { placeholder: "np. wspólnota / zarządca" })}
+            {draft.administrationName.trim() ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>{document.administrationSuggestions.filter((suggestion) => suggestion.name.toLocaleLowerCase().includes(draft.administrationName.trim().toLocaleLowerCase())).map((suggestion) => <Pressable key={suggestion.name} accessibilityRole="button" onPress={() => setDraft((current) => ({ ...current, administrationName: suggestion.name, administrationUrl: suggestion.url ?? current.administrationUrl }))} style={modeButton}><Text style={modeText}>{suggestion.name}</Text></Pressable>)}</View> : null}
+            {field("Adres panelu", "administrationUrl", { placeholder: "https://", keyboardType: "url" })}
+            <Text style={fieldLabel}>Dostawca prądu</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>{[...ELECTRICITY_PROVIDER_PRESETS.map((preset) => preset.name), "Inny"].map((provider) => { const selected = provider === "Inny" ? !ELECTRICITY_PROVIDER_PRESETS.some((preset) => preset.name === draft.electricityProvider) : draft.electricityProvider === provider; return <Pressable key={provider} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => { if (provider === "Inny") setDraft((current) => ({ ...current, electricityProvider: ELECTRICITY_PROVIDER_PRESETS.some((preset) => preset.name === current.electricityProvider) ? "" : current.electricityProvider })); else { const preset = ELECTRICITY_PROVIDER_PRESETS.find((item) => item.name === provider)!; setDraft((current) => ({ ...current, electricityProvider: preset.name, electricityUrl: preset.url })); } }} style={[modeButton, selected && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }]}><Text style={modeText}>{provider}</Text></Pressable>; })}</View>
+            {field("Nazwa dostawcy", "electricityProvider", { placeholder: "np. lokalny dostawca" })}
+            {field("URL dostawcy", "electricityUrl", { placeholder: "https://", keyboardType: "url" })}
+            <Text style={sectionTitle}>Notatki</Text>
             {field("Notatki", "notes", { multiline: true })}
+            </> : null}
+            {editing ? <View style={{ marginTop: 6, marginBottom: 8 }}>
+              <Text style={fieldLabel}>Status najmu</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {effectiveLifecycle(editing) === "ACTIVE" ? <Pressable accessibilityRole="button" onPress={() => changeLifecycle(editing, "PAUSED")} style={secondaryButton}><Text style={modeText}>Wstrzymaj najem</Text></Pressable> : <Pressable accessibilityRole="button" onPress={() => changeLifecycle(editing, "ACTIVE")} style={secondaryButton}><Text style={modeText}>Wznów najem</Text></Pressable>}
+                {effectiveLifecycle(editing) !== "ARCHIVED" ? <Pressable accessibilityRole="button" onPress={() => changeLifecycle(editing, "ARCHIVED")} style={secondaryButton}><Text style={modeText}>Archiwizuj</Text></Pressable> : <Pressable accessibilityRole="button" onPress={() => changeLifecycle(editing, "ACTIVE")} style={secondaryButton}><Text style={modeText}>Przywróć</Text></Pressable>}
+              </View>
+            </View> : null}
             <Pressable
               accessibilityRole="button"
               disabled={saving}
@@ -695,20 +688,42 @@ export function SettingsScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+      <Modal visible={Boolean(bootstrapProperty && bootstrapRange)} animationType="slide" onRequestClose={() => { setBootstrapProperty(null); setBootstrapRange(null); }}>
+        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
+          <View style={modalHeader}><Text style={modalTitle}>Wpłaty początkowe</Text><Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }}><Text style={action}>Pomiń</Text></Pressable></View>
+          {bootstrapProperty && bootstrapRange ? <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <Text style={muted}>Czy czynsz za poniższe zakończone miesiące został już otrzymany? Każdy miesiąc zapiszemy osobno; przychód podatkowy obejmie czynsz dla właściciela.</Text>
+            <View style={[ui.card, { marginTop: 16 }]}>
+              <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{bootstrapProperty.address}</Text>
+              <Text style={muted}>{bootstrapRange.startMonth} – {bootstrapRange.endMonth}</Text>
+              <Text style={muted}>{formatPolishCount(bootstrapMonthCount(bootstrapRange.startMonth, bootstrapRange.endMonth), ["wpłata", "wpłaty", "wpłat"])} · {formatPlnAmount(decimalFromGrosz(tenantMonthlyTotalGrosz(bootstrapProperty) * bootstrapMonthCount(bootstrapRange.startMonth, bootstrapRange.endMonth)))}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: bootstrapRangeOpen }} onPress={() => setBootstrapRangeOpen((open) => !open)} style={{ paddingVertical: 12 }}><Text style={action}>{bootstrapRangeOpen ? "− Zmień okres" : "+ Zmień okres"}</Text></Pressable>
+            {bootstrapRangeOpen ? <View style={{ gap: 12, marginBottom: 16 }}>
+              {(["startMonth", "endMonth"] as const).map((key) => <View key={key} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={muted}>{key === "startMonth" ? "Od" : "Do"}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, -1) : range)}><Text style={action}>‹</Text></Pressable><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bootstrapRange[key]}</Text><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, 1) : range)}><Text style={action}>›</Text></Pressable></View>
+              </View>)}
+            </View> : null}
+            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Tak, wpłaty zostały otrzymane"}</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
+          </ScrollView> : null}
+        </SafeAreaView>
+      </Modal>
       <Modal visible={billModalOpen} animationType="slide" onRequestClose={() => setBillModalOpen(false)}>
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>{billEditing ? "Edytuj rachunek" : "Nowy rachunek"}</Text><Text accessibilityRole="button" onPress={() => setBillModalOpen(false)} style={action}>Zamknij</Text></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
             <Text style={fieldLabel}>Mieszkanie</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{document.properties.map((property) => <Pressable key={property.id} accessibilityRole="radio" accessibilityState={{ checked: billDraft.propertyId === property.id }} onPress={() => setBillDraft((current) => ({ ...current, propertyId: property.id }))} style={[modeButton, billDraft.propertyId === property.id && { borderColor: theme.colors.primary, backgroundColor: theme.colors.accentSoft }]}><Text style={modeText}>{property.name}</Text></Pressable>)}</View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{document.properties.map((property) => <Pressable key={property.id} accessibilityRole="radio" accessibilityState={{ checked: billDraft.propertyId === property.id }} onPress={() => setBillDraft((current) => ({ ...current, propertyId: property.id }))} style={[modeButton, billDraft.propertyId === property.id && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }]}><Text style={modeText}>{property.address}</Text></Pressable>)}</View>
             {billFields("Nazwa rachunku", "name")}
             {billFields("Odbiorca", "recipientName")}
             {billFields("Polski numer rachunku", "bankAccount")}
             {billFields("Tytuł płatności", "paymentTitle")}
             {billFields("Oczekiwana kwota (zł)", "expectedAmount", "decimal-pad")}
             {billFields("Dzień terminu płatności (1–31)", "dueDay", "number-pad")}
-            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Kwota zmienna, sprawdzaj ją na bieżąco</Text><Switch value={billDraft.variableAmount} onValueChange={(variableAmount) => setBillDraft((current) => ({ ...current, variableAmount }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Kwota zmienna" accessibilityState={{ checked: billDraft.variableAmount }} /></View>
-            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Przypominaj o rachunku</Text><Switch value={billDraft.reminderEnabled} onValueChange={(reminderEnabled) => setBillDraft((current) => ({ ...current, reminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Przypominaj o rachunku" accessibilityState={{ checked: billDraft.reminderEnabled }} /></View>
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Kwota zmienna, sprawdzaj ją na bieżąco</Text><Switch value={billDraft.variableAmount} onValueChange={(variableAmount) => setBillDraft((current) => ({ ...current, variableAmount }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Kwota zmienna" accessibilityState={{ checked: billDraft.variableAmount }} /></View>
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Przypominaj o rachunku</Text><Switch value={billDraft.reminderEnabled} onValueChange={(reminderEnabled) => setBillDraft((current) => ({ ...current, reminderEnabled }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Przypominaj o rachunku" accessibilityState={{ checked: billDraft.reminderEnabled }} /></View>
             <Pressable accessibilityRole="button" onPress={() => void saveBill()} style={primaryButton}><Text style={primaryText}>Zapisz rachunek</Text></Pressable>
           </ScrollView>
         </SafeAreaView>
@@ -719,7 +734,7 @@ export function SettingsScreen() {
           {billForDetails ? <ScrollView contentContainerStyle={{ padding: 20 }}>
             {(() => {
               const property = document.properties.find((item) => item.id === billForDetails.propertyId);
-              const details = { recipientName: billForDetails.recipientName, bankAccount: billForDetails.bankAccount, amount: billForDetails.variableAmount ? undefined : billForDetails.expectedAmount, title: billForDetails.paymentTitle, propertyName: property?.name };
+              const details = { recipientName: billForDetails.recipientName, bankAccount: billForDetails.bankAccount, amount: billForDetails.variableAmount ? undefined : billForDetails.expectedAmount, title: billForDetails.paymentTitle, propertyName: property?.address };
               const dueDate = billForDetails.dueDay ? nextBillDueDate(billForDetails.dueDay) : undefined;
               const missing = missingPaymentDetails(details);
               return <>
@@ -755,12 +770,41 @@ function nextBillDueDate(day: number, now = new Date()): string {
   return formatPolishDate(due, "long");
 }
 
-function updatedRentSchedule(property: Property | null, amount: string) {
-  const month = todayIsoDate().slice(0, 7);
+function updatedRentSchedule(property: Property | null, amount: string, effectiveFrom?: string) {
+  const month = effectiveFrom ?? todayIsoDate().slice(0, 7);
   const existing = property?.rentSchedule ?? [];
-  if (property?.defaultMonthlyRent === amount && existing.some((rate) => rate.effectiveFrom === month && rate.amount === amount)) return existing;
-  if (property?.defaultMonthlyRent === amount && existing.length) return existing;
+  if (property?.ownerRent === amount && existing.some((rate) => rate.effectiveFrom === month && rate.amount === amount)) return existing;
+  if (property?.ownerRent === amount && existing.length) return existing;
   return [...existing.filter((rate) => rate.effectiveFrom !== month), { effectiveFrom: month, amount }].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+}
+
+function shiftMonthValue(month: string, delta: number) {
+  const [year, part] = month.split("-").map(Number);
+  const date = new Date(year!, part! - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function bootstrapMonthCount(start: string, end: string) {
+  const [startYear, startMonth] = start.split("-").map(Number);
+  const [endYear, endMonth] = end.split("-").map(Number);
+  return Math.max(0, (endYear! - startYear!) * 12 + endMonth! - startMonth! + 1);
+}
+
+function shiftBootstrapRange(range: { startMonth: string; endMonth: string }, property: Property, key: "startMonth" | "endMonth", delta: number) {
+  const today = todayIsoDate();
+  const yearStart = `${today.slice(0, 4)}-01`;
+  const lastCompleted = shiftMonthValue(today.slice(0, 7), -1);
+  const minimum = property.rentalStartDate && property.rentalStartDate.slice(0, 7) > yearStart ? property.rentalStartDate.slice(0, 7) : yearStart;
+  const candidate = shiftMonthValue(range[key], delta);
+  if (key === "startMonth") return { ...range, startMonth: candidate < minimum ? minimum : candidate > range.endMonth ? range.endMonth : candidate };
+  return { ...range, endMonth: candidate > lastCompleted ? lastCompleted : candidate < range.startMonth ? range.startMonth : candidate };
+}
+
+function tenantDraftTotal(draft: PropertyDraft) {
+  const ownerRent = draft.ownerRent.trim().replace(",", ".") || "0";
+  const mediaAmount = draft.mediaAmount.trim().replace(",", ".") || "0";
+  if (!isNonnegativeMoney(ownerRent) || !isNonnegativeMoney(mediaAmount)) return "—";
+  return formatPlnAmount(decimalFromGrosz(tenantMonthlyTotalGrosz({ ownerRent, mediaAmount, mediaPaidByTenant: draft.mediaPaidByTenant })));
 }
 
 function optional(
@@ -768,9 +812,11 @@ function optional(
     | "tenantName"
     | "tenantPhone"
     | "tenantEmail"
-    | "tenantSince"
-    | "rentalEndDate"
-    | "administratorPortalUrl"
+    | "leaseEndDate"
+    | "administrationName"
+    | "administrationUrl"
+    | "electricityProvider"
+    | "electricityUrl"
     | "notes",
   value?: string,
 ): Partial<Property> {
@@ -783,7 +829,7 @@ function textValue(key: "recipientName" | "bankAccount" | "paymentTitle", value:
   return trimmed ? { [key]: trimmed } : {};
 }
 const primaryButton = {
-  backgroundColor: theme.colors.primary,
+  backgroundColor: theme.colors.brandAction,
   minHeight: 48,
   borderRadius: 8,
   justifyContent: "center" as const,

@@ -7,13 +7,12 @@ export type SetupNavigationIntent = {
 
 export function setupActionField(action: SetupAction): string {
   switch (action) {
-    case "apartment": return "name";
-    case "rent": return "defaultMonthlyRent";
-    case "payment-day": return "expectedPaymentDay";
-    case "payment-reminder": return "paymentReminderEnabled";
+    case "apartment": return "address";
+    case "rent": return "ownerRent";
+    case "payment-day": return "paymentDay";
     case "tenant": return "tenantName";
-    case "agreement-end": return "rentalEndDate";
-    case "administrator-portal": return "administratorPortalUrl";
+    case "agreement-end": return "leaseEndDate";
+    case "administrator-portal": return "administrationName";
   }
 }
 
