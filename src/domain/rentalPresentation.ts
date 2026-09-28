@@ -1,6 +1,7 @@
 import type { AssistantTask } from "./tasks";
 import type { IncomeEntry } from "../model/rental";
-import { moneyToGrosz } from "./ryczaltTax";
+import { formatPln, moneyToGrosz } from "./ryczaltTax";
+import { formatPolishCount, formatPolishMonth } from "./presentationFormat";
 
 export function primaryDashboardMetrics(received: string, remaining: string, tax: string) {
   return [
@@ -41,13 +42,12 @@ export function rentConfirmationGroups<T extends { state: RentDisplayState }>(it
 
 export function unallocatedRentWarning(unallocatedGrosz: number): string | null {
   return unallocatedGrosz > 0
-    ? `Nadwyżka wpłaty: ${new Intl.NumberFormat("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(unallocatedGrosz / 100)} zł nieprzypisana do czynszu`
+    ? `Nieprzypisana nadpłata: ${formatPln(unallocatedGrosz)}`
     : null;
 }
 
 export function incomeSectionLabels(currentMonth: string, selectedYear: number) {
-  const date = new Date(`${currentMonth}-15T12:00:00`);
-  const currentPeriod = new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(date).toLocaleUpperCase("pl-PL");
+  const currentPeriod = formatPolishMonth(currentMonth).toLocaleUpperCase("pl-PL");
   return {
     currentRent: `DO POTWIERDZENIA · ${currentPeriod}`,
     paymentHistory: `POTWIERDZONE WPŁATY · ${selectedYear}`,
@@ -56,8 +56,39 @@ export function incomeSectionLabels(currentMonth: string, selectedYear: number) 
 
 export function attentionSummary(count: number) {
   return count > 0
-    ? { interactive: true, label: `${count} ${count === 1 ? "sprawa wymaga" : "sprawy wymagają"} uwagi`, action: "Pokaż ›" }
+    ? { interactive: true, label: `${formatPolishCount(count, ["sprawa", "sprawy", "spraw"])} ${count === 1 ? "wymaga" : "wymagają"} uwagi`, action: "Pokaż ›" }
     : { interactive: false, label: "✓ Wszystko na dziś załatwione", action: null };
+}
+
+export function dashboardTaskPresentation(attentionCount: number) {
+  return {
+    showActionableSection: attentionCount > 0,
+    summary: attentionSummary(attentionCount),
+  };
+}
+
+export function rentIncomeAction(remainingRentGrosz: number) {
+  const urgent = remainingRentGrosz > 0;
+  return {
+    primary: urgent,
+    label: urgent ? "Potwierdź wpłatę" : "Dodaj inną wpłatę",
+  };
+}
+
+export function upcomingTaskPresentation(task: AssistantTask) {
+  const title = task.type === "TAX_PAYMENT"
+    ? "Podatek"
+    : task.type === "TENANT_PAYMENT_CHECK"
+      ? task.title.replace(/^Sprawdź czynsz — /, "")
+      : task.type === "RECURRING_BILL"
+        ? task.title.replace(/^Płatność: /, "")
+        : task.title;
+  const amountGrosz = task.type === "TENANT_PAYMENT_CHECK"
+    ? task.expectedGrosz
+    : task.type === "TAX_PAYMENT" || task.type === "RECURRING_BILL"
+      ? task.remainingGrosz ?? task.expectedGrosz
+      : undefined;
+  return { title, amount: amountGrosz === undefined ? "" : formatPln(amountGrosz) };
 }
 
 export function taxPaymentPrompt(outstandingGrosz: number, overpaidGrosz: number, obligationGrosz = 0) {

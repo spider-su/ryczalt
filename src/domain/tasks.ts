@@ -2,6 +2,7 @@ import { calculateSettlements, formatPln, moneyToGrosz } from "./ryczaltTax";
 import { customReminderTaskId, recurrenceLabel, reminderOccurrenceDates } from "./customReminders";
 import type { RentalDocument, TaskState } from "../model/rental";
 import { rentMonthAmounts } from "./rentAllocation";
+import { formatPolishDate, formatPolishMonth } from "./presentationFormat";
 export { expectedRentForMonth, rentMonthAmounts } from "./rentAllocation";
 
 export type TaskType = "TENANT_PAYMENT_CHECK" | "TAX_PAYMENT" | "RECURRING_BILL" | "RENTAL_AGREEMENT_END" | "CUSTOM_REMINDER";
@@ -43,9 +44,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
         const notificationAt = addDays(dueAt, property.paymentReminderDelayDays ?? 1);
         const remaining = amounts.remainingGrosz;
         const done = remaining === 0;
-        const title = done ? `Czynsz potwierdzony — ${property.name}` : remaining < amounts.expectedGrosz
-          ? `Sprawdź pozostałą wpłatę — ${formatPln(remaining)}`
-          : `Sprawdź czynsz — ${property.name}`;
+        const title = done ? `Czynsz potwierdzony — ${property.name}` : `Sprawdź czynsz — ${property.name}`;
         const detail = `Za ${monthLabel(period)}: oczekiwano ${formatPln(amounts.expectedGrosz)}, potwierdzono ${formatPln(amounts.confirmedGrosz)}${remaining ? `, do potwierdzenia ${formatPln(remaining)}` : ""}.`;
         tasks.push(makeTask(document, now, {
           id: `TENANT_PAYMENT_CHECK:${property.id}:${period}`, type: "TENANT_PAYMENT_CHECK", title, detail,
@@ -216,6 +215,6 @@ function shiftMonth(month: string, offset: number) { const [y, m] = month.split(
 function paymentDay(month: string, day: number) { const [y, m] = month.split("-").map(Number); return new Date(y!, m! - 1, Math.min(day, new Date(y!, m!, 0).getDate()), 9); }
 function localDate(value: string) { const [y, m, d] = value.split("-").map(Number); return new Date(y!, m! - 1, d!, 9); }
 function addDays(date: Date, days: number) { const next = new Date(date); next.setDate(next.getDate() + days); return next; }
-function monthLabel(month: string) { const [y, m] = month.split("-").map(Number); return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(y!, m! - 1, 1)); }
+function monthLabel(month: string) { return formatPolishMonth(month); }
 function periodLabel(period: string) { const quarter = period.match(/^\d{4}-Q([1-4])$/); return quarter ? `${quarter[1]}. kwartał ${period.slice(0, 4)}` : monthLabel(period); }
-function formatDate(value: string) { return new Intl.DateTimeFormat("pl-PL").format(localDate(value)); }
+function formatDate(value: string) { return formatPolishDate(value, "long"); }

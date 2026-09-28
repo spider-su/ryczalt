@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Ryczałt APK"
+  short_description: "Build and replace the local Android APK"
+  default_prompt: "Build a standalone Ryczałt release APK locally and update artifacts/app/ryczalt.apk."

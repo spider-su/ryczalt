@@ -16,7 +16,8 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
-import { attentionSummary as getAttentionSummary, historicalTasks, primaryDashboardMetrics, rentDisplayState, upcomingTasks } from "../domain/rentalPresentation";
+import { dashboardTaskPresentation, historicalTasks, primaryDashboardMetrics, rentDisplayState, rentIncomeAction, unallocatedRentWarning, upcomingTasks } from "../domain/rentalPresentation";
+import { formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 
 export function PulpitScreen() {
   const { document, update } = useRentalData();
@@ -55,7 +56,8 @@ export function PulpitScreen() {
   if (!document) return <View style={ui.page} />;
   const now = new Date();
   const attention = tasks.filter((task) => task.status === "needs-attention");
-  const attentionPresentation = getAttentionSummary(attention.length);
+  const taskPresentation = dashboardTaskPresentation(attention.length);
+  const attentionPresentation = taskPresentation.summary;
   const history = historicalTasks(tasks);
   const settlements = [2025, 2026].includes(document.settings.taxYear) ? calculateSettlements({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: document.settings.taxYear,
@@ -68,6 +70,7 @@ export function PulpitScreen() {
     const amounts = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now);
     return sum + (amounts.remainingGrosz ?? 0);
   }, 0);
+  const incomeAction = rentIncomeAction(remainingRent);
   const upcoming = upcomingTasks(tasks, now);
   const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
   const currentPeriod = settlements.find((item) => item.period === currentPeriodKey);
@@ -140,32 +143,30 @@ export function PulpitScreen() {
 
   if (document.properties.length === 0) return <View style={ui.page}>
     <ScrollView contentContainerStyle={ui.content}>
-      <Text style={pageTitle}>Pulpit</Text>
       <View accessibilityLabel="Skonfiguruj pierwszy najem" style={setupCard}>
         <Text style={setupTitle}>Skonfiguruj pierwszy najem</Text>
         <Text style={muted}>Dodaj mieszkanie, aby zapisać oczekiwany czynsz i terminy. Wpłaty ani płatności nie zostaną utworzone automatycznie.</Text>
         <Pressable accessibilityRole="button" onPress={() => openSetupAction("apartment")} style={primaryButton}><Text style={primaryText}>Dodaj mieszkanie</Text></Pressable>
       </View>
-      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
+      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne tutaj.</Text> : null}
     </ScrollView>
   </View>;
 
   return <View style={ui.page}>
     <ScrollView ref={taskListRef} contentContainerStyle={ui.content}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <View><Text style={pageTitle}>Pulpit</Text><Text style={muted}>Dzień dobry</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel="Dodaj osobiste przypomnienie" onPress={openCustom} style={iconButton}><Text style={action}>＋</Text></Pressable>
       </View>
 
 
       <Text style={{ ...sectionTitle, marginTop: 12 }}>{monthLabel(selectedMonth)}</Text>
       <View style={kpiGrid}>
-        {primaryDashboardMetrics(compactPln(monthIncome), compactPln(remainingRent), currentPeriod ? `${compactPln(currentPeriod.outstandingGrosz)} · ${new Date(`${currentPeriod.dueDate}T12:00:00`).toLocaleDateString("pl-PL", { day: "numeric", month: "short" })}` : "—").map((metric) => <Kpi key={metric.label} label={metric.label} value={metric.value} />)}
+        {primaryDashboardMetrics(compactPln(monthIncome), compactPln(remainingRent), currentPeriod ? `${compactPln(currentPeriod.outstandingGrosz)} · ${formatPolishDate(currentPeriod.dueDate)}` : "—").map((metric) => <Kpi key={metric.label} label={metric.label} value={metric.value} />)}
       </View>
       {attentionPresentation.interactive ? <Pressable accessibilityRole="button" accessibilityLabel={`${attentionPresentation.label}. ${attentionPresentation.action}`} onPress={() => taskListRef.current?.scrollTo({ y: taskSectionY, animated: true })} style={attentionSummary}>
         <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{attentionPresentation.label}</Text><Text style={action}>{attentionPresentation.action}</Text>
       </Pressable> : <View accessibilityRole="text" style={attentionSummary}><Text style={{ color: theme.colors.success, fontWeight: "700" }}>{attentionPresentation.label}</Text></View>}
-      <Pressable accessibilityRole="button" onPress={addIncome} style={primaryButton}><Text style={primaryText}>＋ Potwierdź wpłatę</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={addIncome} style={incomeAction.primary ? primaryButton : secondaryIncomeButton}><Text style={incomeAction.primary ? primaryText : secondaryIncomeText}>＋ {incomeAction.label}</Text></Pressable>
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Ustawienia ›</Text></Pressable></View>
       {!document.properties.length ? <View style={emptyRow}><Text style={emptyText}>Dodaj mieszkanie, aby zobaczyć czynsz i terminy.</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia")}><Text style={action}>Dodaj mieszkanie</Text></Pressable></View> : document.properties.map((property) => {
@@ -178,8 +179,9 @@ export function PulpitScreen() {
           {paymentState.kind === "unknown" ? <Text style={muted}>Oczekiwany czynsz nieustalony</Text>
             : paymentState.kind === "paid" ? <View style={propertyPaymentState}><Text style={paidLabel}>✓ {monthLabel(selectedMonth)} opłacony</Text><Text style={metricValue}>{formatPln(paymentState.expectedGrosz)}</Text></View>
               : paymentState.kind === "partial" ? <View style={{ marginTop: 8 }}><Text style={muted}>Częściowo opłacone · {formatPln(paymentState.confirmedGrosz)} / {formatPln(paymentState.expectedGrosz)}</Text><Text style={metricValue}>Pozostało {formatPln(paymentState.remainingGrosz)}</Text></View>
-                : <View style={{ marginTop: 8 }}><Text style={muted}>Do potwierdzenia</Text><Text style={metricValue}>{formatPln(paymentState.remainingGrosz)}</Text>{property.expectedPaymentDay ? <Text style={muted}>Termin: {property.expectedPaymentDay}. {new Intl.DateTimeFormat("pl-PL", { month: "long" }).format(new Date(`${selectedMonth}-01T12:00:00`))}</Text> : null}</View>}
-          {property.rentalEndDate ? <Text style={muted}>Koniec umowy · {property.rentalEndDate}</Text> : null}
+                : <View style={{ marginTop: 8 }}><Text style={muted}>Do potwierdzenia</Text><Text style={metricValue}>{formatPln(paymentState.remainingGrosz)}</Text>{property.expectedPaymentDay ? <Text style={muted}>Termin: {rentDueLabel(selectedMonth, property.expectedPaymentDay)}</Text> : null}</View>}
+          {amount.unallocatedGrosz > 0 ? <Text style={overpaymentWarning}>{unallocatedRentWarning(amount.unallocatedGrosz)}</Text> : null}
+          {property.rentalEndDate ? <Text style={muted}>Koniec umowy · {formatPolishDate(property.rentalEndDate, "long")}</Text> : null}
           {property.administratorPortalUrl || links.length ? <View style={quickRow}>
             {property.administratorPortalUrl ? <Pressable accessibilityRole="link" onPress={() => openAdministration(property)}><Text style={action}>Otwórz panel administracji</Text></Pressable> : null}
             {links.map((link) => <Pressable key={link.id} accessibilityRole="link" onPress={() => void Linking.openURL(link.url)}><Text style={action}>{link.label}</Text></Pressable>)}
@@ -187,9 +189,8 @@ export function PulpitScreen() {
         </View>;
       })}
 
-      <View onLayout={(event) => setTaskSectionY(event.nativeEvent.layout.y)} style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text></View>
-      {attention.length ? attention.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)
-        : <Text style={emptyText}>Wszystko na dziś załatwione.</Text>}
+      {taskPresentation.showActionableSection ? <><View onLayout={(event) => setTaskSectionY(event.nativeEvent.layout.y)} style={sectionHeader}><Text style={sectionTitle}>Do zrobienia</Text></View>
+        {attention.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)}</> : null}
       {upcoming.length ? <><Text style={sectionTitle}>Nadchodzące</Text>{upcoming.map((task) => <TaskRow key={task.id} task={task} compact onOpen={() => openTask(task)} onSnooze={() => { setSnoozeDate(localIso(snoozeOptions(now)[0]!.until)); setSnoozeTask(task); }} onDismiss={() => setState(task.id, { dismissedAt: new Date().toISOString(), snoozedUntil: undefined })} onComplete={() => manualComplete(task)} />)}</> : null}
       {history.length ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: historyOpen }} onPress={() => setHistoryOpen((open) => !open)} style={historyLink}><Text style={action}>{historyOpen ? "Ukryj historię" : `Historia · ${history.length}`}</Text><Text style={action}>{historyOpen ? "⌃" : "›"}</Text></Pressable> : null}
       {historyOpen ? history.map((task) => <TaskRow key={task.id} task={task} onOpen={() => openTask(task)} onSnooze={() => {}} onDismiss={() => {}} onComplete={() => {}} />) : null}
@@ -202,7 +203,7 @@ export function PulpitScreen() {
         total={setup.totalRequiredSteps}
         onPress={() => openSetupAction(setup.nextAction!.action, setup.nextAction!.propertyId)}
       /> : null}
-      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne w Pulpit.</Text> : null}
+      {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne tutaj.</Text> : null}
 
 
 
@@ -211,7 +212,7 @@ export function PulpitScreen() {
     <Modal visible={Boolean(snoozeTask)} transparent animationType="fade" onRequestClose={() => setSnoozeTask(null)}>
       <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
         <Text style={muted}>Termin zadania i zobowiązanie pozostają bez zmian.</Text>
-        {snoozeOptions(now).map(({ days, until }) => <Pressable key={days} accessibilityRole="button" onPress={() => saveSnooze(until)} style={modalAction}><Text style={action}>{days === 1 ? "Jutro" : days === 3 ? "Za 3 dni" : "Za tydzień"} · {until.toLocaleDateString("pl-PL")}</Text></Pressable>)}
+        {snoozeOptions(now).map(({ days, until }) => <Pressable key={days} accessibilityRole="button" onPress={() => saveSnooze(until)} style={modalAction}><Text style={action}>{days === 1 ? "Jutro" : days === 3 ? "Za 3 dni" : "Za tydzień"} · {formatPolishDate(until)}</Text></Pressable>)}
         <Text style={smallLabel}>Wybierz własną datę (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data przypomnienia" value={snoozeDate} onChangeText={setSnoozeDate} style={input} />
         <Pressable accessibilityRole="button" onPress={() => {
           const until = new Date(`${snoozeDate}T09:00:00`);
@@ -256,10 +257,14 @@ function SetupCard({ action, label, propertyName, completed, total, onPress }: {
 }
 function Kpi({ label, value }: { label: string; value: string }) { return <View style={kpi}><Text style={kpiLabel}>{label}</Text><Text style={kpiValue}>{value}</Text></View>; }
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) { return <View style={modalHeader}><Text style={modalTitle}>{title}</Text><Pressable accessibilityRole="button" onPress={onClose}><Text style={action}>Zamknij</Text></Pressable></View>; }
-function monthLabel(month: string) { const [year, number] = month.split("-").map(Number); return new Intl.DateTimeFormat("pl-PL", { month: "long", year: "numeric" }).format(new Date(year!, number! - 1, 1)); }
+function monthLabel(month: string) { return formatPolishMonth(month); }
+function rentDueLabel(month: string, day: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(year!, monthNumber!, 0).getDate();
+  return formatPolishDate(new Date(year!, monthNumber! - 1, Math.min(day, lastDay), 12));
+}
 function compactPln(amountGrosz: number) { return formatPln(amountGrosz).replace(/,00(?= zł)/, ""); }
 
-const pageTitle = { color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700" as const };
 const setupCard = { ...ui.card, marginTop: 14 };
 const setupTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 5 };
 const sectionTitle = ui.sectionTitle;
@@ -297,6 +302,9 @@ const modalAction = { paddingVertical: 12, borderBottomWidth: 1, borderBottomCol
 const input = { borderWidth: 1, borderColor: theme.colors.inputBorder, backgroundColor: theme.colors.inputBackground, color: theme.colors.textPrimary, borderRadius: 12, minHeight: 46, paddingHorizontal: 11, marginTop: 6, marginBottom: 12 };
 const primaryButton = { ...ui.primaryButton, marginTop: 10 };
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const };
+const secondaryIncomeButton = { minHeight: 44, alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
+const secondaryIncomeText = { color: theme.colors.textSecondary, fontWeight: "600" as const };
+const overpaymentWarning = { color: theme.colors.warning, fontSize: 12, fontWeight: "600" as const, marginTop: 8 };
 const secondaryButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 8, marginTop: 9 };
 const buttonText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
 const destructiveButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 8, marginTop: 9 };

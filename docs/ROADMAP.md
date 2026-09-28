@@ -10,7 +10,7 @@ The product priority is confirmed income → ryczałt calculation → payment de
 | 0.4 — Personal assistant MVP | Pulpit, persistent actionable tasks, native local notifications + Web fallback, snooze, smart completion, guided setup, quick actions, one-time/monthly/yearly personal reminders and light stats | Functional scope delivered; no claim of physical-device or release readiness |
 | 0.5 — Private beta/release readiness | Physical-device notification tests, upgrade/migration check, accessibility and privacy review, supported payment-detail verification, signing and distribution preparation | In progress; evidence and gaps are tracked in [RELEASES](RELEASES.md) and [PRIVATE_BETA_ANDROID_CHECKLIST](PRIVATE_BETA_ANDROID_CHECKLIST.md) |
 | 0.6 — Tax-product completeness | Year-to-date rental tax summary; clear progress against the applicable PLN 100,000 threshold (or confirmed joint-property threshold); annual taxable-income summary; annual tax due/paid/difference; supported-year update checklist; user-facing wording reviewed against current Polish rules | Annual figures reconcile to confirmed receipts and payments in deterministic tests; supported-year rules/review process documented; wording reviewed; no electronic filing |
-| 0.7 — Data safety + annual settlement | Local JSON export and import/restore; annual/PIT-28 verification summary; restore/migration tests; privacy documentation | Export/restore round-trip and invalid-input behavior tested; summary reconciles to the tax engine; user can verify figures against Twój e-PIT/PIT-28; privacy limitations documented |
+| 0.7 — Data safety + annual settlement | Annual/PIT-28 verification summary; local-data privacy documentation; migration/recovery tests; consider a user-controlled export/import feature after privacy and format requirements are defined | Summary reconciles to the tax engine; user can verify figures against Twój e-PIT/PIT-28; privacy limitations documented; any export/import contract has explicit validation and recovery behavior |
 | 1.0 — Small-landlord public release | A dependable, focused tax/payment assistant for landlords with a few flats | **A landlord can manage a full rental tax year without Excel and without losing records.** Release checks, support expectations, privacy and distribution readiness are complete. |
 
 **Dependencies:** tax reminders consume the tax engine; Pulpit consumes authoritative income/tax/bill projections; the annual summary reuses the same verified tax engine and supported-year rules. Do not duplicate calculation engines to accelerate UI delivery.
@@ -24,9 +24,16 @@ These items are lower priority than 0.6–1.0 and require separate product evide
 - Investory integration; cloud sync or backup.
 - Spouse/shared access, bank feeds, OCR, tenant communication, deposits, documents/e-signatures, maintenance workflows, property valuation/ROI and full expense accounting.
 - Encrypted storage and a formal security program (`SECURITY.md`); current local-storage/privacy limitations are recorded in [RELEASES](RELEASES.md).
+- User-controlled JSON export/import, restore and cloud backup/sync (the app's rolling local recovery snapshot is not a user-facing backup/export).
+- Full PIT-28 annual calculation or electronic submission; per-record tax-year attribution; a multi-year historical rules engine; and automatic retrieval of next-year tax rules.
+- Advanced annual reconciliation and broader import/restore URL-scheme handling.
 - Dependency automation (Dependabot/Renovate), full lint coverage and broader unit/integration coverage beyond current CI.
+- Add `scripts/` to lint coverage only after applying the correct Node globals and fixing existing unused-variable findings; current app lint coverage remains `App.tsx` and `src/`.
+- CI workflow consolidation.
 - Typed navigation cleanup, including `navigationRef as any`; replace `Math.random()` IDs if still relevant.
 - Contributor documentation and app/release version metadata cleanup.
 - URL allow-listing or scheme hardening while property links remain user-configurable.
+
+**Annual tax-year gate:** before the next tax year is enabled, verify rates, thresholds, spouse/joint-property conditions, deadlines and non-working-day handling against current official guidance; update supported years, examples, tests and release checklist. Do not assume current-year rules carry forward.
 
 The future milestones are plans, not implementation claims. `CHANGELOG.md` records delivered changes; `RELEASES.md` records current verification and published-release policy.

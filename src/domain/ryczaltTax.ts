@@ -19,6 +19,7 @@ export function settlementPeriodForMonth(month: string, mode: SettlementMode): s
 export type Settlement = {
   period: string;
   revenueGrosz: number;
+  taxableBaseGrosz: number;
   cumulativeRevenueGrosz: number;
   obligationGrosz: number;
   cumulativeTaxGrosz: number;
@@ -46,6 +47,30 @@ export function formatPln(grosz: number): string {
   return `${sign}${whole},${String(absolute % 100).padStart(2, "0")} zł`;
 }
 
+/** Date used for tax deadline statuses, independent of the device's timezone. */
+export function todayInPoland(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Warsaw",
+    calendar: "gregory",
+    numberingSystem: "latn",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/** Ordynacja podatkowa rounds tax bases to whole PLN; 50 grosz rounds up. */
+export function roundTaxBaseGrosz(amountGrosz: number): number {
+  if (!Number.isSafeInteger(amountGrosz) || amountGrosz < 0)
+    throw new Error("Tax base amount is out of range");
+  const rounded = ((BigInt(amountGrosz) + 50n) / 100n) * 100n;
+  const result = Number(rounded);
+  if (!Number.isSafeInteger(result)) throw new Error("Tax base amount is too large");
+  return result;
+}
+
 export function taxOnRevenue(
   cumulativeRevenueGrosz: number,
   taxYear: number,
@@ -55,10 +80,8 @@ export function taxOnRevenue(
     throw new Error("Revenue amount is out of range");
   const rules = RYCZALT_RULES[taxYear as keyof typeof RYCZALT_RULES];
   if (!rules) throw new Error(`Tax rules for ${taxYear} are not available`);
-  const limit = rules.lowerLimitPln * (jointSpouseThreshold ? 2 : 1) * 100;
-  const lower = Math.min(cumulativeRevenueGrosz, limit);
-  const upper = Math.max(0, cumulativeRevenueGrosz - limit);
-  return roundTaxNumerator(BigInt(lower) * BigInt(rules.lowerRate) + BigInt(upper) * BigInt(rules.upperRate));
+  const taxableBaseGrosz = roundTaxBaseGrosz(cumulativeRevenueGrosz);
+  return taxOnBaseAfter(taxableBaseGrosz, 0, rules, jointSpouseThreshold);
 }
 
 export function calculateSettlements(args: {
@@ -71,13 +94,14 @@ export function calculateSettlements(args: {
 }): Settlement[] {
   const { entries, payments, taxYear, mode, jointSpouseThreshold = false } = args;
   const now = new Date();
-  const today = args.today ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const today = args.today ?? todayInPoland(now);
   const periods = Array.from({ length: mode === "monthly" ? 12 : 4 }, (_, i) =>
     mode === "monthly"
       ? `${taxYear}-${String(i + 1).padStart(2, "0")}`
       : `${taxYear}-Q${i + 1}`,
   );
   let cumulativeRevenueGrosz = 0;
+  let cumulativeTaxableBaseGrosz = 0;
   let previousTaxGrosz = 0;
   const paymentTotals = periods.map((period) => payments
     .filter((payment) => payment.period === period)
@@ -103,12 +127,12 @@ export function calculateSettlements(args: {
     }, 0);
     const taxRules = RYCZALT_RULES[taxYear as keyof typeof RYCZALT_RULES];
     if (!taxRules) throw new Error(`Tax rules for ${taxYear} are not available`);
-    const threshold = taxRules.lowerLimitPln * (jointSpouseThreshold ? 2 : 1) * 100;
-    const lowerBandGrosz = Math.min(revenueGrosz, Math.max(0, threshold - cumulativeRevenueGrosz));
-    const upperBandGrosz = revenueGrosz - lowerBandGrosz;
-    const obligationGrosz = roundTaxNumerator(BigInt(lowerBandGrosz) * BigInt(taxRules.lowerRate) + BigInt(upperBandGrosz) * BigInt(taxRules.upperRate));
+    const taxableBaseGrosz = roundTaxBaseGrosz(revenueGrosz);
+    const obligationGrosz = taxOnBaseAfter(taxableBaseGrosz, cumulativeTaxableBaseGrosz, taxRules, jointSpouseThreshold);
     cumulativeRevenueGrosz += revenueGrosz;
     if (!Number.isSafeInteger(cumulativeRevenueGrosz)) throw new Error("Annual revenue is too large");
+    cumulativeTaxableBaseGrosz += taxableBaseGrosz;
+    if (!Number.isSafeInteger(cumulativeTaxableBaseGrosz)) throw new Error("Annual taxable base is too large");
     const cumulativeTaxGrosz = previousTaxGrosz + obligationGrosz;
     if (!Number.isSafeInteger(cumulativeTaxGrosz)) throw new Error("Calculated tax is too large");
     previousTaxGrosz = cumulativeTaxGrosz;
@@ -130,7 +154,7 @@ export function calculateSettlements(args: {
     if (!Number.isSafeInteger(taxCreditGrosz)) throw new Error("Tax payments are too large");
     const dueDate = paymentDeadline(taxYear, index, mode);
     const paidGrosz = paymentTotals[index]!;
-    return { period, revenueGrosz, cumulativeRevenueGrosz, obligationGrosz,
+    return { period, revenueGrosz, taxableBaseGrosz, cumulativeRevenueGrosz, obligationGrosz,
       cumulativeTaxGrosz, paidGrosz, creditAppliedGrosz: creditUsedGrosz, outstandingGrosz: unpaidByPeriod.get(index) ?? 0,
       overpaidGrosz, dueDate, status: "due" as const };
   });
@@ -140,13 +164,25 @@ export function calculateSettlements(args: {
       ? "no-tax"
       : outstandingGrosz === 0
         ? "paid"
-        : outstandingGrosz < settlement.obligationGrosz
-          ? "partial"
-          : today > settlement.dueDate
-            ? "overdue"
+        : today > settlement.dueDate
+          ? "overdue"
+          : outstandingGrosz < settlement.obligationGrosz
+            ? "partial"
             : "due";
     return { ...settlement, outstandingGrosz, status };
   });
+}
+
+function taxOnBaseAfter(
+  taxableBaseGrosz: number,
+  cumulativeBaseBeforeGrosz: number,
+  rules: (typeof RYCZALT_RULES)[keyof typeof RYCZALT_RULES],
+  jointSpouseThreshold: boolean,
+): number {
+  const thresholdGrosz = rules.lowerLimitPln * (jointSpouseThreshold ? 2 : 1) * 100;
+  const lowerBandGrosz = Math.min(taxableBaseGrosz, Math.max(0, thresholdGrosz - cumulativeBaseBeforeGrosz));
+  const upperBandGrosz = taxableBaseGrosz - lowerBandGrosz;
+  return roundTaxNumerator(BigInt(lowerBandGrosz) * BigInt(rules.lowerRate) + BigInt(upperBandGrosz) * BigInt(rules.upperRate));
 }
 
 function roundTaxNumerator(groszTimesThousandths: bigint): number {

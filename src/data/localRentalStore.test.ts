@@ -6,10 +6,12 @@ import schemaV3 from "./fixtures/schema-v3-populated.json";
 import schemaV4 from "./fixtures/schema-v4-populated.json";
 
 import {
+  RENTAL_DOCUMENT_BACKUP_KEY,
   RENTAL_DOCUMENT_STORAGE_KEY,
   RentalStoreError,
   emptyDocument,
   loadRentalDocument,
+  loadRentalDocumentWithStatus,
   readRawRentalDocument,
   resetRentalDocument,
   saveRentalDocument,
@@ -64,11 +66,12 @@ const validDocument: RentalDocument = {
 
 describe("localRentalStore", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    storage.getItem.mockResolvedValue(null);
   });
 
   it("returns an empty versioned document when storage is empty", async () => {
-    storage.getItem.mockResolvedValueOnce(null);
+    storage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
     await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
   });
@@ -77,6 +80,29 @@ describe("localRentalStore", () => {
     storage.getItem.mockResolvedValueOnce(JSON.stringify(validDocument));
 
     await expect(loadRentalDocument()).resolves.toEqual(validDocument);
+  });
+
+  it("drops removed apartment contact fields from legacy local records", async () => {
+    const legacy = {
+      ...validDocument,
+      properties: [{
+        ...validDocument.properties[0],
+        address: "ul. Parkowa 12",
+        administratorName: "Administracja Parkowa",
+        administratorPhone: "+48 123 456 789",
+        administratorEmail: "kontakt@example.test",
+        administratorPortalUrl: "https://admin.example.test",
+      }],
+    };
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(legacy));
+
+    const loaded = await loadRentalDocument();
+    expect(loaded.properties[0]).toEqual({
+      id: "property-1",
+      name: "Mieszkanie testowe",
+      defaultMonthlyRent: "2500.00",
+      administratorPortalUrl: "https://admin.example.test",
+    });
   });
 
   it("defaults legacy tax settings to monthly without discarding existing data", async () => {
@@ -142,8 +168,35 @@ describe("localRentalStore", () => {
     expect(deriveTasks(migrated, new Date(2026, 9, 5, 10)).find((task) => task.id === "CUSTOM_REMINDER:reminder-current")?.status).toBe("snoozed");
   });
 
+  it.each([
+    [1, schemaV1], [2, schemaV2], [3, schemaV3], [4, schemaV4],
+  ])("round-trips schema %i through normalized load, save, and reload", async (_version, fixture) => {
+    const values = new Map<string, string>([[RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(fixture)]]);
+    storage.getItem.mockImplementation(async (key) => values.get(key) ?? null);
+    storage.setItem.mockImplementation(async (key, value) => { values.set(key, value); });
+
+    const firstLoad = await loadRentalDocument();
+    expect(firstLoad.schemaVersion).toBe(4);
+    await saveRentalDocument(firstLoad);
+    const afterFirstSave = await loadRentalDocument();
+    expect(afterFirstSave).toEqual(firstLoad);
+    await saveRentalDocument(afterFirstSave);
+    await expect(loadRentalDocument()).resolves.toEqual(firstLoad);
+  });
+
+  it("recovers a corrupted primary from the last-good backup and reports recovery", async () => {
+    storage.getItem.mockResolvedValueOnce("{broken primary").mockResolvedValueOnce(JSON.stringify(validDocument));
+    await expect(loadRentalDocumentWithStatus()).resolves.toEqual({ document: validDocument, recoveredFromBackup: true });
+  });
+
+  it("keeps the corruption error when both primary and backup are corrupted", async () => {
+    storage.getItem.mockResolvedValueOnce("{broken primary").mockResolvedValueOnce("{broken backup");
+    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
+  });
+
   it("round-trips a populated current-schema fixture", async () => {
     const current = schemaV4 as RentalDocument;
+    storage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     storage.setItem.mockResolvedValueOnce();
     await saveRentalDocument(current);
     storage.getItem.mockResolvedValueOnce(JSON.stringify(current));
@@ -173,13 +226,15 @@ describe("localRentalStore", () => {
     storage.removeItem.mockResolvedValueOnce();
     await resetRentalDocument();
     expect(storage.removeItem).toHaveBeenCalledWith(RENTAL_DOCUMENT_STORAGE_KEY);
-    storage.getItem.mockResolvedValueOnce(null);
+    storage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
   });
 
   it("resets valid local data to the normal empty-document startup state", async () => {
-    storage.removeItem.mockResolvedValueOnce();
+    storage.removeItem.mockResolvedValue();
     await resetRentalDocument();
+    expect(storage.removeItem).toHaveBeenNthCalledWith(1, RENTAL_DOCUMENT_BACKUP_KEY);
+    expect(storage.removeItem).toHaveBeenNthCalledWith(2, RENTAL_DOCUMENT_STORAGE_KEY);
     storage.getItem.mockResolvedValueOnce(null);
     await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
   });
@@ -192,6 +247,11 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).rejects.toMatchObject({
       code: "UNSUPPORTED_VERSION",
     } satisfies Partial<RentalStoreError>);
+  });
+
+  it("does not recover an older backup over a newer unsupported primary schema", async () => {
+    storage.getItem.mockResolvedValueOnce(JSON.stringify({ ...validDocument, schemaVersion: 5 })).mockResolvedValueOnce(JSON.stringify(validDocument));
+    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "UNSUPPORTED_VERSION" });
   });
 
   it("rejects impossible dates, invalid property references, and duplicate income IDs", async () => {
@@ -259,6 +319,7 @@ describe("localRentalStore", () => {
   });
 
   it("validates and saves the document to the rental namespace", async () => {
+    storage.getItem.mockResolvedValueOnce(null);
     storage.setItem.mockResolvedValueOnce();
 
     await saveRentalDocument(validDocument);
@@ -267,12 +328,40 @@ describe("localRentalStore", () => {
       RENTAL_DOCUMENT_STORAGE_KEY,
       JSON.stringify(validDocument),
     );
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    expect(storage.setItem).not.toHaveBeenCalledWith(RENTAL_DOCUMENT_BACKUP_KEY, expect.any(String));
   });
 
   it("propagates persistence failures instead of replacing the document", async () => {
+    storage.getItem.mockResolvedValueOnce(null);
     storage.setItem.mockRejectedValueOnce(new Error("storage unavailable"));
     await expect(saveRentalDocument(validDocument)).rejects.toThrow(
       "storage unavailable",
     );
+  });
+
+  it("snapshots the valid primary before writing the replacement", async () => {
+    storage.getItem.mockResolvedValueOnce(JSON.stringify(validDocument));
+    storage.setItem.mockResolvedValue();
+    const replacement = { ...validDocument, incomeEntries: [] };
+    await saveRentalDocument(replacement);
+    expect(storage.setItem).toHaveBeenNthCalledWith(1, RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(validDocument));
+    expect(storage.setItem).toHaveBeenNthCalledWith(2, RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(replacement));
+  });
+
+  it("does not destroy the last-good backup if writing its replacement fails", async () => {
+    const previousBackup = JSON.stringify({ ...validDocument, incomeEntries: [] });
+    const values = new Map<string, string>([
+      [RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(validDocument)],
+      [RENTAL_DOCUMENT_BACKUP_KEY, previousBackup],
+    ]);
+    storage.getItem.mockImplementation(async (key) => values.get(key) ?? null);
+    storage.setItem.mockImplementation(async (key, value) => {
+      if (key === RENTAL_DOCUMENT_BACKUP_KEY) throw new Error("backup write failed");
+      values.set(key, value);
+    });
+    await expect(saveRentalDocument({ ...validDocument, incomeEntries: [] })).rejects.toThrow("backup write failed");
+    expect(values.get(RENTAL_DOCUMENT_BACKUP_KEY)).toBe(previousBackup);
+    expect(values.get(RENTAL_DOCUMENT_STORAGE_KEY)).toBe(JSON.stringify(validDocument));
   });
 });

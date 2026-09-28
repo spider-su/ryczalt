@@ -2,7 +2,7 @@ import { createNavigationContainerRef, NavigationContainer } from '@react-naviga
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -23,7 +23,13 @@ const Tabs = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef<any>();
 function RentalApp() {
   const { mode } = useTheme();
-  const { document, loadError, retryLoad, copyRawData, resetLocalData } = useRentalData();
+  const { document, loadError, recoveredFromBackup, dismissRecoveryNotice, retryLoad, copyRawData, resetLocalData } = useRentalData();
+  useEffect(() => {
+    if (!recoveredFromBackup || Platform.OS === 'web') return;
+    Alert.alert('Odzyskano lokalne dane', 'Głównego zapisu nie można było odczytać. Otworzono ostatnią poprawną kopię danych.', [
+      { text: 'Rozumiem', onPress: dismissRecoveryNotice },
+    ]);
+  }, [dismissRecoveryNotice, recoveredFromBackup]);
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const openTarget = (response: Notifications.NotificationResponse, retry = 0) => {

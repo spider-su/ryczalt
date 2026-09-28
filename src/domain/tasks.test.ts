@@ -73,12 +73,22 @@ describe("personal assistant tasks", () => {
     const id = "TENANT_PAYMENT_CHECK:p1:2026-09";
     const task = deriveTasks(doc, now).find((item) => item.id === id)!;
     expect(task).toMatchObject({ status: "needs-attention", expectedGrosz: 300_000, confirmedGrosz: 200_000, remainingGrosz: 100_000 });
-    expect(task.title).toContain("1 000,00 zł");
+    expect(task.title).toBe("Sprawdź czynsz — Parkowa");
+    expect(task.detail).toContain("do potwierdzenia 1 000,00 zł");
     expect(deriveTasks(doc, now).find((item) => item.id === id)?.id).toBe(id);
     doc.incomeEntries[0]!.amount = "3000.00";
     expect(deriveTasks(doc, now).find((item) => item.id === id)?.status).toBe("completed");
     doc.incomeEntries = [];
     expect(deriveTasks(doc, now).find((item) => item.id === id)?.status).toBe("needs-attention");
+  });
+
+  it("uses the target month expected rent for upcoming rent after a large September receipt", () => {
+    const doc = document();
+    doc.properties[0] = { ...doc.properties[0]!, name: "Reduta 26B", defaultMonthlyRent: "2600.00",
+      rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00" }] };
+    doc.incomeEntries = [{ id: "sep-overpayment", propertyId: "p1", receivedAt: "2026-09-27", rentalMonth: "2026-09", amount: "10000.00", taxableAmount: "10000.00" }];
+    const october = deriveTasks(doc, new Date(2026, 8, 27, 12)).find((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10");
+    expect(october).toMatchObject({ title: "Sprawdź czynsz — Reduta 26B", expectedGrosz: 260_000, confirmedGrosz: 0, remainingGrosz: 260_000, status: "upcoming" });
   });
 
   it("classifies upcoming, snoozed, dismissed and manually completed tasks without changing due dates", () => {

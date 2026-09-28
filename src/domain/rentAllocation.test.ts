@@ -45,7 +45,8 @@ describe("rent receipt allocation", () => {
     const task = deriveTasks(doc, now).find((item) => item.id === "TENANT_PAYMENT_CHECK:reduta:2026-09");
     expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-09", now)).toMatchObject({ confirmedGrosz: 100_000, remainingGrosz: 170_000 });
     expect(task).toMatchObject({ status: "needs-attention", confirmedGrosz: 100_000, remainingGrosz: 170_000 });
-    expect(task?.title).toContain("1 700,00 zł");
+    expect(task?.title).toBe("Sprawdź czynsz — Reduta 26B/44");
+    expect(task?.detail).toContain("do potwierdzenia 1 700,00 zł");
   });
 
   it("combines multiple receipts against the same rent expectation", () => {
@@ -92,6 +93,21 @@ describe("rent receipt allocation", () => {
     expect(rentMonthAmounts(historical, entries, "2026-09", now)).toMatchObject({ confirmedGrosz: 390_000, remainingGrosz: 0 });
     expect(rentMonthAmounts(historical, entries, "2026-08", now)).toMatchObject({ confirmedGrosz: 390_000, remainingGrosz: 0 });
     expect(rentMonthAmounts(historical, entries, "2026-10", now)).toMatchObject({ confirmedGrosz: 0, remainingGrosz: 390_000 });
+  });
+
+  it("keeps an explicit September overpayment unallocated and leaves October at its expected rent", () => {
+    const expected2600: Property = { ...reduta, defaultMonthlyRent: "2600.00", rentSchedule: [{ effectiveFrom: "2026-09", amount: "2600.00" }] };
+    const entry = receipt("sep-overpayment", "10000.00", "2026-09-27", expected2600.id, "2026-09");
+    const taxBeforeAllocation = calculateSettlements({ entries: [entry], payments: [], taxYear: 2026, mode: "monthly", today: "2026-09-27" });
+    const allocation = allocateRentReceipts(expected2600, [entry], now);
+
+    expect(allocation.byMonth.get("2026-09")).toBe(260_000);
+    expect(allocation.unallocatedGrosz).toBe(740_000);
+    expect(rentMonthAmounts(expected2600, [entry], "2026-10", now)).toMatchObject({ expectedGrosz: 260_000, confirmedGrosz: 0, remainingGrosz: 260_000 });
+    const taxAfterAllocation = calculateSettlements({ entries: [entry], payments: [], taxYear: 2026, mode: "monthly", today: "2026-09-27" });
+    expect(taxAfterAllocation).toEqual(taxBeforeAllocation);
+    const tax = taxAfterAllocation[8]!;
+    expect(tax).toMatchObject({ revenueGrosz: 1_000_000, obligationGrosz: 85_000 });
   });
 
   it("allocates receipts without rentalMonth to the oldest open month due by receipt date", () => {

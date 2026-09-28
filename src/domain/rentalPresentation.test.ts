@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { attentionSummary, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTasks } from "./rentalPresentation";
+import { attentionSummary, dashboardTaskPresentation, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentConfirmationGroups, rentDisplayState, rentIncomeAction, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { formatPolishCount, formatPolishDate } from "./presentationFormat";
 
 function task(id: string, status: AssistantTask["status"], days: number): AssistantTask {
   return { id, type: "TENANT_PAYMENT_CHECK", title: id, detail: "", dueAt: new Date(2026, 8, 27 + days), notificationAt: new Date(2026, 8, 27 + days),
@@ -32,12 +33,36 @@ describe("rental presentation helpers", () => {
 
   it("shows only positive unallocated rent as a warning", () => {
     expect(unallocatedRentWarning(0)).toBeNull();
-    expect(unallocatedRentWarning(30_000)).toContain("Nadwyżka wpłaty: 300,00 zł nieprzypisana do czynszu");
+    expect(unallocatedRentWarning(740_000)).toBe("Nieprzypisana nadpłata: 7 400,00 zł");
   });
 
   it("uses an interactive attention summary only when actionable items exist", () => {
     expect(attentionSummary(0)).toMatchObject({ interactive: false, action: null });
     expect(attentionSummary(2)).toMatchObject({ interactive: true, action: "Pokaż ›" });
+  });
+
+  it("shows a single zero-action success state and hides the empty action section", () => {
+    expect(dashboardTaskPresentation(0)).toMatchObject({ showActionableSection: false, summary: { label: "✓ Wszystko na dziś załatwione" } });
+    expect(dashboardTaskPresentation(2).showActionableSection).toBe(true);
+  });
+
+  it("reduces rent action emphasis after all current rent is confirmed", () => {
+    expect(rentIncomeAction(1)).toEqual({ primary: true, label: "Potwierdź wpłatę" });
+    expect(rentIncomeAction(0)).toEqual({ primary: false, label: "Dodaj inną wpłatę" });
+  });
+
+  it("presents upcoming rent with expected rent instead of confirmed receipt value", () => {
+    const upcomingRent = { ...task("TENANT_PAYMENT_CHECK:p1:2026-10", "upcoming", 8), expectedGrosz: 260_000, remainingGrosz: 260_000 };
+    expect(upcomingTaskPresentation(upcomingRent)).toEqual({ title: "TENANT_PAYMENT_CHECK:p1:2026-10", amount: "2 600,00 zł" });
+  });
+
+  it("formats Polish display dates and count plurals", () => {
+    expect(formatPolishDate("2026-10-20", "long")).toBe("20 października 2026");
+    const apartmentForms = ["mieszkanie", "mieszkania", "mieszkań"] as const;
+    expect([1, 2, 5, 12].map((count) => formatPolishCount(count, apartmentForms))).toEqual(["1 mieszkanie", "2 mieszkania", "5 mieszkań", "12 mieszkań"]);
+    const billForms = ["rachunek", "rachunki", "rachunków"] as const;
+    expect([1, 2, 5, 12].map((count) => formatPolishCount(count, billForms))).toEqual(["1 rachunek", "2 rachunki", "5 rachunków", "12 rachunków"]);
+    expect(formatPolishDate(new Date(2026, 9, 5, 12))).toBe("5 paź");
   });
 
   it("hides tax payment prompts with no due balance, including overpayment", () => {

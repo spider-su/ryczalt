@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ryczałt Android Regression"
+  short_description: "Run the repeatable Android emulator regression plan"
+  default_prompt: "Run the Ryczałt emulator regression plan and save evidence for this checkout."

@@ -28,6 +28,8 @@ import type { SetupAction } from "../domain/setupProgress";
 import { setupActionField } from "../navigation/setupIntent";
 import { makeBillPayment } from "../domain/billPayment";
 import { settingsSections } from "../domain/rentalPresentation";
+import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
+import { formatPlnAmount } from "../domain/ryczaltTax";
 
 type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentReminderEnabled" | "paymentReminderDelayDays" | "rentalEndReminderDays"> & {
   expectedPaymentDay: string;
@@ -37,7 +39,6 @@ type PropertyDraft = Omit<Property, "id" | "expectedPaymentDay" | "paymentRemind
 };
 const blankDraft: PropertyDraft = {
   name: "",
-  address: "",
   defaultMonthlyRent: "",
   tenantName: "",
   tenantPhone: "",
@@ -48,10 +49,7 @@ const blankDraft: PropertyDraft = {
   expectedPaymentDay: "",
   paymentReminderEnabled: false,
   paymentReminderDelayDays: "1",
-  administratorName: "",
   administratorPortalUrl: "",
-  administratorPhone: "",
-  administratorEmail: "",
   notes: "",
 };
 
@@ -127,7 +125,6 @@ export function SettingsScreen() {
       property
         ? {
             name: property.name,
-            address: property.address ?? "",
             defaultMonthlyRent: property.defaultMonthlyRent ?? "",
             tenantName: property.tenantName ?? "",
             tenantPhone: property.tenantPhone ?? "",
@@ -138,10 +135,7 @@ export function SettingsScreen() {
             expectedPaymentDay: property.expectedPaymentDay?.toString() ?? "",
             paymentReminderEnabled: property.paymentReminderEnabled ?? false,
             paymentReminderDelayDays: property.paymentReminderDelayDays?.toString() ?? "1",
-            administratorName: property.administratorName ?? "",
             administratorPortalUrl: property.administratorPortalUrl ?? "",
-            administratorPhone: property.administratorPhone ?? "",
-            administratorEmail: property.administratorEmail ?? "",
             notes: property.notes ?? "",
           }
         : blankDraft,
@@ -189,7 +183,6 @@ export function SettingsScreen() {
       ...editing,
       id: editing?.id ?? createId("property"),
       name,
-      ...optional("address", draft.address),
       ...(rent ? { defaultMonthlyRent: rent.replace(",", "."), rentSchedule: updatedRentSchedule(editing, rent.replace(",", ".")) } : {}),
       ...optional("tenantName", draft.tenantName),
       ...optional("tenantPhone", draft.tenantPhone),
@@ -200,10 +193,7 @@ export function SettingsScreen() {
       ...(paymentDay ? { expectedPaymentDay: paymentDay } : { expectedPaymentDay: undefined }),
       paymentReminderEnabled: draft.paymentReminderEnabled,
       paymentReminderDelayDays: reminderDelay,
-      ...optional("administratorName", draft.administratorName),
       ...optional("administratorPortalUrl", portalUrl),
-      ...optional("administratorPhone", draft.administratorPhone),
-      ...optional("administratorEmail", draft.administratorEmail),
       ...optional("notes", draft.notes),
     };
     const propertyLinks = linkDrafts.map((link) => ({ ...link, propertyId: property.id }));
@@ -274,7 +264,7 @@ export function SettingsScreen() {
   };
   const field = (
     label: string,
-    key: "name" | "address" | "defaultMonthlyRent" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalEndDate" | "administratorName" | "administratorPortalUrl" | "administratorPhone" | "administratorEmail" | "notes",
+    key: "name" | "defaultMonthlyRent" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalEndDate" | "administratorPortalUrl" | "notes",
     options: {
       keyboardType?: "default" | "email-address" | "phone-pad" | "decimal-pad";
       multiline?: boolean;
@@ -433,11 +423,11 @@ export function SettingsScreen() {
         {activeSection === null ? <>
         <Text style={{ color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700", marginBottom: 12 }}>Ustawienia</Text>
         {settingsSections.map((section) => {
-          const summary = section.id === "properties" ? `${document.properties.length} mieszkań`
+          const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
             : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
-                : section.id === "notifications" ? `${Object.values(document.settings.reminderCategories).filter(Boolean).length} kategorii${permission === "granted" ? " · lokalne ON" : ""}`
-                : section.id === "bills" ? `${document.recurringBills.length} rachunków` : "Dane lokalne na tym urządzeniu";
+                : section.id === "notifications" ? `${formatPolishCount(Object.values(document.settings.reminderCategories).filter(Boolean).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
+                : section.id === "bills" ? formatPolishCount(document.recurringBills.length, ["rachunek", "rachunki", "rachunków"]) : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" onPress={() => setActiveSection(section.id)} style={categoryRow}>
             <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={muted}>{summary}</Text></View><Text style={action}>›</Text>
           </Pressable>;
@@ -476,6 +466,7 @@ export function SettingsScreen() {
             { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
           ]);
         }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold }} /></View>
+        <Text style={{ ...muted, marginTop: -4 }}>Dotyczy wspólności majątkowej i wymaga wyboru opodatkowania całości przychodów z najmu przez jednego małżonka oraz złożenia wymaganego oświadczenia w terminie.</Text>
         <Text style={{ ...muted, marginBottom: 22 }}>Kwartalne rozliczenie wymaga spełnienia warunków ustawowych, w tym limitu przychodów z poprzedniego roku. Zweryfikuj swoje uprawnienie poza aplikacją.</Text>
         </> : null}
         {activeSection === "notifications" ? <>
@@ -486,7 +477,7 @@ export function SettingsScreen() {
           ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"], ["bills", "Pozostałe rachunki"], ["custom", "Przypomnienia osobiste"],
         ] as const).map(([category, label]) => <View key={category} style={notificationRow}><Text style={{ ...muted, flex: 1 }}>{label}</Text><Switch value={document.settings.reminderCategories[category]} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.accent }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: document.settings.reminderCategories[category] }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
-        {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{task.dueAt.toLocaleDateString("pl-PL")} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
+        {reminderPlan.length ? reminderPlan.slice(0, 6).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
         </> : null}
         {activeSection === "payment" ? <>
         <Text style={muted}>Wpisz dane z własnego mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
@@ -545,9 +536,6 @@ export function SettingsScreen() {
                   >
                     {property.name}
                   </Text>
-                  {property.address ? (
-                    <Text style={muted}>{property.address}</Text>
-                  ) : null}
                 </View>
                 <View style={{ flexDirection: "row", gap: 16 }}>
                   <Text
@@ -568,7 +556,7 @@ export function SettingsScreen() {
               </View>
               {property.defaultMonthlyRent ? (
                 <Text style={muted}>
-                  Domyślny czynsz: {property.defaultMonthlyRent} zł / mies.
+                  Domyślny czynsz: {formatPlnAmount(property.defaultMonthlyRent)} / mies.
                 </Text>
               ) : null}
               {property.expectedPaymentDay ? <Text style={muted}>Oczekiwany czynsz: {property.expectedPaymentDay}. dzień miesiąca</Text> : null}
@@ -582,10 +570,7 @@ export function SettingsScreen() {
               {property.tenantEmail ? (
                 <Text style={muted}>E-mail: {property.tenantEmail}</Text>
               ) : null}
-              {property.rentalEndDate ? <Text style={muted}>Umowa do: {property.rentalEndDate}</Text> : null}
-              {property.administratorName ? <Text style={muted}>Administracja: {property.administratorName}</Text> : null}
-              {property.administratorPhone ? <Text style={muted}>Telefon administracji: {property.administratorPhone}</Text> : null}
-              {property.administratorEmail ? <Text style={muted}>E-mail administracji: {property.administratorEmail}</Text> : null}
+              {property.rentalEndDate ? <Text style={muted}>Umowa do: {formatPolishDate(property.rentalEndDate, "long")}</Text> : null}
               {property.administratorPortalUrl ? <Pressable accessibilityRole="link" onPress={() => void openPortal(property)} style={{ paddingVertical: 7 }}><Text style={action}>Otwórz panel administracji</Text></Pressable> : null}
               {property.notes ? (
                 <Text style={{ ...muted, marginTop: 5 }}>{property.notes}</Text>
@@ -602,7 +587,7 @@ export function SettingsScreen() {
           const property = document.properties.find((item) => item.id === bill.propertyId);
           return <View key={bill.id} style={[ui.card, { padding: 14 }]}>
             <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bill.name} · {property?.name ?? "Mieszkanie"}</Text>
-            <Text style={muted}>{bill.variableAmount ? "Kwotę sprawdź na bieżąco" : bill.expectedAmount ? `${bill.expectedAmount} zł` : "Kwota do sprawdzenia"}{bill.dueDay ? ` · termin ${bill.dueDay}. dzień` : ""}</Text>
+            <Text style={muted}>{bill.variableAmount ? "Kwotę sprawdź na bieżąco" : bill.expectedAmount ? formatPlnAmount(bill.expectedAmount) : "Kwota do sprawdzenia"}{bill.dueDay ? ` · termin ${bill.dueDay}. dzień` : ""}</Text>
             <View style={{ flexDirection: "row", gap: 16 }}><Text accessibilityRole="button" onPress={() => openBillDetails(bill)} style={action}>Szczegóły płatności</Text><Text accessibilityRole="button" onPress={() => openBill(bill)} style={action}>Edytuj</Text><Text accessibilityRole="button" onPress={() => removeBill(bill)} style={{ ...action, color: theme.colors.danger }}>Usuń</Text></View>
           </View>;
         })}
@@ -658,7 +643,6 @@ export function SettingsScreen() {
             {field("Nazwa mieszkania *", "name", {
               placeholder: "np. Mieszkanie przy Parkowej",
             })}
-            {field("Adres", "address")}
             {field("Domyślny czynsz miesięczny (zł)", "defaultMonthlyRent", {
               keyboardType: "decimal-pad",
               placeholder: "np. 2500,00",
@@ -689,10 +673,7 @@ export function SettingsScreen() {
             </View>
             {draft.paymentReminderEnabled ? <><Text style={fieldLabel}>Dni po oczekiwanym terminie (0–30)</Text><TextInput accessibilityLabel="Dni po oczekiwanym terminie" value={draft.paymentReminderDelayDays} onChangeText={(value) => setDraft((current) => ({ ...current, paymentReminderDelayDays: value }))} keyboardType="number-pad" placeholder="1" style={inputStyle} /></> : null}
             <Text style={sectionTitle}>Administracja</Text>
-            {field("Nazwa administratora", "administratorName")}
             {field("Adres panelu administracji (HTTPS)", "administratorPortalUrl", { placeholder: "https://" })}
-            {field("Telefon administracji", "administratorPhone", { keyboardType: "phone-pad" })}
-            {field("E-mail administracji", "administratorEmail", { keyboardType: "email-address" })}
             <Text style={sectionTitle}>Przydatne linki</Text>
             <Text style={muted}>Linki otwierają się w przeglądarce. Nie zapisuj tu haseł.</Text>
             <TextInput accessibilityLabel="Nazwa przydatnego linku" value={linkLabel} onChangeText={setLinkLabel} placeholder="np. Dostawca prądu" style={inputStyle} />
@@ -745,7 +726,7 @@ export function SettingsScreen() {
                 <Text accessibilityLabel="Okres rozliczeniowy płatności" style={{ ...muted, marginBottom: 10 }}>Okres rozliczenia: {billPaymentPeriod}</Text>
                 <PaymentDetail label="Odbiorca" value={details.recipientName} onCopy={() => void copyPaymentValue(details.recipientName, "Nazwa odbiorcy")} />
                 <PaymentDetail label="Numer rachunku" value={details.bankAccount} onCopy={() => void copyPaymentValue(details.bankAccount, "Numer rachunku")} />
-                <PaymentDetail label={billForDetails.variableAmount ? "Kwota do sprawdzenia" : "Kwota"} value={details.amount ? `${details.amount} zł` : "Sprawdź bieżącą kwotę"} onCopy={() => void copyPaymentValue(details.amount, "Kwota")} />
+                <PaymentDetail label={billForDetails.variableAmount ? "Kwota do sprawdzenia" : "Kwota"} value={details.amount ? formatPlnAmount(details.amount) : "Sprawdź bieżącą kwotę"} onCopy={() => void copyPaymentValue(details.amount, "Kwota")} />
                 <PaymentDetail label="Tytuł" value={details.title} onCopy={() => void copyPaymentValue(details.title, "Tytuł płatności")} />
                 <PaymentDetail label="Termin płatności" value={dueDate} onCopy={() => void copyPaymentValue(dueDate, "Termin płatności")} />
                 {missing.length ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 12 }}>Brakuje danych: {missing.join(", ")}.</Text> : null}
@@ -771,7 +752,7 @@ function nextBillDueDate(day: number, now = new Date()): string {
     if (month > 11) { month = 0; year += 1; }
     due = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()), 12);
   }
-  return new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long", year: "numeric" }).format(due);
+  return formatPolishDate(due, "long");
 }
 
 function updatedRentSchedule(property: Property | null, amount: string) {
@@ -784,16 +765,12 @@ function updatedRentSchedule(property: Property | null, amount: string) {
 
 function optional(
   key:
-    | "address"
     | "tenantName"
     | "tenantPhone"
     | "tenantEmail"
     | "tenantSince"
     | "rentalEndDate"
-    | "administratorName"
     | "administratorPortalUrl"
-    | "administratorPhone"
-    | "administratorEmail"
     | "notes",
   value?: string,
 ): Partial<Property> {
