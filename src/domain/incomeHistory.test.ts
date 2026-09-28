@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, Property } from "../model/rental";
-import { currentMonthIncomeLabel, defaultExpandedIncomeMonths, groupIncomeEntriesByReceivedMonth, incomeEntriesForView, incomeMonthStatus, incomeViewSummary, propertiesWithIncomeInYear, rentMonthStatusRows, toggleIncomeMonth } from "./incomeHistory";
-import { incomeHistory } from "./rentalPresentation";
+import { groupIncomeEntriesByReceivedMonth, historicalIncomeGroups, incomeEntriesForView, incomeMonthStatus, incomeRangeSummary, incomeTimeWindow, incomeViewSummary, propertiesWithIncomeInYear, rentMonthStatusRows, toggleIncomeMonth } from "./incomeHistory";
 
 const entry = (id: string, propertyId: string, receivedAt: string, amount: string, tenantNameSnapshot?: string): IncomeEntry => ({
   id, propertyId, receivedAt, amount, taxableAmount: amount, rentalMonth: "2026-09", tenantNameSnapshot,
@@ -59,9 +58,7 @@ describe("income history view", () => {
     expect(afterDelete[0]?.totalGrosz).toBe(480_000);
   });
 
-  it("expands the current month by default and toggles month sections in memory", () => {
-    expect(defaultExpandedIncomeMonths(["2026-09", "2026-08"], "2026-09")).toEqual(["2026-09"]);
-    expect(defaultExpandedIncomeMonths(["2026-08"], "2026-09")).toEqual([]);
+  it("toggles month sections in memory", () => {
     expect(toggleIncomeMonth(["2026-09"], "2026-09")).toEqual([]);
     expect(toggleIncomeMonth([], "2026-08")).toEqual(["2026-08"]);
   });
@@ -74,8 +71,57 @@ describe("income history view", () => {
     expect(incomeMonthStatus(553_400, 2, null).completion).toBe("unknown");
   });
 
-  it("shows current-month confirmed and expected amounts together", () => {
-    expect(currentMonthIncomeLabel("2026-09", 301_000, 553_400)).toBe("wrzesień · otrzymano 3 010,00 zł · oczekiwany czynsz 5 534,00 zł");
+  it("compresses January through August into an actual payments-only summary", () => {
+    const entries = Array.from({ length: 8 }, (_, index) => [
+      entry(`a-${index}`, "flat-a", `2026-${String(index + 1).padStart(2, "0")}-05`, "2767"),
+      entry(`b-${index}`, "flat-b", `2026-${String(index + 1).padStart(2, "0")}-20`, "2767"),
+    ]).flat();
+    const history = historicalIncomeGroups(groupIncomeEntriesByReceivedMonth(entries), "2026-09");
+    const summary = incomeRangeSummary(history);
+    expect(summary).toEqual({ earliestMonth: "2026-01", latestMonth: "2026-08", monthCount: 8, totalGrosz: 4_427_200, paymentCount: 16 });
+    expect(summary?.totalGrosz).toBe(history.flatMap(({ entries: monthEntries }) => monthEntries).reduce((total, item) => total + Number(item.amount) * 100, 0));
+    expect(summary?.paymentCount).toBe(history.flatMap(({ entries: monthEntries }) => monthEntries).length);
+  });
+
+  it("keeps one historical month direct and returns no range when there is no earlier history", () => {
+    const groups = groupIncomeEntriesByReceivedMonth([entry("august", "flat-a", "2026-08-30", "1200")]);
+    expect(historicalIncomeGroups(groups, "2026-09")).toHaveLength(1);
+    expect(incomeRangeSummary(historicalIncomeGroups(groups, "2026-09"))?.monthCount).toBe(1);
+    expect(historicalIncomeGroups(groups, "2026-08")).toEqual([]);
+    expect(incomeRangeSummary([])).toBeNull();
+  });
+
+  it("preserves split receipts and payments across apartments in historical range totals", () => {
+    const receipts = [
+      entry("split-one", "flat-a", "2026-08-05", "1000"),
+      entry("split-two", "flat-a", "2026-08-20", "524"),
+      entry("other-flat", "flat-b", "2026-08-28", "3010"),
+    ];
+    const groups = historicalIncomeGroups(groupIncomeEntriesByReceivedMonth(receipts), "2026-09");
+    expect(groups[0]?.entries.map(({ id }) => id)).toEqual(["other-flat", "split-two", "split-one"]);
+    expect(incomeRangeSummary(groups)).toMatchObject({ totalGrosz: 453_400, paymentCount: 3, monthCount: 1 });
+  });
+
+  it("shows a seven-month current window and leaves future months without fabricated totals", () => {
+    const receipts = [entry("june", "flat-a", "2026-06-15", "500"), entry("september", "flat-a", "2026-09-20", "700")];
+    const chart = incomeTimeWindow(receipts, new Date(2026, 8, 28), null, 2026);
+    expect(chart.map(({ month }) => month)).toEqual(["2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]);
+    expect(chart.map(({ totalGrosz, period }) => [totalGrosz, period])).toEqual([[50_000, "actual"], [0, "actual"], [0, "actual"], [70_000, "actual"], [null, "future"], [null, "future"], [null, "future"]]);
+    expect(chart.filter(({ selected }) => selected).map(({ month }) => month)).toEqual(["2026-09"]);
+  });
+
+  it("keeps months after a selected historical year actual when they are before today", () => {
+    const receipts = [entry("jan", "flat-a", "2026-01-12", "500")];
+    const chart = incomeTimeWindow(receipts, new Date(2026, 8, 28), null, 2025);
+    expect(chart.map(({ month }) => month)).toEqual(["2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"]);
+    expect(chart[4]).toMatchObject({ month: "2026-01", totalGrosz: 50_000, period: "actual" });
+    expect(chart.every(({ period }) => period === "actual")).toBe(true);
+  });
+
+  it("marks an empty current month as actual zero and keeps future placeholders distinct", () => {
+    const chart = incomeTimeWindow([], new Date(2026, 8, 28), null, 2026);
+    expect(chart.find(({ selected }) => selected)).toMatchObject({ month: "2026-09", totalGrosz: 0, period: "actual" });
+    expect(chart.filter(({ period }) => period === "future").every(({ totalGrosz }) => totalGrosz === null)).toBe(true);
   });
 
   it("projects apartment rent status for all properties without inventing income records", () => {
@@ -108,11 +154,4 @@ describe("income history view", () => {
     expect(groupIncomeEntriesByReceivedMonth([receipt]).map((group) => group.month)).toEqual(["2026-10"]);
   });
 
-  it("returns six selected-year chart values and keeps zero months at zero", () => {
-    const chart = incomeHistory(records, new Date(2026, 8, 28), null, 2025);
-    expect(chart.map(({ month }) => month)).toEqual(["2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12"]);
-    expect(chart.map(({ total }) => total)).toEqual([0, 0, 0, 0, 0, 70_000]);
-    const filtered = incomeHistory(records, new Date(2026, 8, 28), "missing", 2025);
-    expect(filtered.every(({ total }) => total === 0)).toBe(true);
-  });
 });

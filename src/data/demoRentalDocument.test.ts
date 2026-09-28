@@ -12,7 +12,7 @@ describe("isolated demo rental data", () => {
     const persist = vi.fn(async () => undefined);
     const changed = await applyRentalDocumentChange(demoDocument, (current) => ({
       ...current,
-      properties: current.properties.map((property) => property.id === "demo-reduta" ? { ...property, notes: "Demo only" } : property),
+      properties: current.properties.map((property) => property.id === "demo-piotrkowska" ? { ...property, notes: "Demo only" } : property),
     }), true, persist);
 
     expect(changed.properties[0]?.notes).toBe("Demo only");
@@ -32,15 +32,17 @@ describe("isolated demo rental data", () => {
   it("uses production tax calculations with a paid previous period and tax still due this month", () => {
     const document = createDemoRentalDocument(now);
     const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: 2026, mode: "monthly", today: "2026-09-28" });
-    expect(document.taxPayments).toHaveLength(1);
+    expect(document.taxPayments).toHaveLength(8);
     expect(settlements.find((item) => item.period === "2026-08")?.status).toBe("paid");
     expect(settlements.find((item) => item.period === "2026-09")?.outstandingGrosz).toBeGreaterThan(0);
   });
 
   it("shows a fully paid apartment, a partial apartment, and one grouped upcoming rent reminder", () => {
     const document = createDemoRentalDocument(now);
-    expect(document.incomeEntries.some((entry) => entry.propertyId === "demo-reduta" && entry.rentalMonth === "2026-09")).toBe(true);
-    expect(document.incomeEntries.some((entry) => entry.propertyId === "demo-mogilska" && entry.rentalMonth === "2026-09")).toBe(true);
+    expect(document.incomeEntries.filter((entry) => entry.propertyId === "demo-piotrkowska")).toHaveLength(9);
+    expect(document.incomeEntries.filter((entry) => entry.propertyId === "demo-mogilska")).toHaveLength(8);
+    expect(document.incomeEntries.some((entry) => entry.propertyId === "demo-piotrkowska" && entry.rentalMonth === "2026-09")).toBe(true);
+    expect(document.incomeEntries.find((entry) => entry.propertyId === "demo-mogilska" && entry.rentalMonth === "2026-09")?.amount).toBe("1900");
     const nextMonthGroupedRent = taskNotificationPlan(document, now).find((item) => item.data.taskIds?.length === 2);
     expect(nextMonthGroupedRent?.data.period).toBe("2026-10");
   });
