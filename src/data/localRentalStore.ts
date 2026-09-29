@@ -23,8 +23,10 @@ import { todayInPoland } from "../domain/ryczaltTax";
 
 export const RENTAL_DOCUMENT_SCHEMA_VERSION = 1;
 /** Stable namespace; the current document schema version is stored in its JSON. */
-export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
+export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v2";
 export const RENTAL_DOCUMENT_BACKUP_KEY = `${RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
+export const LEGACY_RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
+export const LEGACY_RENTAL_DOCUMENT_BACKUP_KEY = `${LEGACY_RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
 export const DEFAULT_TAX_YEAR = Number(todayInPoland().slice(0, 4));
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
@@ -80,8 +82,21 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
   }
   if (raw === null) {
     const backupRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_BACKUP_KEY);
-    if (backupRaw === null) return { document: emptyDocument(), recoveredFromBackup: false };
-    return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
+    if (backupRaw !== null) return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
+
+    // One-time namespace migration. Only a legacy document that validates against the
+    // current schema is copied; incompatible historical v1 bytes are left untouched.
+    const legacyRaw = await AsyncStorage.getItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
+    if (legacyRaw !== null) {
+      try {
+        const legacyDocument = parseRentalDocument(legacyRaw);
+        await AsyncStorage.setItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(legacyDocument));
+        return { document: legacyDocument, recoveredFromBackup: false };
+      } catch {
+        // Never classify an older namespace as corrupted current data and never delete it.
+      }
+    }
+    return { document: emptyDocument(), recoveredFromBackup: false };
   }
   try {
     return { document: parseRentalDocument(raw), recoveredFromBackup: false };
@@ -116,6 +131,8 @@ export async function readRawRentalDocument(): Promise<string | null> {
 export async function resetRentalDocument(): Promise<void> {
   await AsyncStorage.removeItem(RENTAL_DOCUMENT_BACKUP_KEY);
   await AsyncStorage.removeItem(RENTAL_DOCUMENT_STORAGE_KEY);
+  await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_BACKUP_KEY);
+  await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
 }
 
 function parseRentalDocument(raw: string): RentalDocument {
