@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -727,7 +728,7 @@ export function SettingsScreen() {
             {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => {
               const selected = draft.taxableTreatment === value;
               return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setDraft((current) => ({ ...current, taxableTreatment: value }))} style={[taxableOption, selected && taxableOptionSelected]}>
-                <Text style={[radioMark, selected && radioMarkSelected]}>{selected ? "●" : "○"}</Text>
+                <MaterialIcons name={selected ? "radio-button-checked" : "radio-button-unchecked"} size={22} color={selected ? theme.colors.success : theme.colors.textMuted} />
                 <Text style={[taxableOptionLabel, selected && taxableOptionLabelSelected]}>{label}</Text>
               </Pressable>;
             })}
@@ -735,7 +736,7 @@ export function SettingsScreen() {
             <View onLayout={setupFocus === "payment-day" ? (event) => { propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); setSetupFocus(null); } : undefined}>
               {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "5" })}
             </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={disclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><Text style={disclosureChevron}>{showAdvancedProperty ? "⌃" : "⌄"}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={disclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><MaterialIcons name={showAdvancedProperty ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></Pressable>
             {showAdvancedProperty ? <>
             <Text style={sectionTitle}>Daty najmu</Text>
             {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
