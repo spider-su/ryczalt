@@ -9,10 +9,8 @@ import { taxSummaryForPeriod } from "../domain/taxPresentation";
 import { isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
 import { setupActionIntent } from "../navigation/setupIntent";
-import { recurringBillTaskIntent } from "../navigation/billIntent";
 import { navigateToTaxDetails } from "../navigation/taxIntent";
-import type { CustomReminder, Property, ReminderRecurrence } from "../model/rental";
-import { deleteCustomReminder, findCustomReminderForTask, recurrenceLabel, saveCustomReminder } from "../domain/customReminders";
+import type { Property } from "../model/rental";
 import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
@@ -43,28 +41,8 @@ export function PulpitScreen() {
   const [adminPickerVisible, setAdminPickerVisible] = useState(false);
   const [snoozeTask, setSnoozeTask] = useState<AssistantTask | null>(null);
   const [snoozeDate, setSnoozeDate] = useState(todayIsoDate());
-  const [customOpen, setCustomOpen] = useState(false);
-  const [customTitle, setCustomTitle] = useState("");
-  const [customDate, setCustomDate] = useState(todayIsoDate());
-  const [customNote, setCustomNote] = useState("");
-  const [customPropertyId, setCustomPropertyId] = useState("");
-  const [customReminderId, setCustomReminderId] = useState("");
-  const [customRecurrence, setCustomRecurrence] = useState<ReminderRecurrence>("ONCE");
-  const [customTaskDone, setCustomTaskDone] = useState(false);
-  const [customTaskId, setCustomTaskId] = useState("");
   const tasks = useMemo(() => document ? deriveTasks(document) : [], [document]);
   const setup = useMemo(() => document ? deriveSetupProgress(document) : null, [document]);
-
-  useEffect(() => {
-    const taskId = (route.params as { taskId?: string } | undefined)?.taskId;
-    if (!document || !taskId) return;
-    const reminder = findCustomReminderForTask(document.customReminders, taskId);
-    if (reminder) {
-      setCustomTaskId(taskId); setCustomReminderId(reminder.id); setCustomTaskDone(false); setCustomTitle(reminder.title); setCustomDate(reminder.dueDate); setCustomRecurrence(reminder.recurrence);
-      setCustomNote(reminder.note ?? ""); setCustomPropertyId(reminder.propertyId ?? ""); setCustomOpen(true);
-    }
-    navigation.setParams({ taskId: undefined });
-  }, [document, navigation, route.params]);
 
   if (!document) return <View style={ui.page} />;
   const now = new Date();
@@ -127,20 +105,7 @@ export function PulpitScreen() {
       expectedAmount: task.remainingGrosz ? (task.remainingGrosz / 100).toFixed(2) : undefined,
     });
     else if (task.type === "TAX_PAYMENT") navigateToTaxDetails(navigation, task.period);
-    else if (task.type === "RECURRING_BILL") navigation.navigate("Ustawienia", recurringBillTaskIntent(task.id.split(":")[1]!, task.period!));
-    else if (task.type === "RENTAL_AGREEMENT_END") navigation.navigate("Ustawienia", { propertyId: task.propertyId });
-    else {
-      setCustomTaskId(task.id);
-      const reminder = findCustomReminderForTask(document.customReminders, task.id);
-      setCustomReminderId(reminder?.id ?? "");
-      setCustomTaskDone(task.status === "completed");
-      setCustomTitle(reminder?.title ?? task.title);
-      setCustomDate(reminder?.dueDate ?? localIso(task.dueAt));
-      setCustomRecurrence(reminder?.recurrence ?? "ONCE");
-      setCustomNote(reminder?.note ?? "");
-      setCustomPropertyId(reminder?.propertyId ?? "");
-      setCustomOpen(true);
-    }
+    else navigation.navigate("Ustawienia", { propertyId: task.propertyId });
   };
   const addIncome = (propertyId?: string, rentalMonth?: string) => navigation.navigate("Przychód", { quickAdd: true, ...(propertyId ? { propertyId } : {}), ...(rentalMonth ? { rentalMonth } : {}) });
   const openAdministration = (property?: Property) => {
@@ -154,17 +119,6 @@ export function PulpitScreen() {
     if (linked.length === 1) { openAdministration(linked[0]); return; }
     if (linked.length > 1) setAdminPickerVisible(true);
     else navigation.navigate("Ustawienia");
-  };
-  const saveCustom = async () => {
-    if (!customTitle.trim() || !isValidCalendarDate(customDate)) {
-      Alert.alert("Sprawdź przypomnienie", "Wpisz tytuł i prawidłową datę RRRR-MM-DD."); return;
-    }
-    const item: CustomReminder = { id: customReminderId || createId("reminder"), title: customTitle.trim(), dueDate: customDate, recurrence: customRecurrence,
-      ...(customPropertyId ? { propertyId: customPropertyId } : {}), ...(customNote.trim() ? { note: customNote.trim() } : {}) };
-    try {
-      await update((current) => saveCustomReminder(current, item, customTaskId || undefined));
-      setCustomOpen(false);
-    } catch { /* The data provider surfaces save failures. */ }
   };
   const saveSnooze = (until: Date) => {
     if (!snoozeTask) return;
@@ -328,24 +282,6 @@ export function PulpitScreen() {
       </View></SafeAreaView>
     </Modal>
 
-    <Modal visible={customOpen} animationType="slide" onRequestClose={() => setCustomOpen(false)}>
-      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}><ModalHeader title={customTaskId ? "Przypomnienie" : "Nowe przypomnienie"} onClose={() => setCustomOpen(false)} />
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <Text style={smallLabel}>Tytuł</Text><TextInput accessibilityLabel="Tytuł przypomnienia" value={customTitle} onChangeText={setCustomTitle} style={input} />
-          <Text style={smallLabel}>Termin (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Termin przypomnienia" value={customDate} onChangeText={setCustomDate} style={input} />
-          <Text style={smallLabel}>Powtarzanie</Text><View style={chartFilter}>{([
-            ["ONCE", "Jednorazowo"], ["MONTHLY", "Co miesiąc"], ["YEARLY", "Co rok"],
-          ] as const).map(([value, label]) => { const selected = customRecurrence === value; return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setCustomRecurrence(value)} style={[filterButton, selected && selectedFilter]}><Text style={[filterText, selected && { fontWeight: "700" }]}>{label}</Text></Pressable>; })}</View>
-          {customRecurrence !== "ONCE" && isValidCalendarDate(customDate) ? <Text style={muted}>{recurrenceLabel(customRecurrence, customDate)}</Text> : null}
-          <Text style={smallLabel}>Mieszkanie (opcjonalnie)</Text><View style={chartFilter}>{document.properties.map((property) => <Pressable key={property.id} accessibilityRole="radio" accessibilityState={{ checked: customPropertyId === property.id }} onPress={() => setCustomPropertyId(customPropertyId === property.id ? "" : property.id)} style={[filterButton, customPropertyId === property.id && selectedFilter]}><Text style={filterText}>{property.address}</Text></Pressable>)}</View>
-          <Text style={smallLabel}>Notatka (opcjonalnie)</Text><TextInput accessibilityLabel="Notatka przypomnienia" value={customNote} onChangeText={setCustomNote} multiline style={[input, { minHeight: 88, textAlignVertical: "top" }]} />
-          {customTaskId ? <><Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={secondaryButton}><Text style={buttonText}>Zapisz zmiany</Text></Pressable>
-            {!customTaskDone ? <Pressable accessibilityRole="button" onPress={() => { setState(customTaskId, { completedAt: new Date().toISOString() }); setCustomOpen(false); }} style={secondaryButton}><Text style={buttonText}>Oznacz jako załatwione</Text></Pressable> : null}
-            <Pressable accessibilityRole="button" onPress={() => Alert.alert("Usunąć przypomnienie?", customTitle, [{ text: "Anuluj", style: "cancel" }, { text: "Usuń", style: "destructive", onPress: () => { const id = customReminderId; void update((current) => deleteCustomReminder(current, id)).catch(() => undefined); setCustomOpen(false); } }])} style={destructiveButton}><Text style={dangerText}>Usuń przypomnienie</Text></Pressable></>
-            : <Pressable accessibilityRole="button" onPress={() => void saveCustom()} style={primaryButton}><Text style={primaryText}>Zapisz przypomnienie</Text></Pressable>}
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
 
     <Modal visible={adminPickerVisible} transparent animationType="fade" onRequestClose={() => setAdminPickerVisible(false)}>
       <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Administracja" onClose={() => setAdminPickerVisible(false)} />
@@ -400,10 +336,6 @@ const summaryTaxDetail = { color: theme.colors.textSecondary, fontSize: 13, font
 const ownerNetBlock = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 12, paddingTop: 12, width: "100%" as const };
 const ownerNetValue = { color: theme.colors.textPrimary, fontSize: 24, fontWeight: "800" as const, marginTop: 3 };
 const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
-const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
-const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
-const selectedFilter = { backgroundColor: theme.colors.selectedSurface, borderColor: theme.colors.selectedBorder };
-const filterText = { color: theme.colors.textPrimary, fontSize: 11 };
 const propertyRow = { paddingVertical: 13, paddingHorizontal: 15, marginTop: 7, minHeight: 76 };
 const compactPropertyHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };
 const propertyName = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const };
@@ -429,7 +361,3 @@ const input = { borderWidth: 1, borderColor: theme.colors.inputBorder, backgroun
 const primaryButton = { ...ui.primaryButton, marginTop: 10 };
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const };
 const overpaymentWarning = { color: theme.colors.warning, fontSize: 12, fontWeight: "600" as const, marginTop: 8 };
-const secondaryButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 8, marginTop: 9 };
-const buttonText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
-const destructiveButton = { minHeight: 44, justifyContent: "center" as const, alignItems: "center" as const, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 8, marginTop: 9 };
-const dangerText = { color: theme.colors.danger, fontWeight: "600" as const };
