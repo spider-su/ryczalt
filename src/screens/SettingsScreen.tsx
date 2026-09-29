@@ -724,12 +724,18 @@ export function SettingsScreen() {
             <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
             <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
             <Text style={muted}>Wybierz wariant zgodny z warunkami Twojej umowy najmu.</Text>
-            {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: draft.taxableTreatment === value }} onPress={() => setDraft((current) => ({ ...current, taxableTreatment: value }))} style={{ ...notificationRow, borderWidth: 1, borderColor: draft.taxableTreatment === value ? theme.colors.accent : theme.colors.borderSubtle, borderRadius: 10, padding: 10, marginTop: 6 }}><Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{label}</Text><Text style={{ color: theme.colors.accent, fontWeight: "700" }}>{draft.taxableTreatment === value ? "●" : "○"}</Text></Pressable>)}
+            {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => {
+              const selected = draft.taxableTreatment === value;
+              return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setDraft((current) => ({ ...current, taxableTreatment: value }))} style={[taxableOption, selected && taxableOptionSelected]}>
+                <Text style={[radioMark, selected && radioMarkSelected]}>{selected ? "●" : "○"}</Text>
+                <Text style={[taxableOptionLabel, selected && taxableOptionLabelSelected]}>{label}</Text>
+              </Pressable>;
+            })}
             <Text style={{ ...muted, marginBottom: 8 }}>Razem od najemcy: {tenantDraftTotal(draft)} / mies.</Text>
             <View onLayout={setupFocus === "payment-day" ? (event) => { propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); setSetupFocus(null); } : undefined}>
               {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "5" })}
             </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={{ paddingVertical: 14 }}><Text style={action}>{showAdvancedProperty ? "− Mniej ustawień" : "+ Więcej ustawień"}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={disclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><Text style={disclosureChevron}>{showAdvancedProperty ? "⌃" : "⌄"}</Text></Pressable>
             {showAdvancedProperty ? <>
             <Text style={sectionTitle}>Daty najmu</Text>
             {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
@@ -959,3 +965,11 @@ const clearDataButton = { minHeight: 46, justifyContent: "center" as const, alig
 const clearDataText = { color: theme.colors.danger, fontSize: 14, fontWeight: "700" as const };
 const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
 const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
+const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
+const taxableOptionSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
+const radioMark = { width: 22, color: theme.colors.textMuted, fontSize: 20, textAlign: "center" as const };
+const radioMarkSelected = { color: theme.colors.accent };
+const taxableOptionLabel = { color: theme.colors.textPrimary, flex: 1, fontSize: 14 };
+const taxableOptionLabelSelected = { fontWeight: "600" as const };
+const disclosureRow = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingVertical: 12 };
+const disclosureChevron = { color: theme.colors.textSecondary, fontSize: 18, fontWeight: "700" as const };

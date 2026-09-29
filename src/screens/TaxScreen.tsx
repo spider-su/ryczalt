@@ -14,7 +14,7 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
-import { formatPolishDate } from "../domain/presentationFormat";
+import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
 import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "../domain/rentalPresentation";
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_PAYMENT_ALLOCATION_HINT, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
@@ -23,6 +23,7 @@ import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
 import { historicalTaxPaymentsForImportedRent } from "../domain/historicalRentBootstrap";
+import { rentMonthStatusRows } from "../domain/incomeHistory";
 
 export function TaxScreen() {
   const { document, error, update } = useRentalData();
@@ -73,6 +74,10 @@ export function TaxScreen() {
   const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
+  const unconfirmedRentRows = settlementMode === "monthly"
+    ? rentMonthStatusRows(document.properties, document.incomeEntries, selectedPeriod).filter((row) => row.status === "unpaid" || row.status === "partial")
+    : [];
+  const unconfirmedRentCount = unconfirmedRentRows.length;
   const openPayment = (payment?: TaxPayment) => {
     if (payment && document.taxSettlementSnapshots?.some((snapshot) => snapshot.period === payment.period)) {
       Alert.alert("Okres podatkowy jest zamknięty", "Nie można edytować ani usuwać zapisanej wpłaty z zamkniętego okresu. Korekty historyczne są zaplanowane na później.");
@@ -96,13 +101,27 @@ export function TaxScreen() {
     const startMonth = property.rentalStartDate?.slice(0, 7) ?? property.rentSchedule?.[0]?.effectiveFrom ?? `${taxYear}-01`;
     return hasConfiguredRent && startMonth < selectedPeriod;
   });
-  const openPaymentWithHistoryReview = () => {
+  const proceedToPaymentWithHistoryReview = () => {
     if (!hasTaxYearPayment && (priorRevenueGrosz > 0 || hasEarlierRentalPeriods)) {
       setPreviousTaxPaid(null);
       setHistoryReviewOpen(true);
       return;
     }
     openPayment();
+  };
+  const openPaymentWithHistoryReview = () => {
+    if (unconfirmedRentCount === 0) {
+      proceedToPaymentWithHistoryReview();
+      return;
+    }
+    Alert.alert(
+      "Nie wszystkie wpłaty są potwierdzone",
+      `${formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek jest wyliczony tylko z potwierdzonych wpłat. Jeśli czynsz został otrzymany, należny podatek może się zwiększyć.`,
+      [
+        { text: "Sprawdź wpłaty", style: "cancel", onPress: () => navigation.navigate("Przychód") },
+        { text: "Kontynuuj mimo to", onPress: proceedToPaymentWithHistoryReview },
+      ],
+    );
   };
   const continueAfterHistoryReview = async () => {
     if (previousTaxPaid === null) return;
@@ -177,9 +196,9 @@ export function TaxScreen() {
           {paymentDisplay?.kind === "no-tax" ? <Text style={{ color: theme.colors.textSecondary, fontWeight: "700" }}>Brak podatku do zapłaty</Text> : <>
             <Text style={dueLabel}>NALEŻNY PODATEK</Text>
             <Text style={[dueValue, { fontSize: 36, marginTop: 5 }]}>{formatPln(paymentDisplay?.obligationGrosz ?? 0)}</Text>
-            <Text style={taxContext}>Zapłacono {formatPln(paymentDisplay?.paidGrosz ?? 0)}</Text>
+            <Text style={taxContext}>Rozliczono {formatPln(paymentDisplay?.paidGrosz ?? 0)}</Text>
             <Text style={{ color: paymentDisplay?.kind === "overdue" ? theme.colors.warning : paymentDisplay?.kind === "paid" ? theme.colors.success : theme.colors.textPrimary, fontWeight: "700", marginTop: 4 }}>
-              {paymentDisplay?.kind === "paid" ? "✓ Opłacone" : `Pozostało do zapłaty ${formatPln(paymentDisplay?.remainingGrosz ?? 0)}`}
+              {paymentDisplay?.kind === "paid" ? unconfirmedRentCount > 0 ? "✓ Obecnie należny podatek opłacony" : "✓ Opłacone" : `Pozostało do zapłaty ${formatPln(paymentDisplay?.remainingGrosz ?? 0)}`}
             </Text>
             {paymentDisplay?.kind !== "paid" ? <Text style={{ color: paymentDisplay?.kind === "overdue" ? theme.colors.warning : theme.colors.textSecondary, fontWeight: "600", fontSize: 16, marginTop: 4 }}>{paymentDisplay?.kind === "overdue" ? "Termin minął " : "Termin "}{formatPolishDate(settlement.dueDate, "long")}</Text> : null}
           </>}
@@ -194,6 +213,11 @@ export function TaxScreen() {
           {calculation.openingBalance.overpaidGrosz > 0 ? <Text style={taxContext}>Nadpłata stanu początkowego: {formatPln(calculation.openingBalance.overpaidGrosz)}. Nie przypisano jej do miesięcznego okresu.</Text> : null}
         </View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={`Dane do przelewu. ${TAX_TRANSFER_HINT}`} onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><View><Text style={transferTitle}>Dane do przelewu</Text><Text style={transferHint}>{TAX_TRANSFER_HINT}</Text></View><Text style={action}>›</Text></Pressable>
+        {unconfirmedRentCount > 0 ? <View style={rentWarning}>
+          <Text style={rentWarningTitle}>Nie wszystkie wpłaty są potwierdzone</Text>
+          <Text style={rentWarningText}>{formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek obejmuje tylko potwierdzone wpłaty.</Text>
+          <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
+        </View> : null}
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
         <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 15 }}>Przychód opodatkowany w {taxYear}</Text>
         <Text style={taxContext}>{formatPln(annualIncome)} / próg stawki 12,5% {annualThreshold > 0 ? formatPln(annualThreshold) : "niedostępny"}</Text>
@@ -207,7 +231,7 @@ export function TaxScreen() {
         </View>)}
       </>}
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
-      <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek? {infoOpen ? "⌃" : "›"}</Text></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
+      <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek? {infoOpen ? "⌃" : "⌄"}</Text></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
     <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={() => setHistoryReviewOpen(false)}>
@@ -278,5 +302,8 @@ const infoTitle = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "
 const infoRow = { minHeight: 44, justifyContent: "center" as const };
 const infoBody = { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18 };
 const taxDetails = { marginTop: 14, padding: 11, borderRadius: 12, backgroundColor: theme.colors.surface };
+const rentWarning = { marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.warning, backgroundColor: theme.colors.surface };
+const rentWarningTitle = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const };
+const rentWarningText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 6 };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };

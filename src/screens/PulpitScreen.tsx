@@ -224,16 +224,19 @@ export function PulpitScreen() {
           <Text style={summaryMainLine}>Czynsz: <Text style={summaryMainValue}>—</Text></Text>
           <Text style={muted}>Uzupełnij oczekiwany czynsz</Text>
         </> : <>
-          <Text style={summaryMainLine} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>Czynsz: <Text style={summaryMainValue}>{compactPln(receivedRent)}</Text></Text>
+          <Text style={summaryEyebrow}>CZYNSZ</Text>
+          <Text style={summaryHeroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{compactPln(receivedRent)}</Text>
+          <Text style={summaryHeroCaption}>otrzymano</Text>
           {expectedRent > 0 && receivedRent < expectedRent
-            ? <Pressable accessibilityRole="button" accessibilityLabel={`${formatPln(remainingRent)} do potwierdzenia. Potwierdź wpłaty`} onPress={openBulkConfirmation}><Text style={muted}>{compactPln(remainingRent)} do potwierdzenia</Text></Pressable>
-            : <Text style={muted}>{expectedRent === 0 ? "Brak oczekiwanego czynszu" : "Wpłaty potwierdzone"}</Text>}
+            ? <Pressable accessibilityRole="button" accessibilityLabel={`${formatPln(remainingRent)} do potwierdzenia. Potwierdź wpłaty`} onPress={openBulkConfirmation}><Text style={summaryPendingValue}>{compactPln(remainingRent)} do potwierdzenia</Text></Pressable>
+            : <Text style={summaryHeroCaption}>{expectedRent === 0 ? "Brak oczekiwanego czynszu" : "Wpłaty potwierdzone"}</Text>}
           <ProgressBar fraction={rentProgress.fraction} accessibilityLabel="Postęp opłaconych czynszów" />
           <Text style={summaryExpected}>z oczekiwanych {compactPln(expectedRent)}</Text>
         </>}
         <Pressable accessibilityRole="button" accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${currentPeriod.status === "paid" ? "Opłacone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} onPress={() => navigateToTaxDetails(navigation)} style={summaryTax}>
-          <Text style={summaryMainLine} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>Podatek: <Text style={summaryMainValue}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text></Text>
-          <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Opłacone · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : hasTaxRulesForYear(selectedYear) ? "—" : `Brak zweryfikowanych reguł podatkowych dla ${selectedYear}`}</Text>
+          <Text style={summaryEyebrow}>PODATEK</Text>
+          <View style={summaryTaxHeadline}><Text style={summaryTaxValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text>{currentPeriod?.status === "paid" ? <Text style={summaryPaid}>✓ Opłacone</Text> : null}</View>
+          <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : hasTaxRulesForYear(selectedYear) ? "—" : `Brak zweryfikowanych reguł podatkowych dla ${selectedYear}`}</Text>
         </Pressable>
       </View>
 
@@ -367,23 +370,30 @@ const smallLabel = { color: theme.colors.textSecondary, fontSize: 13, fontWeight
 const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 13 };
 const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 12 };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
-const summaryCard = { padding: 14, marginVertical: 4 };
+const summaryCard = { padding: 18, marginVertical: 6 };
 const summaryMainLine = { color: theme.colors.textSecondary, fontSize: 14, fontWeight: "500" as const, marginTop: 1 };
 const summaryMainValue = { color: theme.colors.textPrimary, fontWeight: "700" as const };
+const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5 };
+const summaryHeroValue = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, marginTop: 3 };
+const summaryHeroCaption = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 0, marginBottom: 4 };
+const summaryPendingValue = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const, marginTop: 7, marginBottom: 4 };
 const summaryDetail = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, marginTop: 3 };
-const summaryExpected = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 1 };
-const summaryTax = { alignItems: "flex-start" as const, borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 10, paddingTop: 8, width: "100%" as const };
-const summaryTaxDetail = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "500" as const, marginTop: 2 };
+const summaryExpected = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 3 };
+const summaryTax = { alignItems: "flex-start" as const, borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 14, paddingTop: 12, width: "100%" as const };
+const summaryTaxHeadline = { flexDirection: "row" as const, alignItems: "baseline" as const, gap: 10, marginTop: 3 };
+const summaryTaxValue = { color: theme.colors.textPrimary, fontSize: 22, fontWeight: "800" as const };
+const summaryPaid = { color: theme.colors.success, fontSize: 14, fontWeight: "700" as const };
+const summaryTaxDetail = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "500" as const, marginTop: 2 };
 const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
 const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
 const selectedFilter = { backgroundColor: theme.colors.selectedSurface, borderColor: theme.colors.selectedBorder };
 const filterText = { color: theme.colors.textPrimary, fontSize: 11 };
-const propertyRow = { paddingVertical: 10, paddingHorizontal: 13, marginTop: 5, minHeight: 64 };
+const propertyRow = { paddingVertical: 13, paddingHorizontal: 15, marginTop: 7, minHeight: 76 };
 const compactPropertyHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };
-const propertyName = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const };
-const compactTenant = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 1 };
+const propertyName = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const };
+const compactTenant = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 2 };
 const compactMuted = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
-const compactAmount = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const, textAlign: "right" as const, marginTop: 4 };
+const compactAmount = { color: theme.colors.textPrimary, fontSize: 22, fontWeight: "800" as const, textAlign: "right" as const, marginTop: 7 };
 const overdueMeta = { color: theme.colors.danger, fontSize: 12, textAlign: "right" as const, marginTop: 2 };
 const bulkRow = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, paddingVertical: 8 };
 const bulkCheck = { color: theme.colors.selectedNavigation, fontSize: 22, width: 28, textAlign: "center" as const };
