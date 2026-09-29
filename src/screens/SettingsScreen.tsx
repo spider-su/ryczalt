@@ -203,12 +203,12 @@ export function SettingsScreen() {
       Alert.alert("Mieszkanie już istnieje", "Aktywne mieszkanie o tym adresie już istnieje. Otwórz jego wpis, aby go edytować.");
       return;
     }
-    if (ownerRent && !isNonnegativeMoney(ownerRent)) {
-      Alert.alert("Nieprawidłowy czynsz", "Wpisz kwotę, np. 2500 lub 2500,50.");
+    if (ownerRent && (!isPositiveMoney(ownerRent) || Number(ownerRent) >= 10000)) {
+      Alert.alert("Nieprawidłowy czynsz", "Czynsz musi być większy od 0 zł i mniejszy niż 10 000 zł.");
       return;
     }
-    if (!isNonnegativeMoney(mediaAmount)) {
-      Alert.alert("Nieprawidłowa kwota mediów", "Wpisz kwotę, np. 350 lub 350,50.");
+    if (!isNonnegativeMoney(mediaAmount) || Number(mediaAmount) >= 5000) {
+      Alert.alert("Nieprawidłowa kwota mediów", "Media muszą być kwotą od 0 zł do mniej niż 5 000 zł.");
       return;
     }
     if (draft.taxableTreatment !== "OWNER_RENT" && draft.taxableTreatment !== "RENT_AND_CHARGES") {
@@ -719,8 +719,8 @@ export function SettingsScreen() {
             <TextInput accessibilityLabel="Warunki obowiązują od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder="2026-10" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
             <Text style={{ ...muted, marginBottom: 8 }}>Zmiany czynszu, mediów, podstawy podatku i terminu dotyczą tego miesiąca i kolejnych. Zamknięte miesiące pozostają bez zmian.</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "2500", selectTextOnFocus: true })}</View>
-              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0", selectTextOnFocus: true })}</View>
+              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "2500" })}</View>
+              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0" })}</View>
             </View>
             <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
             <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
