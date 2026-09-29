@@ -34,7 +34,7 @@ import { formatPolishCount, formatPolishDate } from "../domain/presentationForma
 import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
-import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange, historicalTaxPaymentsForImportedRent } from "../domain/historicalRentBootstrap";
+import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
 import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsBillsEmpty, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
@@ -84,7 +84,6 @@ export function SettingsScreen() {
   const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
   const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
   const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
-  const [bootstrapTaxPaid, setBootstrapTaxPaid] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
   const [saving, setSaving] = useState(false);
@@ -186,7 +185,7 @@ export function SettingsScreen() {
       electricityUrl: property.electricityUrl ?? "",
     });
   };
-  const save = async () => {
+  const save = async (acceptHighAmounts = false) => {
     const address = draft.address.trim();
     const ownerRent = draft.ownerRent.trim().replace(",", ".");
     const mediaAmount = draft.mediaAmount.trim().replace(",", ".") || "0";
@@ -203,12 +202,23 @@ export function SettingsScreen() {
       Alert.alert("Mieszkanie już istnieje", "Aktywne mieszkanie o tym adresie już istnieje. Otwórz jego wpis, aby go edytować.");
       return;
     }
-    if (ownerRent && (!isPositiveMoney(ownerRent) || Number(ownerRent) >= 10000)) {
-      Alert.alert("Nieprawidłowy czynsz", "Czynsz musi być większy od 0 zł i mniejszy niż 10 000 zł.");
+    if (ownerRent && !isPositiveMoney(ownerRent)) {
+      Alert.alert("Nieprawidłowy czynsz", "Czynsz musi być większy od 0 zł.");
       return;
     }
-    if (!isNonnegativeMoney(mediaAmount) || Number(mediaAmount) >= 5000) {
-      Alert.alert("Nieprawidłowa kwota mediów", "Media muszą być kwotą od 0 zł do mniej niż 5 000 zł.");
+    if (!isNonnegativeMoney(mediaAmount)) {
+      Alert.alert("Nieprawidłowa kwota mediów", "Media nie mogą być kwotą ujemną.");
+      return;
+    }
+    if (!acceptHighAmounts && ((ownerRent && Number(ownerRent) >= 10000) || Number(mediaAmount) >= 5000)) {
+      const warnings = [
+        ownerRent && Number(ownerRent) >= 10000 ? `Czynsz: ${formatPlnAmount(ownerRent)}` : "",
+        Number(mediaAmount) >= 5000 ? `Media / opłaty: ${formatPlnAmount(mediaAmount)}` : "",
+      ].filter(Boolean).join("\n");
+      Alert.alert("Sprawdź wysoką kwotę", `${warnings}\n\nCzy podane kwoty są poprawne?`, [
+        { text: "Wróć do edycji", style: "cancel" },
+        { text: "Zapisz mimo to", onPress: () => void save(true) },
+      ]);
       return;
     }
     if (draft.taxableTreatment !== "OWNER_RENT" && draft.taxableTreatment !== "RENT_AND_CHARGES") {
@@ -298,7 +308,6 @@ export function SettingsScreen() {
         if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
           setBootstrapProperty(property);
           setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth });
-          setBootstrapTaxPaid(true);
         }
       }
       setEditing(null);
@@ -331,9 +340,7 @@ export function SettingsScreen() {
       await update((current) => {
         const result = bootstrapHistoricalRentPayments({ document: current, property: bootstrapProperty, ...bootstrapRange, today });
         created = result.created.length;
-        const historicalTaxPayments = historicalTaxPaymentsForImportedRent(result.document, result.created, bootstrapTaxPaid);
-        const replacedPaymentIds = new Set(historicalTaxPayments.map((payment) => payment.id));
-        return { ...result.document, taxPayments: [...result.document.taxPayments.filter((payment) => !replacedPaymentIds.has(payment.id)), ...historicalTaxPayments] };
+        return result.document;
       });
       setBootstrapProperty(null);
       setBootstrapRange(null);
@@ -791,10 +798,9 @@ export function SettingsScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, -1) : range)}><Text style={action}>‹</Text></Pressable><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bootstrapRange[key]}</Text><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, 1) : range)}><Text style={action}>›</Text></Pressable></View>
               </View>)}
             </View> : null}
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: bootstrapTaxPaid }} onPress={() => setBootstrapTaxPaid((value) => !value)} style={[notificationRow, { marginVertical: 12 }]}>
-              <View style={{ flex: 1 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>Podatek za te okresy został zapłacony</Text><Text style={muted}>Domyślnie zaznaczone. Zapiszemy wyliczoną kwotę z datą terminu oznaczoną jako szacunkowa. Gdy uzupełnisz kolejne mieszkanie za ten sam miesiąc, szacowana kwota uwzględni łączny przychód. Odznacz, jeśli podatek nie został zapłacony.</Text></View>
-              <Text style={{ color: theme.colors.primary, fontWeight: "700" }}>{bootstrapTaxPaid ? "☑" : "□"}</Text>
-            </Pressable>
+            <View style={[neutralBanner, { marginVertical: 12 }]}>
+              <Text style={muted}>Import zapisuje tylko potwierdzone wpłaty czynszu. Zapłatę podatku potwierdź osobno na ekranie Podatek — aplikacja nie zakłada, że została wykonana.</Text>
+            </View>
             <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź otrzymane wpłaty"}</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
           </ScrollView> : null}
