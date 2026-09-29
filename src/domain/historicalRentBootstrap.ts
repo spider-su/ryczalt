@@ -8,8 +8,10 @@ import { apartmentTermsForMonth } from "./apartmentTerms";
 
 export type HistoricalBootstrapResult = { document: RentalDocument; created: IncomeEntry[]; skippedMonths: string[] };
 
-/** Records the user-confirmed, default-paid historical tax assumption with a clearly estimated deadline date. */
-export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[], markPaid = true): TaxPayment[] {
+/** Builds estimated historical tax payments only after an explicit caller opt-in.
+ * Normal onboarding never calls this helper; kept for controlled migration/tests only.
+ */
+export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[], markPaid = false): TaxPayment[] {
   if (!markPaid || document.settings.settlementMode !== "monthly") return [];
   const periods = [...new Set(created.map((entry) => entry.receivedAt.slice(0, 7)))].sort();
   const byYear = new Map<number, ReturnType<typeof calculateSettlements>>();
@@ -66,6 +68,8 @@ export function bootstrapHistoricalRentPayments(args: {
     if (property.rentalStartDate && month < property.rentalStartDate.slice(0, 7)) { skippedMonths.push(month); continue; }
     if (property.leaseEndDate && month > property.leaseEndDate.slice(0, 7)) { skippedMonths.push(month); continue; }
     const terms = apartmentTermsForMonth(property, month);
+    const taxableTreatment = terms?.taxableTreatment ?? property.taxableTreatment;
+    if (!taxableTreatment) throw new Error("Taxable treatment must be confirmed before importing historical rent");
     const ownerGrosz = terms?.ownerRentGrosz ?? ownerRentForMonth(property, month) ?? (property.ownerRent ? moneyToGrosz(property.ownerRent) : null);
     if (ownerGrosz === null || ownerGrosz <= 0) { skippedMonths.push(month); continue; }
     const tenantMediaGrosz = terms?.mediaPaidByTenant ? terms.mediaAmountGrosz : property.mediaPaidByTenant ? moneyToGrosz(property.mediaAmount ?? "0") : 0;
@@ -100,7 +104,7 @@ export function bootstrapHistoricalRentPayments(args: {
         ? item.rentSchedule
         : [...(item.rentSchedule ?? []), {
           effectiveFrom: firstImportedMonth, amount: item.ownerRent, mediaAmount: item.mediaAmount ?? "0", mediaPaidByTenant: item.mediaPaidByTenant ?? false,
-          taxableTreatment: item.taxableTreatment ?? "OWNER_RENT", paymentDay: item.paymentDay ?? 5,
+          taxableTreatment: item.taxableTreatment, paymentDay: item.paymentDay ?? 5,
         }].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
       return {
         ...item,
