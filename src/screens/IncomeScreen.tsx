@@ -33,7 +33,6 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatPolishMonth, formatPolishMonthName, formatPolishCount, formatPlnSummary } from "../domain/presentationFormat";
 import { groupIncomeEntriesByReceivedMonth, historicalIncomeGroups, incomeEntriesForView, incomeRangeSummary, incomeViewSummary, propertiesWithIncomeInYear, rentMonthStatusRows } from "../domain/incomeHistory";
 import { toggleIncomeMonth } from "../domain/incomeHistory";
-import { closeRentalMonth } from "../domain/periodSnapshots";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
 import { availableIncomeYears } from "../domain/dashboardPeriods";
 import {
@@ -206,7 +205,7 @@ export function IncomeScreen() {
       );
       return;
     }
-    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || draft.receivedAt.slice(0, 7))?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment) && !editing) {
+    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || draft.receivedAt.slice(0, 7))?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment)) {
       Alert.alert("Ustaw sposób opodatkowania", "Wybierz go w Ustawieniach mieszkania zgodnie z warunkami umowy najmu.");
       return;
     }
@@ -469,15 +468,11 @@ export function IncomeScreen() {
           const expanded = expandedMonths.includes(section.month);
           const amountSummary = `${formatPlnSummary(section.totalGrosz)} · ${formatPolishCount(section.paymentCount, ["wpłata", "wpłaty", "wpłat"])}`;
           const closed = (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === section.month);
-          const canClose = !selectedPropertyId && section.month < currentMonth && document.settings.settlementMode === "monthly";
           return <View style={monthHeader}>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={`${formatPolishMonthName(section.month)}, ${amountSummary}`} onPress={() => setExpandedMonths((items) => toggleIncomeMonth(items, section.month))} style={{ flex: 1, flexDirection: "row", alignItems: "center", minHeight: 48 }}>
               <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonthName(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><MaterialIcons name={expanded ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
             </Pressable>
-            {closed ? <Text style={periodClosedLabel}>Zamknięty</Text> : canClose ? <Pressable accessibilityRole="button" accessibilityLabel={`Zamknij miesiąc ${formatPolishMonthName(section.month)}`} onPress={() => Alert.alert("Zamknąć miesiąc?", "Zapiszemy nieruchomościowe podsumowania czynszu i wynik podatku za ten miesiąc. Zamknięte okresy pozostaną bez zmian.", [
-              { text: "Anuluj", style: "cancel" },
-              { text: "Zamknij miesiąc", onPress: () => void update((current) => closeRentalMonth(current, section.month)).catch(() => Alert.alert("Nie można zamknąć miesiąca", "Sprawdź, czy okres i jego reguły podatkowe są dostępne.")) },
-            ])} style={{ paddingHorizontal: 8, paddingVertical: 10 }}><Text style={periodCloseAction}>Zamknij</Text></Pressable> : null}
+            {closed ? <Text style={periodClosedLabel}>Zamknięty</Text> : null}
           </View>;
         }}
         renderItem={({ item }) => <IncomeEntryRow entry={item} propertyName={propertyNames.get(item.propertyId) ?? "Usunięte mieszkanie"} onOpen={() => openEntryMenu(item)} />}

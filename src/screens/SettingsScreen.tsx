@@ -5,6 +5,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   Switch,
   Text,
@@ -12,6 +13,8 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { createRentalBackup, parseRentalBackup } from "../data/localRentalStore";
+import { pickRentalBackupContents, saveRentalBackupFile } from "../data/rentalBackupFile";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { PaymentDetail } from "../components/PaymentDetail";
 import { PeriodSelector } from "../components/PeriodSelector";
@@ -34,7 +37,7 @@ import { formatPolishCount, formatPolishDate } from "../domain/presentationForma
 import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
-import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange, historicalTaxPaymentsForImportedRent } from "../domain/historicalRentBootstrap";
+import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
 import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsBillsEmpty, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
@@ -84,11 +87,11 @@ export function SettingsScreen() {
   const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
   const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
   const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
-  const [bootstrapTaxPaid, setBootstrapTaxPaid] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
   const [saving, setSaving] = useState(false);
   const [clearingLocalData, setClearingLocalData] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [billEditing, setBillEditing] = useState<RecurringBill | null>(null);
   const [billModalOpen, setBillModalOpen] = useState(false);
@@ -134,6 +137,57 @@ export function SettingsScreen() {
     ) : (
       <ActivityIndicator style={{ flex: 1 }} />
     );
+
+  const exportBackup = async () => {
+    if (isDemoMode || backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const uri = await saveRentalBackupFile(createRentalBackup(document));
+      Alert.alert(
+        "Kopia danych zapisana",
+        Platform.OS === "ios"
+          ? "Plik kopii znajdziesz w aplikacji Pliki, w folderze Ryczałt."
+          : "Plik kopii został zapisany w wybranym folderze.",
+      );
+      void uri;
+    } catch {
+      Alert.alert("Nie udało się utworzyć kopii", "Spróbuj ponownie i wybierz folder, do którego aplikacja może zapisać plik.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const restoreBackup = async () => {
+    if (isDemoMode || backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const raw = await pickRentalBackupContents();
+      if (!raw) return;
+      const restored = parseRentalBackup(raw);
+      Alert.alert(
+        "Przywrócić kopię danych?",
+        "Obecne dane na tym urządzeniu zostaną zastąpione zawartością wybranej kopii. Przed zmianą aplikacja zachowa poprzedni poprawny zapis jako lokalną kopię odzyskiwania.",
+        [
+          { text: "Anuluj", style: "cancel" },
+          {
+            text: "Przywróć",
+            style: "destructive",
+            onPress: () => {
+              setBackupBusy(true);
+              void update(() => restored)
+                .then(() => Alert.alert("Kopia przywrócona", "Dane zostały sprawdzone i przywrócone."))
+                .catch(() => Alert.alert("Nie udało się przywrócić kopii", "Obecne dane nie zostały zastąpione."))
+                .finally(() => setBackupBusy(false));
+            },
+          },
+        ],
+      );
+    } catch {
+      Alert.alert("Nieprawidłowa kopia", "Nie udało się odczytać tej kopii albo pochodzi ona z nieobsługiwanej wersji aplikacji.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
 
   const openProperty = (property?: Property, focus?: SetupAction) => {
     setEditing(property ?? null);
@@ -186,7 +240,7 @@ export function SettingsScreen() {
       electricityUrl: property.electricityUrl ?? "",
     });
   };
-  const save = async () => {
+  const save = async (acceptHighAmounts = false) => {
     const address = draft.address.trim();
     const ownerRent = draft.ownerRent.trim().replace(",", ".");
     const mediaAmount = draft.mediaAmount.trim().replace(",", ".") || "0";
@@ -203,12 +257,23 @@ export function SettingsScreen() {
       Alert.alert("Mieszkanie już istnieje", "Aktywne mieszkanie o tym adresie już istnieje. Otwórz jego wpis, aby go edytować.");
       return;
     }
-    if (ownerRent && (!isPositiveMoney(ownerRent) || Number(ownerRent) >= 10000)) {
-      Alert.alert("Nieprawidłowy czynsz", "Czynsz musi być większy od 0 zł i mniejszy niż 10 000 zł.");
+    if (ownerRent && !isPositiveMoney(ownerRent)) {
+      Alert.alert("Nieprawidłowy czynsz", "Czynsz musi być większy od 0 zł.");
       return;
     }
-    if (!isNonnegativeMoney(mediaAmount) || Number(mediaAmount) >= 5000) {
-      Alert.alert("Nieprawidłowa kwota mediów", "Media muszą być kwotą od 0 zł do mniej niż 5 000 zł.");
+    if (!isNonnegativeMoney(mediaAmount)) {
+      Alert.alert("Nieprawidłowa kwota mediów", "Media nie mogą być kwotą ujemną.");
+      return;
+    }
+    if (!acceptHighAmounts && ((ownerRent && Number(ownerRent) >= 10000) || Number(mediaAmount) >= 5000)) {
+      const warnings = [
+        ownerRent && Number(ownerRent) >= 10000 ? `Czynsz: ${formatPlnAmount(ownerRent)}` : "",
+        Number(mediaAmount) >= 5000 ? `Media / opłaty: ${formatPlnAmount(mediaAmount)}` : "",
+      ].filter(Boolean).join("\n");
+      Alert.alert("Sprawdź wysoką kwotę", `${warnings}\n\nCzy podane kwoty są poprawne?`, [
+        { text: "Wróć do edycji", style: "cancel" },
+        { text: "Zapisz mimo to", onPress: () => void save(true) },
+      ]);
       return;
     }
     if (draft.taxableTreatment !== "OWNER_RENT" && draft.taxableTreatment !== "RENT_AND_CHARGES") {
@@ -298,7 +363,6 @@ export function SettingsScreen() {
         if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
           setBootstrapProperty(property);
           setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth });
-          setBootstrapTaxPaid(true);
         }
       }
       setEditing(null);
@@ -331,9 +395,7 @@ export function SettingsScreen() {
       await update((current) => {
         const result = bootstrapHistoricalRentPayments({ document: current, property: bootstrapProperty, ...bootstrapRange, today });
         created = result.created.length;
-        const historicalTaxPayments = historicalTaxPaymentsForImportedRent(result.document, result.created, bootstrapTaxPaid);
-        const replacedPaymentIds = new Set(historicalTaxPayments.map((payment) => payment.id));
-        return { ...result.document, taxPayments: [...result.document.taxPayments.filter((payment) => !replacedPaymentIds.has(payment.id)), ...historicalTaxPayments] };
+        return result.document;
       });
       setBootstrapProperty(null);
       setBootstrapRange(null);
@@ -655,7 +717,16 @@ export function SettingsScreen() {
         </> : null}
         {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}>
           <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text></View>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>W aplikacji działa lokalny mechanizm odzyskiwania po błędzie zapisu; nie zastępuje on kopii poza urządzeniem.</Text></View>
+          <View style={[ui.card, trustCard]}>
+            <Text style={sectionTitle}>Kopia danych</Text>
+            <Text style={muted}>Zapisz kopię, aby móc przywrócić historię najmu i podatku na tym lub innym urządzeniu.</Text>
+            <Text style={helperText}>Plik pozostaje pod Twoją kontrolą. Aplikacja nie wysyła go do chmury.</Text>
+            {isDemoMode ? <Text style={helperText}>Kopie danych są wyłączone w trybie demo.</Text> : <>
+              <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void exportBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>{backupBusy ? "Przetwarzanie…" : "Utwórz kopię danych"}</Text></Pressable>
+              <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void restoreBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>Przywróć z kopii</Text></Pressable>
+            </>}
+          </View>
+          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>Lokalny mechanizm odzyskiwania chroni przed błędem zapisu; kopia plikowa chroni także przy zmianie lub utracie urządzenia.</Text></View>
           {isDemoMode ? <Text style={helperText}>W trybie demo możesz wyjść z prezentacji, aby zarządzać zapisanymi danymi.</Text> : <View style={[ui.card, trustCard]}>
             <Text style={sectionTitle}>Usuwanie danych</Text>
             <Text style={muted}>Usuń wszystkie zapisane dane i kopię odzyskiwania z tego urządzenia.</Text>
@@ -791,10 +862,9 @@ export function SettingsScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, -1) : range)}><Text style={action}>‹</Text></Pressable><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bootstrapRange[key]}</Text><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, 1) : range)}><Text style={action}>›</Text></Pressable></View>
               </View>)}
             </View> : null}
-            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: bootstrapTaxPaid }} onPress={() => setBootstrapTaxPaid((value) => !value)} style={[notificationRow, { marginVertical: 12 }]}>
-              <View style={{ flex: 1 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>Podatek za te okresy został zapłacony</Text><Text style={muted}>Domyślnie zaznaczone. Zapiszemy wyliczoną kwotę z datą terminu oznaczoną jako szacunkowa. Gdy uzupełnisz kolejne mieszkanie za ten sam miesiąc, szacowana kwota uwzględni łączny przychód. Odznacz, jeśli podatek nie został zapłacony.</Text></View>
-              <Text style={{ color: theme.colors.primary, fontWeight: "700" }}>{bootstrapTaxPaid ? "☑" : "□"}</Text>
-            </Pressable>
+            <View style={[neutralBanner, { marginVertical: 12 }]}>
+              <Text style={muted}>Import zapisuje tylko potwierdzone wpłaty czynszu. Zapłatę podatku potwierdź osobno na ekranie Podatek — aplikacja nie zakłada, że została wykonana.</Text>
+            </View>
             <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź otrzymane wpłaty"}</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
           </ScrollView> : null}

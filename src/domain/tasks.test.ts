@@ -168,4 +168,32 @@ describe("personal assistant tasks", () => {
     const notification = taskNotificationPlan(doc, new Date(2026, 8, 26, 12)).find((item) => item.key === "RECURRING_BILL:power:2026-10");
     expect(notification?.data).toMatchObject({ category: "bill", billId: "power", period: "2026-10" });
   });
+  it("keeps calculated future tax tasks when earlier periods have snapshots", () => {
+    const doc = document();
+    doc.incomeEntries = [
+      { id: "sep", propertyId: "p1", receivedAt: "2026-09-10", rentalMonth: "2026-09", amount: "3000.00", taxableAmount: "3000.00" },
+      { id: "oct", propertyId: "p1", receivedAt: "2026-10-10", rentalMonth: "2026-10", amount: "3000.00", taxableAmount: "3000.00" },
+    ];
+    doc.taxSettlementSnapshots = [{
+      period: "2026-09", revenue: "3000.00", taxableBase: "3000.00", cumulativeRevenue: "3000.00", cumulativeTax: "255.00",
+      obligation: "255.00", paid: "0.00", allocatedPaid: "0.00", creditApplied: "0.00", outstanding: "255.00", overpaid: "0.00",
+      dueDate: "2026-10-20", rulesYear: 2026, receiptIds: ["sep"], taxPaymentIds: [], savedAt: "2026-10-01T00:00:00.000Z",
+    }];
+    const tasks = deriveTasks(doc, new Date(2026, 9, 15, 12));
+    expect(tasks.some((task) => task.id === "TAX_PAYMENT:2026-09")).toBe(true);
+    expect(tasks.some((task) => task.id === "TAX_PAYMENT:2026-10")).toBe(true);
+  });
+
+  it("uses lifecycle state for each target month instead of the property's future state", () => {
+    const doc = document();
+    doc.properties[0] = {
+      ...doc.properties[0]!,
+      lifecycle: "PAUSED",
+      lifecycleSchedule: [{ effectiveFrom: "2026-10", lifecycle: "PAUSED" }],
+    };
+    const tasks = deriveTasks(doc, new Date(2026, 8, 20, 12));
+    expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-09")).toBe(true);
+    expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10")).toBe(false);
+  });
+
 });

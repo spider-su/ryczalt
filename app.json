@@ -30,6 +30,13 @@
     },
     "plugins": [
       "expo-system-ui",
+      [
+        "expo-file-system",
+        {
+          "supportsOpeningDocumentsInPlace": true,
+          "enableFileSharing": true
+        }
+      ],
       "expo-font",
       "expo-notifications",
       [
