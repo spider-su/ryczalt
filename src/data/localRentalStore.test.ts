@@ -6,9 +6,11 @@ import {
   RENTAL_DOCUMENT_STORAGE_KEY,
   LEGACY_RENTAL_DOCUMENT_STORAGE_KEY,
   RentalStoreError,
+  createRentalBackup,
   emptyDocument,
   loadRentalDocument,
   loadRentalDocumentWithStatus,
+  parseRentalBackup,
   readRawRentalDocument,
   resetRentalDocument,
   saveRentalDocument,
@@ -121,6 +123,32 @@ describe("localRentalStore", () => {
     await saveRentalDocument(current);
     storage.getItem.mockResolvedValueOnce(JSON.stringify(current));
     await expect(loadRentalDocument()).resolves.toEqual(current);
+  });
+
+  it("round-trips a portable backup without changing the rental document", () => {
+    const raw = createRentalBackup(validDocument, "2026-09-29T10:00:00.000Z");
+    expect(parseRentalBackup(raw)).toEqual(validDocument);
+    expect(JSON.parse(raw)).toMatchObject({
+      format: "pl.ryczalt.rental.backup",
+      backupVersion: 1,
+      exportedAt: "2026-09-29T10:00:00.000Z",
+    });
+  });
+
+  it("rejects malformed, unsupported, or invalid backup files before restore", () => {
+    expect(() => parseRentalBackup("{broken")).toThrow(RentalStoreError);
+    expect(() => parseRentalBackup(JSON.stringify({
+      format: "pl.ryczalt.rental.backup",
+      backupVersion: 2,
+      exportedAt: "2026-09-29T10:00:00.000Z",
+      document: validDocument,
+    }))).toThrow(RentalStoreError);
+    expect(() => parseRentalBackup(JSON.stringify({
+      format: "pl.ryczalt.rental.backup",
+      backupVersion: 1,
+      exportedAt: "2026-09-29T10:00:00.000Z",
+      document: { ...validDocument, schemaVersion: 99 },
+    }))).toThrow(RentalStoreError);
   });
 
   it("reports invalid JSON as corrupted data", async () => {

@@ -5,6 +5,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   Switch,
   Text,
@@ -12,6 +13,8 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
+import { createRentalBackup, parseRentalBackup } from "../data/localRentalStore";
+import { pickRentalBackupContents, saveRentalBackupFile } from "../data/rentalBackupFile";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { PaymentDetail } from "../components/PaymentDetail";
 import { PeriodSelector } from "../components/PeriodSelector";
@@ -88,6 +91,7 @@ export function SettingsScreen() {
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
   const [saving, setSaving] = useState(false);
   const [clearingLocalData, setClearingLocalData] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [billEditing, setBillEditing] = useState<RecurringBill | null>(null);
   const [billModalOpen, setBillModalOpen] = useState(false);
@@ -133,6 +137,57 @@ export function SettingsScreen() {
     ) : (
       <ActivityIndicator style={{ flex: 1 }} />
     );
+
+  const exportBackup = async () => {
+    if (isDemoMode || backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const uri = await saveRentalBackupFile(createRentalBackup(document));
+      Alert.alert(
+        "Kopia danych zapisana",
+        Platform.OS === "ios"
+          ? "Plik kopii znajdziesz w aplikacji Pliki, w folderze Ryczałt."
+          : "Plik kopii został zapisany w wybranym folderze.",
+      );
+      void uri;
+    } catch {
+      Alert.alert("Nie udało się utworzyć kopii", "Spróbuj ponownie i wybierz folder, do którego aplikacja może zapisać plik.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const restoreBackup = async () => {
+    if (isDemoMode || backupBusy) return;
+    setBackupBusy(true);
+    try {
+      const raw = await pickRentalBackupContents();
+      if (!raw) return;
+      const restored = parseRentalBackup(raw);
+      Alert.alert(
+        "Przywrócić kopię danych?",
+        "Obecne dane na tym urządzeniu zostaną zastąpione zawartością wybranej kopii. Przed zmianą aplikacja zachowa poprzedni poprawny zapis jako lokalną kopię odzyskiwania.",
+        [
+          { text: "Anuluj", style: "cancel" },
+          {
+            text: "Przywróć",
+            style: "destructive",
+            onPress: () => {
+              setBackupBusy(true);
+              void update(() => restored)
+                .then(() => Alert.alert("Kopia przywrócona", "Dane zostały sprawdzone i przywrócone."))
+                .catch(() => Alert.alert("Nie udało się przywrócić kopii", "Obecne dane nie zostały zastąpione."))
+                .finally(() => setBackupBusy(false));
+            },
+          },
+        ],
+      );
+    } catch {
+      Alert.alert("Nieprawidłowa kopia", "Nie udało się odczytać tej kopii albo pochodzi ona z nieobsługiwanej wersji aplikacji.");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
 
   const openProperty = (property?: Property, focus?: SetupAction) => {
     setEditing(property ?? null);
@@ -662,7 +717,16 @@ export function SettingsScreen() {
         </> : null}
         {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}>
           <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text></View>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>W aplikacji działa lokalny mechanizm odzyskiwania po błędzie zapisu; nie zastępuje on kopii poza urządzeniem.</Text></View>
+          <View style={[ui.card, trustCard]}>
+            <Text style={sectionTitle}>Kopia danych</Text>
+            <Text style={muted}>Zapisz kopię, aby móc przywrócić historię najmu i podatku na tym lub innym urządzeniu.</Text>
+            <Text style={helperText}>Plik pozostaje pod Twoją kontrolą. Aplikacja nie wysyła go do chmury.</Text>
+            {isDemoMode ? <Text style={helperText}>Kopie danych są wyłączone w trybie demo.</Text> : <>
+              <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void exportBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>{backupBusy ? "Przetwarzanie…" : "Utwórz kopię danych"}</Text></Pressable>
+              <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void restoreBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>Przywróć z kopii</Text></Pressable>
+            </>}
+          </View>
+          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>Lokalny mechanizm odzyskiwania chroni przed błędem zapisu; kopia plikowa chroni także przy zmianie lub utracie urządzenia.</Text></View>
           {isDemoMode ? <Text style={helperText}>W trybie demo możesz wyjść z prezentacji, aby zarządzać zapisanymi danymi.</Text> : <View style={[ui.card, trustCard]}>
             <Text style={sectionTitle}>Usuwanie danych</Text>
             <Text style={muted}>Usuń wszystkie zapisane dane i kopię odzyskiwania z tego urządzenia.</Text>

@@ -46,6 +46,41 @@ export type RentalDocumentLoadResult = {
   recoveredFromBackup: boolean;
 };
 
+export const RENTAL_BACKUP_FORMAT = "pl.ryczalt.rental.backup";
+export const RENTAL_BACKUP_VERSION = 1;
+
+type RentalBackupEnvelope = {
+  format: typeof RENTAL_BACKUP_FORMAT;
+  backupVersion: typeof RENTAL_BACKUP_VERSION;
+  exportedAt: string;
+  document: RentalDocument;
+};
+
+export function createRentalBackup(document: RentalDocument, exportedAt = new Date().toISOString()): string {
+  const validated = validateRentalDocument(document);
+  const backup: RentalBackupEnvelope = {
+    format: RENTAL_BACKUP_FORMAT,
+    backupVersion: RENTAL_BACKUP_VERSION,
+    exportedAt,
+    document: validated,
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+export function parseRentalBackup(raw: string): RentalDocument {
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw corrupted("Backup file is not valid JSON.");
+  }
+  if (!isRecord(data) || data.format !== RENTAL_BACKUP_FORMAT || data.backupVersion !== RENTAL_BACKUP_VERSION) {
+    throw new RentalStoreError("UNSUPPORTED_VERSION", "Backup format or version is not supported.");
+  }
+  if (!isValidIsoTimestamp(data.exportedAt)) throw corrupted("Backup export timestamp is invalid.");
+  return validateRentalDocument(data.document);
+}
+
 export const emptyDocument = (
   taxYear = DEFAULT_TAX_YEAR,
 ): RentalDocument => ({
