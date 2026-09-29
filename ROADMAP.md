@@ -21,10 +21,11 @@ After this gate, do not add speculative POC features. Validate the existing mont
 Prioritize only when real-user feedback supports the need:
 
 1. **Year-end PIT-28 summary/export** — annual reconciliation and a useful hand-off for filing; keep tax rules sourced and versioned.
-2. **Cross-device/shared backup or sync** — evaluate only if file backup is insufficient for users.
-3. **iOS distribution** — TestFlight/App Store release work after the local Simulator build proves compatibility.
-4. **Pricing/paywall** — validate willingness to pay and the useful free/paid boundary before implementation.
-5. **Store release hardening** — privacy/release metadata, production signing, store screenshots and release automation.
+2. **Gentle tenant payment reminders** — when the configured payment date plus a short grace period has passed and the rent is still not confirmed, prepare a polite reminder for the tenant. Start with landlord-approved SMS/WhatsApp/email text; consider fully automatic delivery only after validation because it would introduce an external messaging service/backend. Wording must say the payment has not yet been *confirmed/recorded*, not claim that the tenant has not paid. Confirmation of the payment cancels any pending reminder.
+3. **Cross-device/shared backup or sync** — evaluate only if file backup is insufficient for users.
+4. **iOS distribution** — TestFlight/App Store release work after the local Simulator build proves compatibility.
+5. **Pricing/paywall** — validate willingness to pay and the useful free/paid boundary before implementation.
+6. **Store release hardening** — privacy/release metadata, production signing, store screenshots and release automation.
 
 ## Parked
 
