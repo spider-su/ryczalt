@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -223,7 +224,7 @@ export function TaxScreen() {
         <Text style={taxContext}>{formatPln(annualIncome)} / próg stawki 12,5% {annualThreshold > 0 ? formatPln(annualThreshold) : "niedostępny"}</Text>
         {annualThreshold > 0 ? <Text style={thresholdRemaining}>Do progu stawki 12,5%: {formatPln(remainingThreshold)}</Text> : null}
         {annualThreshold > 0 ? <View style={{ marginTop: 8 }}><ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Wykorzystanie progu stawki 12,5%" /></View> : null}
-        {payments.length ? <><Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>{TAX_PAYMENT_ALLOCATION_HINT}</Text></> : null}
+        {payments.length ? <><Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text></> : null}
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
           {payment.source === "INITIAL_IMPORT" ? <Text style={taxContext}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
@@ -231,7 +232,7 @@ export function TaxScreen() {
         </View>)}
       </>}
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
-      <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek? {infoOpen ? "⌃" : "⌄"}</Text></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
+      <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek?</Text><MaterialIcons name={infoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></View></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
     <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={() => setHistoryReviewOpen(false)}>

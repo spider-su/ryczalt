@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -202,12 +203,12 @@ export function SettingsScreen() {
       Alert.alert("Mieszkanie już istnieje", "Aktywne mieszkanie o tym adresie już istnieje. Otwórz jego wpis, aby go edytować.");
       return;
     }
-    if (ownerRent && !isNonnegativeMoney(ownerRent)) {
-      Alert.alert("Nieprawidłowy czynsz", "Wpisz kwotę, np. 2500 lub 2500,50.");
+    if (ownerRent && (!isPositiveMoney(ownerRent) || Number(ownerRent) >= 10000)) {
+      Alert.alert("Nieprawidłowy czynsz", "Czynsz musi być większy od 0 zł i mniejszy niż 10 000 zł.");
       return;
     }
-    if (!isNonnegativeMoney(mediaAmount)) {
-      Alert.alert("Nieprawidłowa kwota mediów", "Wpisz kwotę, np. 350 lub 350,50.");
+    if (!isNonnegativeMoney(mediaAmount) || Number(mediaAmount) >= 5000) {
+      Alert.alert("Nieprawidłowa kwota mediów", "Media muszą być kwotą od 0 zł do mniej niż 5 000 zł.");
       return;
     }
     if (draft.taxableTreatment !== "OWNER_RENT" && draft.taxableTreatment !== "RENT_AND_CHARGES") {
@@ -537,7 +538,7 @@ export function SettingsScreen() {
                 : section.id === "notifications" ? `${formatPolishCount(Object.values(document.settings.reminderCategories).filter(Boolean).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : section.id === "bills" ? formatPolishCount(document.recurringBills.length, ["rachunek", "rachunki", "rachunków"]) : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
-            <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={muted}>{summary}</Text></View><Text style={action}>›</Text>
+            <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={[muted, section.id === "payment" && summary === "Dane wymagają uzupełnienia" && settingsAttention]}>{summary}</Text></View><MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </Pressable>;
         })}
         </> : <>
@@ -718,8 +719,8 @@ export function SettingsScreen() {
             <TextInput accessibilityLabel="Warunki obowiązują od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder="2026-10" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
             <Text style={{ ...muted, marginBottom: 8 }}>Zmiany czynszu, mediów, podstawy podatku i terminu dotyczą tego miesiąca i kolejnych. Zamknięte miesiące pozostają bez zmian.</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "2500", selectTextOnFocus: true })}</View>
-              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0", selectTextOnFocus: true })}</View>
+              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "2500" })}</View>
+              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0" })}</View>
             </View>
             <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
             <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
@@ -727,7 +728,7 @@ export function SettingsScreen() {
             {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => {
               const selected = draft.taxableTreatment === value;
               return <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setDraft((current) => ({ ...current, taxableTreatment: value }))} style={[taxableOption, selected && taxableOptionSelected]}>
-                <Text style={[radioMark, selected && radioMarkSelected]}>{selected ? "●" : "○"}</Text>
+                <MaterialIcons name={selected ? "radio-button-checked" : "radio-button-unchecked"} size={22} color={selected ? theme.colors.success : theme.colors.textMuted} />
                 <Text style={[taxableOptionLabel, selected && taxableOptionLabelSelected]}>{label}</Text>
               </Pressable>;
             })}
@@ -735,7 +736,7 @@ export function SettingsScreen() {
             <View onLayout={setupFocus === "payment-day" ? (event) => { propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); setSetupFocus(null); } : undefined}>
               {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "5" })}
             </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={disclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><Text style={disclosureChevron}>{showAdvancedProperty ? "⌃" : "⌄"}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={disclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><MaterialIcons name={showAdvancedProperty ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></Pressable>
             {showAdvancedProperty ? <>
             <Text style={sectionTitle}>Daty najmu</Text>
             {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
@@ -939,6 +940,7 @@ const modeText = { color: theme.colors.textPrimary, fontWeight: "600" as const }
 const sectionTitle = ui.sectionTitle;
 const categoryRow = { minHeight: 72, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 14, marginBottom: 9 };
 const categoryLabel = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
+const settingsAttention = { color: theme.colors.warning, fontWeight: "600" as const };
 const rowTitle = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
 const apartmentCard = { paddingHorizontal: 14, paddingVertical: 12, marginVertical: 5, minHeight: 78 };
 const apartmentTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "600" as const };
