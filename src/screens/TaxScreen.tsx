@@ -23,7 +23,6 @@ import { PeriodSelector } from "../components/PeriodSelector";
 import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
-import { historicalTaxPaymentsForImportedRent } from "../domain/historicalRentBootstrap";
 import { rentMonthStatusRows } from "../domain/incomeHistory";
 
 export function TaxScreen() {
@@ -38,7 +37,6 @@ export function TaxScreen() {
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
-  const [previousTaxPaid, setPreviousTaxPaid] = useState<boolean | null>(null);
   const settlementMode = document?.settings.settlementMode ?? "monthly";
   const now = new Date();
   const currentYearStart = `${now.getFullYear()}-01`;
@@ -124,29 +122,11 @@ export function TaxScreen() {
       ],
     );
   };
-  const continueAfterHistoryReview = async () => {
-    if (previousTaxPaid === null) return;
-    setSaving(true);
-    try {
-      if (previousTaxPaid) {
-        const periodsBeforeCurrent = new Set(priorPeriods.filter((item) => !priorSnapshots.has(item.period)).map((item) => item.period));
-        const historicalEntries = document.incomeEntries.filter((item) => item.receivedAt.startsWith(`${taxYear}-`) && item.receivedAt.slice(0, 7) < selectedPeriod);
-        const estimatedPayments = historicalTaxPaymentsForImportedRent(document, historicalEntries, true).filter((payment) => periodsBeforeCurrent.has(payment.period));
-        const confirmedOpeningTaxPaid = document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue && calculation
-          ? decimalFromGrosz(calculation.openingBalance.calculatedTaxGrosz)
-          : undefined;
-        if (estimatedPayments.length || confirmedOpeningTaxPaid !== undefined) {
-          await update((current) => ({
-            ...current,
-            taxPayments: [...current.taxPayments.filter((payment) => !estimatedPayments.some((item) => item.id === payment.id)), ...estimatedPayments],
-            ...(confirmedOpeningTaxPaid !== undefined ? { settings: { ...current.settings, openingTaxPaid: confirmedOpeningTaxPaid } } : {}),
-          }));
-        }
-      }
-      setHistoryReviewOpen(false);
-      openPayment();
-    } catch { /* The provider reports persistence errors. */ }
-    finally { setSaving(false); }
+  const continueAfterHistoryReview = () => {
+    // Reviewing history never manufactures tax-payment records. The user confirms
+    // the actual amount and date in the payment form that follows.
+    setHistoryReviewOpen(false);
+    openPayment();
   };
   const savePayment = async () => {
     const amount = paymentDraft.amount.trim().replace(",", ".");
@@ -248,10 +228,8 @@ export function TaxScreen() {
             <Text style={{ color: priorOutstandingGrosz > 0 ? theme.colors.warning : theme.colors.success, fontWeight: "700" }}>Pozostało według zapisanych danych: {formatPln(priorOutstandingGrosz)}</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => { setHistoryReviewOpen(false); navigation.navigate("Przychód"); }} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 16, marginTop: 12 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600", textAlign: "center" }}>Sprawdź lub popraw wpływy</Text></Pressable>
-          <Text style={[fieldLabel, { marginTop: 20 }]}>Czy wcześniejszy podatek za ten rok został zapłacony?</Text>
-          {([{ value: true, title: "Tak, zapłaciłem" }, { value: false, title: "Nie, pozostał do zapłaty" }] as const).map((option) => <Pressable key={String(option.value)} accessibilityRole="radio" accessibilityState={{ checked: previousTaxPaid === option.value }} onPress={() => setPreviousTaxPaid(option.value)} style={[ui.card, { padding: 14, marginTop: 8, borderColor: previousTaxPaid === option.value ? theme.colors.selectedBorder : theme.colors.borderSubtle, flexDirection: "row", alignItems: "center", gap: 10 }]}><Text style={{ color: theme.colors.primary, fontWeight: "700" }}>{previousTaxPaid === option.value ? "◉" : "○"}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{option.title}</Text></Pressable>)}
-          <Text style={[taxHint, { marginTop: 10 }]}>Przy odpowiedzi „Tak” dodamy szacowane wpłaty dla wcześniejszych okresów, aby zachować je w historii. Daty będą odpowiadać terminom płatności. Przy odpowiedzi „Nie” starsze kwoty pozostaną nieopłacone.</Text>
-          <Pressable accessibilityRole="button" disabled={previousTaxPaid === null || saving} onPress={() => void continueAfterHistoryReview()} style={[primaryButton, { marginTop: 16 }, (previousTaxPaid === null || saving) && { opacity: 0.5 }]}><Text style={primaryText}>Dalej do potwierdzenia bieżącej wpłaty</Text></Pressable>
+          <Text style={[taxHint, { marginTop: 16 }]}>Aplikacja nie zakłada, że wcześniejszy podatek został zapłacony. Jeśli chcesz uzupełnić historyczną wpłatę podatku, wybierz odpowiedni okres i potwierdź faktyczną kwotę oraz datę.</Text>
+          <Pressable accessibilityRole="button" disabled={saving} onPress={continueAfterHistoryReview} style={[primaryButton, { marginTop: 16 }, saving && { opacity: 0.5 }]}><Text style={primaryText}>Dalej do potwierdzenia bieżącej wpłaty</Text></Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>
