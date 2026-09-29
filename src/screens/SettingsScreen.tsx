@@ -23,7 +23,7 @@ import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvide
 import type { Property, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
-import { isNonnegativeMoney, isPositiveMoney, isRentalMonth, isValidCalendarDate, isValidHttpsUrl, isValidPolishBankAccount, isValidTaxMicroAccount } from "../domain/rentalValidation";
+import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidTaxMicroAccount } from "../domain/rentalValidation";
 import { hasTaxRulesForYear } from "../domain/ryczaltTax";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
@@ -498,7 +498,7 @@ export function SettingsScreen() {
           const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
             : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
-                : section.id === "notifications" ? `${formatPolishCount(Object.values(document.settings.reminderCategories).filter(Boolean).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
+                : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
             <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={[muted, section.id === "payment" && summary === "Dane wymagają uzupełnienia" && settingsAttention]}>{summary}</Text></View><MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
