@@ -45,3 +45,12 @@ Ryczałt is a small landlord assistant, not a property-management suite. The rec
 **confirm rent → see what needs attention → know the current tax position → record payment → done.**
 
 Local-first data remains intentional. File backup/restore is the POC safety mechanism; cloud synchronization is not required for validation.
+
+
+## POC scope simplification
+
+Removed from the product scope before POC freeze:
+- recurring household/property bills and their payment tracking,
+- user-created personal/custom reminders.
+
+Ryczałt notifications stay domain-native: expected rent, tax deadlines, and rental-agreement dates. Legacy bill/reminder fields may remain readable in local documents/backups for compatibility, but the app no longer creates, edits, schedules, or presents those features.
