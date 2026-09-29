@@ -205,7 +205,7 @@ export function IncomeScreen() {
       );
       return;
     }
-    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || draft.receivedAt.slice(0, 7))?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment) && !editing) {
+    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || draft.receivedAt.slice(0, 7))?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment)) {
       Alert.alert("Ustaw sposób opodatkowania", "Wybierz go w Ustawieniach mieszkania zgodnie z warunkami umowy najmu.");
       return;
     }
