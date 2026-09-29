@@ -102,7 +102,6 @@ export function TaxScreen() {
   });
   const proceedToPaymentWithHistoryReview = () => {
     if (!hasTaxYearPayment && (priorRevenueGrosz > 0 || hasEarlierRentalPeriods)) {
-      setPreviousTaxPaid(null);
       setHistoryReviewOpen(true);
       return;
     }
