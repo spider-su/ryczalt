@@ -133,12 +133,10 @@ export function upcomingTaskPresentation(task: AssistantTask) {
     ? "Podatek"
     : task.type === "TENANT_PAYMENT_CHECK"
       ? task.title.replace(/^Sprawdź czynsz — /, "")
-      : task.type === "RECURRING_BILL"
-        ? task.title.replace(/^Płatność: /, "")
-        : task.title;
+      : task.title;
   const amountGrosz = task.type === "TENANT_PAYMENT_CHECK"
     ? task.expectedGrosz
-    : task.type === "TAX_PAYMENT" || task.type === "RECURRING_BILL"
+    : task.type === "TAX_PAYMENT"
       ? task.remainingGrosz ?? task.expectedGrosz
       : undefined;
   return { title, amount: amountGrosz === undefined ? "" : formatPln(amountGrosz) };
@@ -168,7 +166,6 @@ export const settingsSections = [
   { id: "properties", label: "Mieszkania" },
   { id: "tax", label: "Podatek i rozliczenia" },
   { id: "payment", label: "Dane do przelewu" },
-  { id: "bills", label: "Rachunki cykliczne" },
   { id: "notifications", label: "Powiadomienia" },
   { id: "data", label: "Dane lokalne" },
 ] as const;
