@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useEffect } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { MaterialIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import {
@@ -180,13 +181,21 @@ export function IncomeScreen() {
   };
   const chooseProperty = (propertyId: string) => {
     const property = properties.find((item) => item.id === propertyId);
-    setDraft((current) => ({
-      ...current,
-      propertyId,
-      amount: current.amount || property?.ownerRent || "",
-      taxableAmount:
-        current.taxableAmount || property?.ownerRent || "",
-    }));
+    if (!property) return;
+    setDraft((current) => {
+      const rentalMonth = current.rentalMonth || current.receivedAt.slice(0, 7);
+      const amount = decimalFromGrosz(tenantMonthlyTotalForMonthGrosz(property, rentalMonth) ?? tenantMonthlyTotalGrosz(property));
+      const terms = apartmentTermsForMonth(property, rentalMonth);
+      const taxableAmount = (terms?.taxableTreatment ?? property.taxableTreatment) && amount
+        ? decimalFromGrosz(defaultTaxableAmountGrosz({
+            property,
+            amountGrosz: moneyToGrosz(amount),
+            rentalMonth,
+            priorEntries: document.incomeEntries.filter((entry) => entry.id !== editing?.id),
+          }))
+        : "";
+      return { ...current, propertyId, amount, taxableAmount };
+    });
   };
   const save = async () => {
     const amount = draft.amount.trim().replace(",", ".");
@@ -430,7 +439,7 @@ export function IncomeScreen() {
                     style={receiptDisclosure}
                   >
                     <Text style={receiptDisclosureText}>{expanded ? "Ukryj" : "Pokaż"} {formatPolishCount(receipts.length, ["wpłatę", "wpłaty", "wpłat"])}</Text>
-                    <Text style={monthChevron}>{expanded ? "⌃" : "⌄"}</Text>
+                    <MaterialIcons name={expanded ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
                   </Pressable>
                   {expanded ? <View style={currentMonthReceiptList}>
                     <Text style={receiptListHeading}>Wpłaty otrzymane w tym miesiącu</Text>
@@ -453,7 +462,7 @@ export function IncomeScreen() {
               <Text style={rangeLabel}>{formatPolishMonthName(historyRange.earliestMonth).toLocaleUpperCase("pl-PL")} – {formatPolishMonthName(historyRange.latestMonth).toLocaleUpperCase("pl-PL")}</Text>
               <Text style={monthTotal}>{formatPolishCount(historyRange.monthCount, ["miesiąc", "miesiące", "miesięcy"])} · {formatPlnSummary(historyRange.totalGrosz)} · {formatPolishCount(historyRange.paymentCount, ["wpłata", "wpłaty", "wpłat"])}</Text>
             </View>
-            <Text style={monthChevron}>{historicalRangeExpanded ? "⌃" : "⌄"}</Text>
+            <MaterialIcons name={historicalRangeExpanded ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
           </Pressable> : null}
         </View>}
         renderSectionHeader={({ section }) => {
@@ -551,9 +560,7 @@ export function IncomeScreen() {
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Text style={{ width: 22, textAlign: "center", fontSize: 20, color: draft.propertyId === property.id ? theme.colors.accent : theme.colors.textMuted }}>
-                    {draft.propertyId === property.id ? "●" : "○"}
-                  </Text>
+                  <MaterialIcons name={draft.propertyId === property.id ? "radio-button-checked" : "radio-button-unchecked"} size={22} color={draft.propertyId === property.id ? theme.colors.success : theme.colors.textMuted} />
                   <Text
                     style={{
                       flex: 1,
@@ -582,7 +589,7 @@ export function IncomeScreen() {
                     ? "Ukryj kwotę podlegającą opodatkowaniu"
                     : "Ustaw kwotę podlegającą opodatkowaniu"}
                 </Text>
-                <Text style={monthChevron}>{taxableExpanded ? "⌃" : "⌄"}</Text>
+                <MaterialIcons name={taxableExpanded ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
               </View>
             </Pressable>
             {taxableExpanded
