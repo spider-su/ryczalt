@@ -1,6 +1,5 @@
 import { calculateSettlements, formatPln, hasTaxRulesForYear, moneyToGrosz } from "./ryczaltTax";
 import { taxSettlementFromSnapshot } from "./periodSnapshots";
-import { customReminderTaskId, recurrenceLabel, reminderOccurrenceDates } from "./customReminders";
 import type { RentalDocument, TaskState } from "../model/rental";
 import { rentMonthAmounts } from "./rentAllocation";
 import { formatPolishDate, formatPolishMonth } from "./presentationFormat";
@@ -8,7 +7,7 @@ import { effectivePaymentDay } from "./apartmentTerms";
 import { lifecycleForMonth } from "./apartmentLifecycle";
 export { expectedRentForMonth, rentMonthAmounts } from "./rentAllocation";
 
-export type TaskType = "TENANT_PAYMENT_CHECK" | "TAX_PAYMENT" | "RECURRING_BILL" | "RENTAL_AGREEMENT_END" | "CUSTOM_REMINDER";
+export type TaskType = "TENANT_PAYMENT_CHECK" | "TAX_PAYMENT" | "RENTAL_AGREEMENT_END";
 export type TaskStatus = "upcoming" | "needs-attention" | "snoozed" | "completed" | "dismissed";
 export type AssistantTask = {
   id: string;
@@ -32,7 +31,7 @@ export type TaskNotification = {
   title: string;
   body: string;
   fireAt: Date;
-  data: { category: "rent" | "tax" | "bill" | "agreement" | "custom"; propertyId?: string; period?: string; billId?: string; taskId?: string; taskIds?: string[] };
+  data: { category: "rent" | "tax" | "agreement"; propertyId?: string; period?: string; taskId?: string; taskIds?: string[] };
 };
 export type ReturnTypeTaskNotification = TaskNotification;
 
@@ -106,54 +105,6 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
     }
   }
 
-  {
-    for (const bill of document.recurringBills) {
-      if (!bill.dueDay) continue;
-      if ((document.properties.find((property) => property.id === bill.propertyId)?.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
-      for (let offset = -1; offset <= 3; offset++) {
-        const period = shiftMonth(current, offset);
-        const dueAt = paymentDay(period, bill.dueDay);
-        const variable = bill.variableAmount || !bill.expectedAmount;
-        const payments = document.billPayments.filter((payment) => payment.billId === bill.id && payment.period === period);
-        const confirmedGrosz = variable ? undefined : payments.reduce((sum, payment) => sum + moneyToGrosz(payment.amount), 0);
-        const expectedGrosz = variable ? undefined : moneyToGrosz(bill.expectedAmount!);
-        const remainingGrosz = expectedGrosz === undefined ? undefined : Math.max(0, expectedGrosz - confirmedGrosz!);
-        const paid = variable ? payments.length > 0 : remainingGrosz === 0;
-        const property = document.properties.find((item) => item.id === bill.propertyId);
-        const amountDetail = variable
-          ? "Sprawdź bieżącą kwotę."
-          : remainingGrosz === 0
-            ? `Oczekiwano ${formatPln(expectedGrosz!)}, potwierdzono ${formatPln(confirmedGrosz!)}.`
-            : confirmedGrosz! > 0
-              ? `Oczekiwano ${formatPln(expectedGrosz!)}, potwierdzono ${formatPln(confirmedGrosz!)}, pozostało ${formatPln(remainingGrosz!)}.`
-              : `Oczekiwano ${formatPln(expectedGrosz!)}.`;
-        tasks.push(makeTask(document, now, {
-          id: `RECURRING_BILL:${bill.id}:${period}`, type: "RECURRING_BILL",
-          title: paid ? `${bill.name} — opłacono` : `Płatność: ${bill.name}`,
-          detail: `${property?.address ? `${property.address} · ` : ""}${amountDetail}`,
-          propertyId: bill.propertyId, period, dueAt, notificationAt: dueAt,
-          expectedGrosz, confirmedGrosz, remainingGrosz,
-          resolved: paid,
-        }));
-      }
-    }
-  }
-
-  {
-    for (const reminder of document.customReminders) {
-      if (reminder.propertyId && (document.properties.find((property) => property.id === reminder.propertyId)?.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
-      for (const date of reminderOccurrenceDates(reminder, now)) {
-        const dueAt = localDate(date);
-        const propertyName = reminder.propertyId ? document.properties.find((p) => p.id === reminder.propertyId)?.address : undefined;
-        const recurringContext = reminder.recurrence === "ONCE" ? undefined : recurrenceLabel(reminder.recurrence, reminder.dueDate);
-        tasks.push(makeTask(document, now, {
-          id: customReminderTaskId(reminder, date), type: "CUSTOM_REMINDER", title: reminder.title,
-          detail: [recurringContext, reminder.note, propertyName].filter(Boolean).join(" · "),
-          propertyId: reminder.propertyId, period: date, dueAt, notificationAt: dueAt, resolved: false, manuallyCompletable: true,
-        }));
-      }
-    }
-  }
   return tasks.sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime());
 }
 
@@ -180,9 +131,8 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
   const notifications: TaskNotification[] = [];
   const rentGroups = new Map<string, AssistantTask[]>();
   for (const task of tasks) {
-    const category = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bills", RENTAL_AGREEMENT_END: "agreements", CUSTOM_REMINDER: "custom" } as const)[task.type];
+    const category = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RENTAL_AGREEMENT_END: "agreements" } as const)[task.type];
     if (!document.settings.reminderCategories[category]) continue;
-    if (task.type === "RECURRING_BILL" && !document.recurringBills.find((bill) => bill.id === task.id.split(":")[1])?.reminderEnabled) continue;
     if (task.type === "TENANT_PAYMENT_CHECK") {
       const fireAt = nextTaskNotificationAt(task, document, now);
       if (!fireAt || fireAt > cutoff) continue;
@@ -190,7 +140,7 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
       rentGroups.set(groupKey, [...(rentGroups.get(groupKey) ?? []), task]);
       continue;
     }
-    const routeCategory = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RECURRING_BILL: "bill", RENTAL_AGREEMENT_END: "agreement", CUSTOM_REMINDER: "custom" } as const)[task.type];
+    const routeCategory = ({ TENANT_PAYMENT_CHECK: "rent", TAX_PAYMENT: "tax", RENTAL_AGREEMENT_END: "agreement" } as const)[task.type];
     const state = document.taskStates.find((item) => item.taskId === task.id);
     const activelySnoozed = Boolean(state?.snoozedUntil && new Date(state.snoozedUntil) > now);
     if (task.type === "RENTAL_AGREEMENT_END" && !activelySnoozed && task.status !== "completed" && task.status !== "dismissed") {
@@ -205,19 +155,16 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
     }
     const fireAt = nextTaskNotificationAt(task, document, now);
     if (!fireAt || fireAt <= now) continue;
-    if (task.status !== "snoozed" && task.type !== "CUSTOM_REMINDER" && fireAt > cutoff) continue;
+    if (task.status !== "snoozed" && fireAt > cutoff) continue;
     const key = task.id;
     const displayText = {
       TENANT_PAYMENT_CHECK: ["Sprawdź wpłatę czynszu", "Otwórz Ryczałt, aby sprawdzić status wpłaty."],
       TAX_PAYMENT: ["Sprawdź płatność podatku", "Otwórz Ryczałt, aby sprawdzić status płatności."],
-      RECURRING_BILL: ["Sprawdź płatność rachunku", "Otwórz Ryczałt, aby sprawdzić szczegóły rachunku."],
-      CUSTOM_REMINDER: ["Masz przypomnienie", "Otwórz Ryczałt, aby zobaczyć szczegóły."],
       RENTAL_AGREEMENT_END: ["Sprawdź termin umowy najmu", "Otwórz Ryczałt, aby sprawdzić szczegóły terminu."],
     } as const;
     const [title, body] = displayText[task.type];
     notifications.push({ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
       data: { category: routeCategory, propertyId: task.propertyId, period: task.period,
-        billId: task.type === "RECURRING_BILL" ? task.id.split(":")[1] : undefined,
         taskId: task.id } });
   }
   for (const [groupKey, group] of rentGroups) {
