@@ -38,7 +38,14 @@ export function defaultTaxableAmountGrosz(args: {
   if (!taxableTreatment) throw new Error("Choose the taxable rent treatment before confirming a receipt");
   if (taxableTreatment === "RENT_AND_CHARGES") return amountGrosz;
   const ownerRent = terms?.ownerRentGrosz ?? ownerRentForMonth(property, rentalMonth, now) ?? (property.ownerRent ? moneyToGrosz(property.ownerRent) : 0);
-  const alreadyTaxable = priorEntries.filter((entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === rentalMonth)
-    .reduce((total, entry) => total + moneyToGrosz(entry.taxableAmount), 0);
-  return Math.min(amountGrosz, Math.max(0, ownerRent - alreadyTaxable));
+  // A manual taxable-base override belongs to that receipt only. Do not use
+  // prior taxableAmount values to derive the next receipt's default: doing so
+  // makes an override leak into later payments. For OWNER_RENT, receipts cover
+  // the contractual owner-rent portion first, so previous gross receipts tell
+  // us how much of that portion has already been covered.
+  const priorReceived = priorEntries
+    .filter((entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === rentalMonth)
+    .reduce((total, entry) => total + moneyToGrosz(entry.amount), 0);
+  const ownerRentAlreadyCovered = Math.min(ownerRent, priorReceived);
+  return Math.min(amountGrosz, Math.max(0, ownerRent - ownerRentAlreadyCovered));
 }
