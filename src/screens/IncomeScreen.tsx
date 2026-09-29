@@ -415,7 +415,7 @@ export function IncomeScreen() {
             <Text style={muted}>{summary.count ? `Na podstawie ${formatPolishCount(summary.count, ["potwierdzonego wpływu", "potwierdzonych wpływów", "potwierdzonych wpływów"])} · ${formatPolishCount(summary.propertyCount, ["mieszkanie", "mieszkania", "mieszkań"])}` : `Brak potwierdzonych wpływów w ${taxYear}.`}</Text>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} accessibilityHint="Otwiera wybór mieszkania" onPress={() => setFilterOpen(true)} style={filterControl}>
-            <Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text><Text style={action}>▼</Text>
+            <Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text><MaterialIcons name="expand-more" size={24} color={theme.colors.textSecondary} />
           </Pressable>
           {taxYear === Number(currentMonth.slice(0, 4)) && rentRows.length > 0 ? <View style={[ui.card, rentStatusCard]}>
             <Text style={rentStatusHeading}>Czynsz za {formatPolishMonth(currentMonth)}</Text>
@@ -472,7 +472,7 @@ export function IncomeScreen() {
           const canClose = !selectedPropertyId && section.month < currentMonth && document.settings.settlementMode === "monthly";
           return <View style={monthHeader}>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded }} accessibilityLabel={`${formatPolishMonthName(section.month)}, ${amountSummary}`} onPress={() => setExpandedMonths((items) => toggleIncomeMonth(items, section.month))} style={{ flex: 1, flexDirection: "row", alignItems: "center", minHeight: 48 }}>
-              <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonthName(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><Text style={monthChevron}>{expanded ? "⌃" : "⌄"}</Text>
+              <View style={{ flex: 1 }}><Text style={monthLabel}>{formatPolishMonthName(section.month).toLocaleUpperCase("pl-PL")}</Text><Text style={monthTotal}>{amountSummary}</Text></View><MaterialIcons name={expanded ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
             </Pressable>
             {closed ? <Text style={periodClosedLabel}>Zamknięty</Text> : canClose ? <Pressable accessibilityRole="button" accessibilityLabel={`Zamknij miesiąc ${formatPolishMonthName(section.month)}`} onPress={() => Alert.alert("Zamknąć miesiąc?", "Zapiszemy nieruchomościowe podsumowania czynszu i wynik podatku za ten miesiąc. Zamknięte okresy pozostaną bez zmian.", [
               { text: "Anuluj", style: "cancel" },
@@ -574,7 +574,7 @@ export function IncomeScreen() {
               </Pressable>
             ))}
             {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>{property.taxableTreatment ? `Podstawa wg ustawienia mieszkania: ${property.taxableTreatment === "OWNER_RENT" ? "czynsz dla właściciela" : "czynsz i opłaty dodatkowe"}.` : "Ustaw sposób wliczania opłat do przychodu w edycji mieszkania przed potwierdzeniem wpłaty."}</Text> : null; })()}
-            {field("Otrzymana kwota (zł) *", "amount", {
+            {field("Otrzymana kwota *", "amount", {
               keyboardType: "decimal-pad",
               placeholder: "Wpisz faktycznie otrzymaną kwotę",
             })}
@@ -584,7 +584,7 @@ export function IncomeScreen() {
               style={{ paddingVertical: 8 }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text style={action}>
+                <Text style={secondaryDisclosureText}>
                   {taxableExpanded
                     ? "Ukryj kwotę podlegającą opodatkowaniu"
                     : "Ustaw kwotę podlegającą opodatkowaniu"}
@@ -598,11 +598,11 @@ export function IncomeScreen() {
                   placeholder: "Domyślnie kwota otrzymana",
                 })
               : null}
-            {field("Data otrzymania (RRRR-MM-DD) *", "receivedAt", {
-              placeholder: "2026-09-26",
+            {field("Data otrzymania *", "receivedAt", {
+              placeholder: "RRRR-MM-DD",
             })}
-            {field("Miesiąc najmu (RRRR-MM)", "rentalMonth", {
-              placeholder: "2026-09",
+            {field("Miesiąc najmu", "rentalMonth", {
+              placeholder: "RRRR-MM",
             })}
             {field("Opis", "description", {
               placeholder: "np. Częściowa wpłata za wrzesień",
@@ -646,6 +646,7 @@ const action = {
   fontWeight: "600" as const,
   paddingVertical: 5,
 };
+const secondaryDisclosureText = { color: theme.colors.textPrimary, fontWeight: "600" as const, paddingVertical: 5 };
 const summaryCard = { marginTop: 4, padding: 16 };
 const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
 const summaryAmount = { color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" as const, marginTop: 2 };
@@ -657,7 +658,7 @@ const rentPropertyName = { color: theme.colors.textPrimary, fontSize: 13, fontWe
 const rentDetailText = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 };
 const rentStatusTop = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };
 const receiptDisclosure = { minHeight: 36, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 4 };
-const receiptDisclosureText = { color: theme.colors.primary, fontSize: 12, fontWeight: "600" as const };
+const receiptDisclosureText = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "600" as const };
 const currentMonthReceiptList = { borderTopWidth: 1, borderColor: theme.colors.divider, marginTop: 4, paddingTop: 6 };
 const receiptListHeading = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const, marginBottom: 2 };
 const filterControl = { marginTop: 8, minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8, paddingHorizontal: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12 };
