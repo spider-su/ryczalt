@@ -118,16 +118,16 @@ export function IncomeScreen() {
   const showHistoricalMonths = historyGroups.length <= 1 || historicalRangeExpanded;
   const sections = showHistoricalMonths ? historyGroups.map(({ entries, ...section }) => ({ ...section, paymentCount: entries.length, data: expandedMonths.includes(section.month) ? entries : [] })) : [];
   const summary = incomeViewSummary(orderedEntries);
-  const annualTax = hasTaxRulesForYear(taxYear) ? calculateTaxYear({
+  const annualTax = document && hasTaxRulesForYear(taxYear) ? calculateTaxYear({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear, mode: document.settings.settlementMode,
     jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: taxYear === document.settings.taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
     openingTaxPaidGrosz: taxYear === document.settings.taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
   }) : null;
   const annualTaxDueGrosz = annualTax?.settlements.reduce((total, settlement) => total + settlement.obligationGrosz, 0) ?? 0;
-  const ownerCashflow = selectedPropertyId ? null : ownerCashflowSummary({
+  const ownerCashflow = document && !selectedPropertyId ? ownerCashflowSummary({
     entries: document.incomeEntries, selectedEntries: orderedEntries, properties: document.properties, taxGrosz: annualTaxDueGrosz,
-  });
+  }) : null;
   const availableProperties = propertiesWithIncomeInYear(properties, document?.incomeEntries ?? [], taxYear);
   const propertyNames = new Map(properties.map((property) => [property.id, property.address]));
   const selectedPropertyName = selectedPropertyId ? propertyNames.get(selectedPropertyId) ?? "Usunięte mieszkanie" : null;
