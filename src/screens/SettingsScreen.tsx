@@ -538,7 +538,7 @@ export function SettingsScreen() {
                 : section.id === "notifications" ? `${formatPolishCount(Object.values(document.settings.reminderCategories).filter(Boolean).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : section.id === "bills" ? formatPolishCount(document.recurringBills.length, ["rachunek", "rachunki", "rachunków"]) : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
-            <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={muted}>{summary}</Text></View><Text style={action}>›</Text>
+            <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={[muted, section.id === "payment" && summary === "Dane wymagają uzupełnienia" && settingsAttention]}>{summary}</Text></View><MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </Pressable>;
         })}
         </> : <>
