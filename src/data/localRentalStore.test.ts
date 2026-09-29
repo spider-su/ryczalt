@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RENTAL_DOCUMENT_BACKUP_KEY,
   RENTAL_DOCUMENT_STORAGE_KEY,
+  LEGACY_RENTAL_DOCUMENT_STORAGE_KEY,
   RentalStoreError,
   emptyDocument,
   loadRentalDocument,
@@ -75,6 +76,18 @@ describe("localRentalStore", () => {
     storage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
     await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
+  });
+
+  it("migrates a current-format legacy namespace without deleting the source", async () => {
+    storage.getItem
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(JSON.stringify(validDocument));
+    storage.setItem.mockResolvedValueOnce();
+
+    await expect(loadRentalDocument()).resolves.toEqual(validDocument);
+    expect(storage.setItem).toHaveBeenCalledWith(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(validDocument));
+    expect(storage.removeItem).not.toHaveBeenCalledWith(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
   });
 
   it("loads a valid document without changing decimal-string amounts", async () => {
