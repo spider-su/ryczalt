@@ -5,6 +5,7 @@ import type { RentalDocument, TaskState } from "../model/rental";
 import { rentMonthAmounts } from "./rentAllocation";
 import { formatPolishDate, formatPolishMonth } from "./presentationFormat";
 import { effectivePaymentDay } from "./apartmentTerms";
+import { lifecycleForMonth } from "./apartmentLifecycle";
 export { expectedRentForMonth, rentMonthAmounts } from "./rentAllocation";
 
 export type TaskType = "TENANT_PAYMENT_CHECK" | "TAX_PAYMENT" | "RECURRING_BILL" | "RENTAL_AGREEMENT_END" | "CUSTOM_REMINDER";
@@ -46,11 +47,11 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   const tasks: AssistantTask[] = [];
   const current = monthOf(now);
   for (const property of document.properties) {
-    if ((property.lifecycle ?? "ACTIVE") !== "ACTIVE") continue;
     const dueDay = effectivePaymentDay(property, current);
     if (dueDay) {
       for (let offset = -2; offset <= 6; offset++) {
         const period = shiftMonth(current, offset);
+        if (lifecycleForMonth(property, period) !== "ACTIVE") continue;
         const amounts = rentMonthAmounts(property, document.incomeEntries, period, now);
         if (amounts.expectedGrosz === null || amounts.expectedGrosz === 0 || amounts.remainingGrosz === null) continue;
         const dueAt = paymentDay(period, effectivePaymentDay(property, period));
@@ -66,7 +67,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
         }));
       }
     }
-    if (property.leaseEndDate) {
+    if (property.leaseEndDate && lifecycleForMonth(property, current) === "ACTIVE") {
       const dueAt = localDate(property.leaseEndDate);
       const notificationAt = addDays(dueAt, -30);
       tasks.push(makeTask(document, now, {
@@ -79,14 +80,17 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
 
   if (hasTaxRulesForYear(document.settings.taxYear)) {
     const savedTaxPeriods = (document.taxSettlementSnapshots ?? []).filter((snapshot) => snapshot.rulesYear === document.settings.taxYear);
-    const settlements = savedTaxPeriods.length
-      ? savedTaxPeriods.map((snapshot) => taxSettlementFromSnapshot(snapshot, localIso(now)))
-      : calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
-        taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
-        jointSpouseThreshold: document.settings.jointSpouseThreshold,
-        openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
-        openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
-        today: localIso(now) });
+    const calculatedSettlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
+      taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
+      jointSpouseThreshold: document.settings.jointSpouseThreshold,
+      openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
+      openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
+      today: localIso(now) });
+    const savedByPeriod = new Map(savedTaxPeriods.map((snapshot) => [snapshot.period, snapshot]));
+    const settlements = calculatedSettlements.map((settlement) => {
+      const snapshot = savedByPeriod.get(settlement.period);
+      return snapshot ? taxSettlementFromSnapshot(snapshot, localIso(now)) : settlement;
+    });
     for (const settlement of settlements) {
       if (settlement.obligationGrosz <= 0) continue;
       const dueAt = localDate(settlement.dueDate);
