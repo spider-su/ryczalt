@@ -28,6 +28,7 @@ import { currentRentalMonth, earliestDashboardMonth, shiftDashboardMonth } from 
 import { lifecycleForMonth } from "../domain/apartmentLifecycle";
 import { effectivePaymentDay } from "../domain/apartmentTerms";
 import { taxSettlementFromSnapshot } from "../domain/periodSnapshots";
+import { ownerCashflowSummary } from "../domain/ownerCashflow";
 
 export function PulpitScreen() {
   const { document, update, enterDemoMode } = useRentalData();
@@ -107,6 +108,13 @@ export function PulpitScreen() {
   const taxAttentionTasks = taxIssues.filter((task) => task.period !== currentPeriodKey && !projectedOlderPeriods.has(task.period ?? ""));
   const openingTaxOutstanding = hasTaxRulesForYear(selectedYear) ? Math.max(0, taxOnRevenue(openingRevenue, selectedYear, document.settings.jointSpouseThreshold) - openingTaxPaid) : 0;
   const hasOlderTaxIssue = taxSummary.previousOutstanding.count > 0 || (taxCalculation?.openingBalance.outstandingGrosz ?? openingTaxOutstanding) > 0;
+  const selectedMonthReceipts = document.incomeEntries.filter((entry) => entry.receivedAt.startsWith(selectedMonth));
+  const ownerCashflow = currentPeriod && selectedMonthReceipts.length > 0 ? ownerCashflowSummary({
+    entries: document.incomeEntries,
+    selectedEntries: selectedMonthReceipts,
+    properties: document.properties,
+    taxGrosz: currentPeriod.obligationGrosz,
+  }) : null;
   const pendingRents = bulkRentItems(activeProperties, document.incomeEntries, selectedMonth, now);
   const selectedRentTotal = bulkSelectionTotal(pendingRents, bulkSelectedIds);
 
@@ -238,6 +246,11 @@ export function PulpitScreen() {
           <View style={summaryTaxHeadline}><Text style={summaryTaxValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text>{currentPeriod?.status === "paid" ? <Text style={summaryPaid}>✓ Opłacone</Text> : null}</View>
           <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : hasTaxRulesForYear(selectedYear) ? "—" : `Brak zweryfikowanych reguł podatkowych dla ${selectedYear}`}</Text>
         </Pressable>
+        {ownerCashflow?.chargesKnown ? <View style={ownerNetBlock}>
+          <Text style={summaryEyebrow}>ZOSTAJE WŁAŚCICIELOWI</Text>
+          <Text style={ownerNetValue}>{compactPln(ownerCashflow.ownerNetGrosz)}</Text>
+          <Text style={ownerNetDetail}>z wpłat otrzymanych w tym miesiącu · opłaty {compactPln(ownerCashflow.chargesGrosz)} · podatek {compactPln(ownerCashflow.taxGrosz)}</Text>
+        </View> : ownerCashflow ? <Text style={ownerNetDetail}>Kwota dla właściciela niedostępna — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View>
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text></View>
@@ -384,6 +397,9 @@ const summaryTaxHeadline = { flexDirection: "row" as const, alignItems: "baselin
 const summaryTaxValue = { color: theme.colors.textPrimary, fontSize: 22, fontWeight: "800" as const };
 const summaryPaid = { color: theme.colors.success, fontSize: 14, fontWeight: "700" as const };
 const summaryTaxDetail = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "500" as const, marginTop: 2 };
+const ownerNetBlock = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 12, paddingTop: 12, width: "100%" as const };
+const ownerNetValue = { color: theme.colors.textPrimary, fontSize: 24, fontWeight: "800" as const, marginTop: 3 };
+const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
 const chartFilter = { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginVertical: 8 };
 const filterButton = { borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: theme.colors.surface };
 const selectedFilter = { backgroundColor: theme.colors.selectedSurface, borderColor: theme.colors.selectedBorder };
