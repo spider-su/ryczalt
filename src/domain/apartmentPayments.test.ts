@@ -18,6 +18,34 @@ describe("apartment payment amounts", () => {
     expect(defaultTaxableAmountGrosz({ property, amountGrosz: 100_000, rentalMonth: "2026-09", priorEntries: [entry("2500.00", "2500.00")] })).toBe(0);
   });
 
+  it("keeps a manual taxable-base override local to that receipt", () => {
+    const customLower = entry("1000.00", "500.00");
+    expect(defaultTaxableAmountGrosz({
+      property,
+      amountGrosz: 200_000,
+      rentalMonth: "2026-09",
+      priorEntries: [customLower],
+    })).toBe(150_000);
+
+    const customHigher = entry("1000.00", "1500.00");
+    expect(defaultTaxableAmountGrosz({
+      property,
+      amountGrosz: 200_000,
+      rentalMonth: "2026-09",
+      priorEntries: [customHigher],
+    })).toBe(150_000);
+  });
+
+  it("does not resurrect taxable owner rent after a full receipt with a custom base", () => {
+    const fullReceiptWithOverride = entry("3000.00", "2000.00");
+    expect(defaultTaxableAmountGrosz({
+      property,
+      amountGrosz: 500_00,
+      rentalMonth: "2026-09",
+      priorEntries: [fullReceiptWithOverride],
+    })).toBe(0);
+  });
+
   it("uses the tax-base choice independently of who pays media", () => {
     const includeCharges = { ...property, mediaPaidByTenant: false, taxableTreatment: "RENT_AND_CHARGES" as const, rentSchedule: property.rentSchedule?.map((rate) => ({ ...rate, taxableTreatment: "RENT_AND_CHARGES" as const })) };
     expect(defaultTaxableAmountGrosz({ property: includeCharges, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(300_000);
