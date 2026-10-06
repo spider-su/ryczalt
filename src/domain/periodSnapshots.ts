@@ -88,6 +88,7 @@ export function taxSettlementFromSnapshot(snapshot: TaxSettlementSnapshot, today
   const status: Settlement["status"] = obligationGrosz === 0 ? "no-tax" : outstandingGrosz === 0 ? "paid" : today > snapshot.dueDate ? "overdue" : outstandingGrosz < obligationGrosz ? "partial" : "due";
   return {
     period: snapshot.period,
+    rulesYear: snapshot.appliedRulesYear ?? snapshot.rulesYear,
     revenueGrosz: moneyToGrosz(snapshot.revenue),
     taxableBaseGrosz: moneyToGrosz(snapshot.taxableBase),
     cumulativeRevenueGrosz: moneyToGrosz(snapshot.cumulativeRevenue),
@@ -118,6 +119,7 @@ function taxSnapshotFromSettlement(settlement: ReturnType<typeof calculateSettle
     overpaid: decimalFromGrosz(settlement.overpaidGrosz),
     dueDate: settlement.dueDate,
     rulesYear,
+    appliedRulesYear: settlement.rulesYear,
     receiptIds,
     taxPaymentIds,
     savedAt,

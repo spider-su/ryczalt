@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IncomeEntry, TaxPayment } from "../model/rental";
-import { calculateSettlements, calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxNavigationYears, taxOnRevenue, todayInPoland } from "./ryczaltTax";
+import { calculateSettlements, calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz, roundTaxBaseGrosz, settlementPeriodForMonth, taxNavigationYears, taxOnRevenue, taxRulesAreProvisional, taxRulesYearFor, todayInPoland } from "./ryczaltTax";
 import { taxPeriodsForYear } from "./taxPresentation";
 
 const entry = (id: string, receivedAt: string, taxableAmount: string, propertyId = "property-1"): IncomeEntry => ({
@@ -111,13 +111,16 @@ describe("Polish private-rental ryczałt", () => {
     expect(calculateSettlements({ entries: [], payments: [], taxYear: 2025, mode: "quarterly", today: "2025-12-01" })[3]?.dueDate).toBe("2026-01-20");
   });
 
-  it("keeps 2027 calendar navigation available without reusing unsupported tax rules", () => {
+  it("keeps future-year navigation and marks the latest verified rules fallback provisional", () => {
     const jan2027 = new Date(2027, 0, 1, 12);
     expect(taxNavigationYears(jan2027)).toEqual([2025, 2026, 2027]);
-    expect(hasTaxRulesForYear(2027)).toBe(false);
+    expect(hasTaxRulesForYear(2027)).toBe(true);
+    expect(taxRulesYearFor(2027)).toBe(2026);
+    expect(taxRulesAreProvisional(2027)).toBe(true);
+    expect(taxRulesAreProvisional(2026)).toBe(false);
     expect(taxPeriodsForYear(2027, "monthly", jan2027)).toEqual(["2027-01"]);
     expect(taxPeriodsForYear(2027, "monthly", jan2027, "2027-01")).toEqual(["2027-01"]);
-    expect(() => calculateSettlements({ entries: [], payments: [], taxYear: 2027, mode: "monthly", today: "2027-01-01" })).toThrow("not available");
+    expect(calculateSettlements({ entries: [entry("future", "2027-01-03", "2500.00")], payments: [], taxYear: 2027, mode: "monthly", today: "2027-01-01" })[0]).toMatchObject({ rulesYear: 2026, obligationGrosz: 21_300 });
   });
 
   it("uses year-specific 8.5% and 12.5% bands with whole-zloty rounding", () => {
@@ -127,8 +130,7 @@ describe("Polish private-rental ryczałt", () => {
     expect(taxOnRevenue(110_000_00, 2026, true)).toBe(935_000);
     expect(taxOnRevenue(10_000, 2025)).toBe(900); // PLN 8.50 rounds upward to PLN 9
     expect(taxOnRevenue(200_000_00, 2026, true)).toBe(1_700_000);
-    expect(() => calculateSettlements({ entries: [], payments: [], taxYear: 2027, mode: "monthly", today: "2027-01-01" })).toThrow("not available");
-    expect(() => taxOnRevenue(100, 2027)).toThrow("not available");
+    expect(taxOnRevenue(10_000, 2027)).toBe(900);
   });
 
   it("aggregates apartments and partial receipts by actual receipt month", () => {
@@ -223,6 +225,8 @@ describe("Polish private-rental ryczałt", () => {
     expect(zero.status).toBe("no-tax");
     expect(zero.dueDate).toBe("2026-02-20");
     expect(calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-01-01" })[10]?.dueDate).toBe("2026-12-21");
+    expect(calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-01-01" })[0]?.dueDate).toBe("2026-02-20");
+    expect(calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-01-01" })[4]?.dueDate).toBe("2026-06-22");
     expect(moneyToGrosz("0.05")).toBe(5);
     expect(formatPln(1_000_050)).toBe("10 000,50 zł");
     expect(formatPln(0)).toBe("0,00 zł");

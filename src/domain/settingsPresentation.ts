@@ -13,10 +13,6 @@ export function settingsArchiveLabel(archivedCount: number) {
   return archivedCount > 0 ? `Archiwum · ${archivedCount}` : null;
 }
 
-export function settingsBillsEmpty(billCount: number) {
-  return billCount === 0;
-}
-
 export function settingsNotificationsUnavailable(permission: string) {
   return permission === "unavailable";
 }
@@ -27,7 +23,7 @@ export function settingsNotificationSwitchValue(enabled: boolean, permission: st
 
 export const settingsBackupStatus = {
   local: "Dane są zapisane na tym urządzeniu.",
-  capabilities: "Eksport i import kopii zapasowej nie są jeszcze dostępne.",
+  capabilities: "Możesz wyeksportować plik JSON i przywrócić dane z zapisanej kopii.",
   uninstall: "Odinstalowanie aplikacji może usunąć zapisane tu dane. Zapisz je osobno przed odinstalowaniem.",
   network: "Aplikacja nie synchronizuje danych najmu z serwerem.",
 } as const;

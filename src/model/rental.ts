@@ -62,6 +62,8 @@ export type TaxSettlementSnapshot = {
   overpaid: string;
   dueDate: string;
   rulesYear: number;
+  /** Verified rules actually used; omitted on legacy exact-year snapshots. */
+  appliedRulesYear?: number;
   receiptIds: string[];
   taxPaymentIds: string[];
   savedAt: string;

@@ -17,7 +17,7 @@
 
 - **P0 — Core reason to use the app:** confirmed rental income, ryczałt calculation, tax payment deadline and annual/PIT-28 readiness.
 - **P1 — Makes the core easier:** apartment and current tenant/contact, expected rent, reminders and tax payment details.
-- **P2 — Convenience:** recurring bills, administrator/utility links, agreement reminders and light statistics.
+- **P2 — Convenience:** administrator/utility links, agreement reminders and light statistics.
 - **P3 — Only with demonstrated user demand:** cloud sync, spouse/shared access, bank feeds, document management, deposits, full expense accounting, tenant communication and maintenance workflows.
 
 Keep this hierarchy in roadmap and implementation decisions: supporting tasks should make the rent-to-tax workflow easier, not displace it.
@@ -35,7 +35,7 @@ Patterns we intentionally adopt and adapt:
 - recurring reminders associated with a property;
 - a dashboard that combines attention items with a small financial summary;
 - guided setup/checklist;
-- recurring fixed and variable apartment charges.
+- a dashboard that combines attention items with a small financial summary.
 
 Ryczałt adopts only patterns that support its tax/payment promise: **the landlord confirms what arrived; the app calculates tax and tracks the deadline**.
 
@@ -49,24 +49,22 @@ Competitor layouts and flows are references, not templates. Do not copy propriet
 - Prefer “Sprawdź wpłatę” / “Do potwierdzenia” over asserting an unpaid tenant debt.
 - Expected rent is not taxable income; only actual confirmed receipts feed the tax calculation.
 - A dismissed/snoozed reminder is not a confirmed financial transaction.
-- Fixed bills may have an expected amount; variable bills should prompt the user to verify the current amount.
 - Setup guidance should disappear when complete and not occupy the daily dashboard permanently.
 - Polish-first, red/white identity, calm mobile-first layout, short paths to common actions.
 
 ## Boundaries
 
-No backend, bank sync, automatic payment confirmation or cloud sync. Annual/PIT-28 verification summary is a roadmap priority. User-controlled local JSON export/import is parked pending explicit privacy and format requirements. The app keeps a rolling last-good local recovery snapshot, but that is not user-facing backup/export and AsyncStorage is not encrypted by the app. Electronic PIT-28 submission is explicitly out of scope. Investory integration remains a later/optional idea.
+No backend, bank integration, automatic payment confirmation or cloud sync. User-controlled JSON export/import is implemented and is a POC release gate. Android system backup is enabled but depends on OS/device settings and does not guarantee restore after uninstall. Apartment, income, tax, reminder and tenant/contact data is stored locally in AsyncStorage without app-level encryption. Tax calculations are informational; rates are versioned and verified by year, with visible provisional fallback for future unverified years. The app does not submit electronic PIT-28. Investory integration remains later/optional.
 
 Not Investory (no portfolio analytics, valuations or retirement planning); not `ryczalt_it` (no JDG/VAT/KSeF accounting); not a full property manager (no tenant accounts, messaging, document repository or maintenance tickets).
 
 ## Status
 
-- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, recurring bills, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent notifications, one-time/monthly/yearly custom reminders and compact statistics.
-- **Implemented:** validated local-document writes retain one previous valid snapshot; startup can recover from a corrupted/missing primary and reports recovery. This is app-local recovery only, not encrypted storage or user-controlled export/import.
+- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent/tax/lease notifications and compact statistics. Bills and personal reminders are removed from the POC UI/scheduling; legacy fields remain readable.
+- **Implemented:** validated local JSON export/import and last-good local recovery. AsyncStorage is not encrypted by the app.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
-- **Functional scope complete:** 0.4 includes recurring custom reminders. This does not establish private-beta readiness.
+- **POC release gate:** see the root [ROADMAP](../ROADMAP.md). Readiness remains unverified until candidate-specific CI, artifact, emulator, backup and physical-device evidence is recorded.
 - **Upcoming:** year-to-date/annual tax summaries and annual/PIT-28 verification readiness; see [ROADMAP](ROADMAP.md). These are not implemented yet.
-- **Parked:** user-controlled local JSON export/import/restore pending a defined data-format and privacy contract.
 - **Later/optional:** Investory integration and P3 features without demonstrated user demand.
 
 See [MVP](MVP.md) for current acceptance scope and [ROADMAP](ROADMAP.md) for delivery state. Milestones are not published releases.

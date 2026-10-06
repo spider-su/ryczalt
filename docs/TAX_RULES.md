@@ -1,6 +1,6 @@
 # Private rental tax rules
 
-**Scope:** Polish private residential rental recorded as ryczałt. This is a receipt ledger and estimate, not a tax return or legal classification tool. Sources below were checked on **2026-09-28**.
+**Scope:** Polish private residential rental recorded as ryczałt. This is an informational receipt ledger and estimate, not a tax return or legal classification tool. Sources below were checked on **2026-10-06**.
 
 ## Supported tax rules
 
@@ -11,7 +11,7 @@
 
 For joint marital property where the required election to tax all rental income by one spouse applies, the higher-rate threshold is PLN 200,000. Marriage alone does not satisfy this condition. The setting is user-confirmed; the app does not determine ownership, eligibility, or whether the election was filed.
 
-The tax engine supports only 2025 and 2026. Calendar navigation can reach later years, but no calculation or tax task is generated without an explicitly supported rule set. Never carry the previous year's rates forward automatically. 2025 and 2026 rate/threshold rules are supported by Ministry of Finance guidance; 2027 remains unavailable pending verification.
+2025 and 2026 are the latest verified rules years. An exact verified year always wins. For a later year without verified rules (for example 2027), the engine provisionally applies the latest verified rules, records the applied rules year in calculated/saved settlement metadata, and shows a visible warning on the tax screen: “Stawki na 2027 nie zostały jeszcze potwierdzone. Obliczenie wykorzystuje zasady z 2026. Sprawdź przed zapłatą.” This fallback is explicitly provisional, not a claim that future law is unchanged. Past years without a verified ruleset remain unavailable.
 
 ## What controls taxable rent
 
@@ -36,7 +36,7 @@ For a monthly or quarterly period, the taxable base is rounded to whole PLN befo
 
 ## Periods, deadlines and payment details
 
-The Ministry of Finance specifies payment by the 20th of the following month for monthly payments and by the 20th of the month after quarter end for quarterly payments. December and Q4 payments are due by 20 January of the following year. Under Article 12 §5 of the Tax Ordinance, a deadline on Saturday or a statutory holiday moves to the next day that is not a Saturday or statutory holiday. The annual PIT-28 filing/payment deadline is separate and is not implemented as a filing engine.
+The Ministry of Finance specifies payment by the 20th of the following month for monthly payments and by the 20th of the month after quarter end for quarterly payments. December and Q4 payments are due by 20 January of the following year. Under Article 12 §5 of the Tax Ordinance, a deadline on Saturday or statutory holiday moves to the next day that is not a Saturday or statutory holiday. The implementation calculates weekends, fixed public holidays and Easter-derived holidays algorithmically; exceptional year-specific legal changes can be configured in `TAX_DEADLINE_OVERRIDES`. The annual PIT-28 filing/payment deadline is separate and is not implemented as a filing engine.
 
 The Ministry specifies **PPE** as the payment form symbol for interim monthly/quarterly rental ryczałt and PIT-28 for annual return tax. The app shows PPE, the selected human-readable settlement period, the due date and configured micro-account. It does not invent a bank-specific period code or generate a payment QR. Users must verify payment details with their bank and tax account. PPE guidance is not annual filing support.
 
@@ -46,7 +46,7 @@ Tax payments do not change income or tax obligations. Recorded payments allocate
 
 ## Official sources
 
-All were accessed/checked on **2026-09-28**.
+All were accessed/checked on **2026-10-06**. Official guidance currently states the 8.5% / 12.5% private-rental bands and PLN 100,000 / joint-property PLN 200,000 threshold; do not infer the same rules for a year until verified.
 
 | Source title | URL | Rule used |
 | --- | --- | --- |
@@ -58,4 +58,4 @@ All were accessed/checked on **2026-09-28**.
 
 ## Implementation checks
 
-Regression coverage is in `src/domain/ryczaltTax.test.ts`, `src/domain/taxPayment.test.ts`, `src/domain/apartmentPayments.test.ts`, `src/domain/bulkRentConfirmation.test.ts`, and `src/domain/historicalRentBootstrap.test.ts`. These cover supported-rule failure, annual rate threshold, receipt-date grouping, rounding, deadline shift including December/Q4, tax-payment allocation, explicit tax-base handling and import estimates. Verify this source table and add tests before enabling a further tax year.
+Regression coverage is in `src/domain/ryczaltTax.test.ts`, `src/domain/taxPayment.test.ts`, `src/domain/apartmentPayments.test.ts`, `src/domain/bulkRentConfirmation.test.ts`, and `src/domain/historicalRentBootstrap.test.ts`. It covers exact-year selection, future-year fallback/provisional metadata, thresholds, receipt-date grouping, rounding, standard/weekend/holiday/December deadlines, tax-payment allocation, explicit tax-base handling and import estimates. Yearly maintenance must recheck rates, thresholds, spouse threshold, payment deadlines, public-holiday calendar and PIT-28-related dates/rules before enabling that year's exact rules.

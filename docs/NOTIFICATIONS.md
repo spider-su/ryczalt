@@ -1,40 +1,19 @@
-# Tasks and local notifications — target design
+# Rental, tax and lease reminders
 
-**Status:** rent, agreement, tax, recurring-bill and one-time/monthly/yearly custom reminder occurrences are projected from local records. In-app status is primary; local OS notifications are disposable projections. Guided setup is implemented. Device delivery still needs physical-device verification.
+**POC scope:** local reminders for expected rent, outstanding ryczałt payments and lease expiry. Bills and user-created personal reminders are not available. Old reminder/bill fields can remain in stored documents for compatibility but are ignored by task and notification generation.
 
-## Categories
+## Categories and behavior
 
-`TENANT_PAYMENT_CHECK`, `TAX_PAYMENT`, `RECURRING_BILL`, `RENTAL_AGREEMENT_END`, `CUSTOM_REMINDER`.
+`TENANT_PAYMENT_CHECK`, `TAX_PAYMENT`, and `RENTAL_AGREEMENT_END` are derived from local apartment, receipt and tax records. Stable task identities include the apartment/tax period or lease date. Rent reminders use the configured payment day and delay, group apartments with the same due date, and never imply debt: the landlord manually confirms receipts. Tax reminders derive from calculated obligations and manually recorded payments. Lease reminders use a 30-day lead.
 
-Stable identity: category + source ID + relevant rental/tax/bill period or agreement event. Personal reminder occurrences use `CUSTOM_REMINDER:<id>:<YYYY-MM-DD>`, including one-time reminders. Avoid duplicate instances after restart.
+Upcoming, needs-attention, snoozed, completed and dismissed are task presentation states. Rent/tax completion only follows saved financial records; snooze/dismiss never means paid. Editing or deleting a receipt/payment can reopen the corresponding task.
 
-## Lifecycle
+## Scheduling, permissions and privacy
 
-- **Upcoming:** task exists but attention time has not arrived.
-- **Needs attention:** due/check date reached and underlying condition unresolved.
-- **Snoozed:** temporarily suppress prompts until chosen time; original due date unchanged.
-- **Completed:** source condition satisfied by explicit user action (e.g., confirmed full rent/tax payment), or explicit nonfinancial task completion.
-- **Dismissed:** user suppresses task; never means rent/tax/bill was paid.
+The app reconciles desired local notifications against OS-scheduled stable keys after permission grant, local data/preferences changes, app restart and foreground resume. It cancels stale/duplicate schedules and schedules missing future reminders. Notifications use generic lock-screen text; tenant names, addresses, income, tax amounts and payment details stay out of the title/body. Navigation context remains local in notification data.
 
-Financial task completion is derived from manually confirmed records. A fixed recurring bill remains unresolved until confirmed payments for its bill period total at least the expected amount; partial payments show the remaining amount. Variable bills have no fixed target, so a confirmed payment resolves that period. Bill task and notification navigation retain the task period for manual confirmation. A task may become unresolved again after correction/deletion. Do not create fictional payment entries when marking a nonfinancial check done.
+Android ensures its reminder channel at startup independently of notification permission. Denied permission leaves in-app tasks available. Permission can be granted through the in-app flow or Android settings. Delivery, tap routing, snooze, restart/reboot and revoke/regrant behavior require physical Android verification for each release candidate; see [the Android checklist](PRIVATE_BETA_ANDROID_CHECKLIST.md). OS delivery is not guaranteed by unit tests.
 
-## Reconciliation
+## Boundaries
 
-Project reminders from current domain records → compare desired future notifications to scheduled stable keys/signatures → cancel obsolete and duplicate entries and schedule missing ones. Reconcile after permission grant, data/preferences changes, app restart and foreground resume. Avoid duplicates and past schedules; fire at 09:00 device-local time and recalculate on resume after timezone/DST changes. Rent reminders are derived from payment days, use the global `rentReminderDelayDays` preference (0–30; new documents start at 1), and are grouped into one notification per due date; the body lists all active apartment addresses due that day. Paused and archived apartments generate no rent/agreement tasks or reminders. Rent and bill due days clamp to shorter months. Agreement reminders use a fixed 30-day lead time.
-
-## Navigation and permissions
-
-Notification tap maps to contextual apartment/month, tax period, bill settings, agreement settings or the custom task on Pulpit. Rent quick-add prefills the expected tenant total and uses the apartment's explicit `taxableTreatment`; a property without a selected treatment must be updated before a new receipt can be confirmed. Global categories and per-bill reminder switches control OS scheduling; there are no per-apartment rent reminder switches. Disabling a schedule does not hide its task from Pulpit. Denied permission leaves in-app reminders/status available. Expo Web does not schedule OS notifications. Delivery remains subject to OS scheduling constraints and needs device verification.
-
-OS notification title/body use generic wording; never put tenant, property, bill, reminder-note, tax or payment amounts in lock-screen text. Context needed after a tap stays in the local notification data. Invalid, incomplete or unknown payloads must not navigate. These guarantees are covered by domain/mapping tests; actual OS delivery and tap behavior still require the manual Android checklist.
-
-Tax reminders are projected from the tax calculator and outstanding manually-paid balance; changing receipts or tax payments changes the next reconciliation. Rent expectations never enter taxable income. Payment QR generation is deferred: a reliable Polish banking format and compatibility claim have not been established. Payment-detail copy actions remain available.
-
-Monthly/yearly reminder definitions are stored once and projected as the current period's occurrence plus the nearest next occurrence. Notifications are scheduled per occurrence through reconciliation, not OS repeating triggers. Snoozing or completing one occurrence does not change the anchor or the next occurrence. Month-end dates clamp to the month's last day; yearly February 29 uses February 28 in non-leap years.
-
-## Anti-spam
-
-No blanket daily alerts for already-resolved obligations. Partial payment may change the next reminder to the remaining amount to check. Snooze suppresses repeat alerts until the selected time. A dismissed OS banner alone does not change persisted task state.
-## Runtime reliability
-
-Android creates or ensures the `reminders` channel on app startup and foreground, even when notification permission has not been granted. Channel creation is independent of the permission prompt. Permission/support state is not changed by scheduling failures. Reconciliation retries after local document changes and when the app becomes active; an OS scheduling error may leave a reminder unscheduled until a retry succeeds.
+Rent due days clamp to shorter months; reminders use 09:00 device-local time and reconcile after timezone changes/resume. Timezone/DST behavior is not exhaustively certified for the POC. Expo Web does not schedule native OS notifications. Tax amounts remain informational and should be checked before payment, especially when the tax screen marks a future year provisional. No backend or remote notification service is used.

@@ -1,50 +1,33 @@
-# Canonical user flows
+# Canonical user flows — private-rental POC
 
-These describe implemented flows except sections explicitly labeled **target future flow**; those sections are planned behavior, not claims about current screens.
+## Guided setup
 
-## 0. Guided setup
+No apartments → Pulpit offers “Dodaj mieszkanie” → Settings collects address, owner rent, media amount/responsibility, tenant/contact, lease end, expected rent day and rent-reminder settings. The landlord chooses taxable treatment according to the rental agreement. Setup writes no income or tax payments and invents no contractual dates.
 
-No apartments → Pulpit shows a short explanation and one “Dodaj mieszkanie” action → existing Settings apartment editor opens. With apartment data present, setup progress is derived from the saved address, owner rent and payment day; Pulpit offers only the next useful action and Settings opens the same editor at the corresponding field. New apartments default to payment day 5; the lease end stays empty until entered from the agreement. Each apartment requires the landlord to choose a taxable-revenue treatment according to the rental agreement; this choice is independent of who pays media. Optional tenant and administration details do not block required setup. Rent reminders are derived from due dates and grouped by address; there is no per-apartment reminder preference. If OS notifications are denied, tasks remain visible in Pulpit. Setup writes configuration only: it creates no income, tax-payment or bill-payment records and does not invent contractual dates or URLs.
+## Confirm rent
 
-## 1. Check monthly rent
+Apartment terms → period-specific expected rent/reminder → landlord checks the bank and manually confirms actual received amount/date → income ledger and remaining amount update. Partial payment stays actionable; sufficient receipts resolve the period. Edit/delete recalculates dashboard and tax. Expected rent and tenant-paid media do not automatically become income.
 
-Apartment has an effective expected amount and payment day → generate a stable period-specific task → local notification when appropriate → tap opens that apartment/month → user checks bank and confirms actual amount and actual receipt date → update income ledger and remaining amount to check. Partial payment keeps the task actionable; full confirmed amount resolves it. Correction/deletion re-derives task. A missing app record is not proof of arrears. Actual receipt date controls taxable income; rental month labels the expected period.
+## Calculate and confirm tax
 
-If expected rent changes, the new value applies prospectively; previous periods must preserve their earlier expected amount.
+Confirmed taxable receipts → versioned rules calculate period obligation and deadline → landlord pays outside the app and manually records amount/date → paid/outstanding balance updates, with overpayment carried forward. Editing/deleting receipts or payments recalculates the tax position. When a future year has no verified rules, the latest verified year is used provisionally and a visible warning names the rules year; the result is informational and must be checked before payment.
 
-## 2. Pay rental tax
+## Lease expiry
 
-Actual taxable receipts → verified tax engine calculates obligation for the relevant period → task shows remaining amount, due date and payment details → user initiates payment outside app → user explicitly confirms payment → balance and task update. Partial payments keep remaining amount. Corrections re-derive both obligation and reminder. Never infer payment from QR generation or portal navigation.
+Optional lease end date → local reminder 30 days before expiry → tap opens apartment context. The landlord can edit the date, snooze or dismiss; editing the date reconciles stale notifications. No generic personal reminder or bills workflow is included.
 
-## 3. Check administration/utility bill
+## Monthly apartment overview
 
-Configured recurring bill and apartment → if fixed, show expected amount and total confirmed payments for the task's bill period; a partial payment leaves the remaining amount and task actionable. If variable, prompt to verify the current amount. Opening a Pulpit task or notification carries its bill period into the confirmation screen; each manually confirmed payment is recorded against that period, while its actual paid date remains today's date. Opening a link or dismissing a task does not create a payment.
+Select apartment/month → expected owner rent, confirmed receipts, amount still to check, nearby lease reminder, administration/electricity links and contextual rent confirmation. Media is separate from owner income.
 
-## 4. Agreement expiration
+## JSON backup and restore
 
-Optional end date → reminders at configured offsets → tap opens apartment agreement section → user can change date on renewal, snooze, dismiss or mark task handled. Changing date cancels stale schedules; indefinite agreement has no expiration task. Rental start and agreement end are separate dates.
-
-## 5. Personal reminder
-
-User enters title, optional apartment, anchor date, note and recurrence: one-time, monthly or yearly → the definition is saved once, while only the current period and nearest next occurrence are projected into Pulpit and the notification plan → the user snoozes, dismisses or completes one occurrence. A later occurrence stays independent. Monthly dates use the last valid day in shorter months without changing the anchor; yearly February 29 reminders use February 28 in non-leap years and return to February 29 in leap years. Do not build a generic project-management system.
-
-## 6. Monthly apartment overview
-
-Select apartment/month → show expected owner rent for that period, confirmed receipts, remaining amount to check, nearby agreement/bill tasks, administration and electricity-provider portals → contextual quick actions open payment confirmation or an external portal. Media stays separate from owner rent and confirmed-income statistics.
-
-## 7. Year-end review / PIT-28 verification — target future flow
-
-Confirmed receipts for the selected tax year → annual taxable-income summary → tax calculated under the supported rules → confirmed tax payments totaled → annual difference shown → user verifies the figures against Twój e-PIT/PIT-28. This summary is planned for milestone 0.6/0.7 and is not implemented yet. It supports verification and recordkeeping; the app does not submit an electronic return.
-
-## 8. Backup / restore — target future flow
-
-Export local data to JSON → user stores the file outside the app → after reinstall/device change, select the file to restore → validate schema, dates, references and monetary values before import → show outcome and preserve the existing document if validation fails. This is planned for milestone 0.7 and is not implemented yet. No cloud backup is implied.
+Settings exports a validated JSON document for the user to store outside the app. After reinstall/device change, select that file; import validates it before replacing local data. Invalid backup leaves the current document unchanged. The release checklist requires clear/uninstall → reinstall → import and comparison of apartment, tenant/contact, income, tax payments, reminder settings, schema and calculated tax results. Android system backup may also restore AsyncStorage but is device/settings dependent and not guaranteed. No cloud backup exists.
 
 ## Cross-cutting behavior
 
-- Pulpit groups needs-attention, upcoming and snoozed; avoid flooding it with future recurring instances.
-- Snooze moves the reminder only, never the original obligation or due date.
-- OS permission denied, Web or app restart: tasks still available in-app; reconcile native schedules where supported.
-- Deleting/renaming apartments and editing source records must not leave orphaned or duplicate reminders.
-- Quick actions should preserve context and require user confirmation before financial writes.
-- Guided setup is contextual help, not a permanent dashboard section.
+- Rental records and tenant/contact data remain local in AsyncStorage without app-level encryption; there is no backend or bank integration.
+- Snooze changes reminder time only, never payment amount or legal deadline.
+- Denied notification permission does not remove in-app tasks; native delivery/tap behavior requires physical-device verification.
+- Existing documents containing removed bill/custom-reminder fields remain loadable, but those fields do not create UI, tasks or notifications.
+- Electronic PIT-28 filing and annual filing submission are out of scope; displayed calculations are for information and verification.

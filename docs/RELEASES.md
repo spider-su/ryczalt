@@ -1,54 +1,27 @@
-# Release policy
+# Release status and evidence
 
-## Distinguish three things
+## Current POC RC gate
 
-- **Roadmap milestone:** intended capability; not evidence of shipping.
-- **App version:** value in package/app config for a particular build.
-- **Git tag / GitHub release:** an explicitly published software revision with notes and artifacts as applicable.
+The single release gate/status source is the root [ROADMAP](../ROADMAP.md). Current version metadata remains `0.1.0`; no RC version or tag is assigned until every required CI, build, emulator, backup and physical-device gate passes. A green source build is not a device/release acceptance claim.
 
-Current inspected branch declares version `0.1.0`; this does **not** prove a public release exists. Proposed milestone numbers in [ROADMAP](ROADMAP.md) are provisional until checked against actual tags/releases. Never silently bump app version as part of a docs-only PR.
+Release candidate evidence must record the exact main SHA, app version, GitHub CI run, EAS Android build ID and downloadable APK/AAB, emulator happy-path result, physical notification result, backup/restore result, tax checks and known limitations. The final decision and exact candidate details belong here and in the POC checklist only after those checks actually pass.
 
-## Current readiness — 2026-09-28
+## Product and privacy boundaries
 
-The 0.4 functional scope is implemented: manually confirmed rental income, private-rental tax calculations/payment tracking, guided setup, Pulpit tasks, one-time/monthly/yearly personal reminders, and fixed/variable recurring bills with period-correct partial-payment tracking. Standard CI runs typecheck, lint, unit/domain tests, Expo Doctor, Web export and Android prebuild. A separate workflow assembles Android debug builds on demand and for relevant pull requests. EAS builds run on pushes to `develop` (preview) and `main` (production profile); neither workflow publishes to stores.
+The Android app stores apartment, tenant/contact, income, tax-payment and reminder configuration locally in AsyncStorage. The app does not add encryption to that storage. Android system backup is enabled, but restore depends on Android/device/user settings and is not guaranteed. User-controlled JSON export/import is available and is a POC gate. There is no backend, account, bank connection, cloud sync or electronic PIT-28 submission.
 
-The Android API 35 emulator has verified launch, core local flows, startup channel creation with notification permission denied, and malformed-data recovery. This is emulator evidence only. Physical-device notification delivery/taps, permission-granted behavior, timezone/DST, reboot and upgrade behavior remain outstanding. Schema 1 is a fresh-install contract; the app has no old-schema adapters because it is not installed on user devices. Before distributing a later incompatible schema, add and verify an explicit upgrade path. Signing/distribution preparation, accessibility review and focused privacy review are still 0.5 gates before inviting private-beta testers. See [the Android checklist](PRIVATE_BETA_ANDROID_CHECKLIST.md). QR payments are not implemented. Annual tax/PIT-28 verification summary is a roadmap item; user-controlled JSON backup/restore is parked. The app has an internal rolling recovery snapshot, not a user-facing backup feature. Electronic filing, bank integration and cloud sync remain out of scope. Investory integration is later/optional.
+Private rental only; manual rent and tax payment confirmation; local reminders for rent, tax and lease expiry. Non-core recurring bills and custom/personal reminders are removed from UI/task/notification flows. Legacy fields remain compatible in old local documents/backups and are ignored by current projections.
 
-On 2026-09-27, `npm audit` and `npm audit --omit=dev` each reported 11 moderate advisories in Expo CLI/config and the `@expo/config-plugins` → `xcode` → `uuid` chain. npm's automatic suggestion is a breaking Expo downgrade; no force fix was applied. These findings are in the Expo build/config dependency tree, not a package imported directly by application features. Re-evaluate with a compatible Expo SDK/toolchain update.
+Tax calculations are informational. Rules are versioned by year; exact verified rules take precedence, while future unverified years use the latest verified rules provisionally with a visible warning and saved applied-rules-year metadata. Users must verify the result before paying.
 
-## Verified Android baseline
+## Prior verification (not current candidate evidence)
 
-The app uses Expo SDK 57 / React Native 0.86.3. The successful local Android build used JDK 17; the initial native CMake failure was reproduced with JDK 25 and went away under JDK 17, so it was a local Java/toolchain mismatch rather than a source or native dependency defect. Expo's SDK 57 Android build image uses JDK 17 and NDK r27b. This machine's installed SDK used Android Platform 36, Build Tools 36.0.0, NDK 27.1.12297006 and CMake 3.22.1; the generated Gradle wrapper is Gradle 9.3.1. Generated native files are ignored and must be recreated with Expo prebuild. The Android-native workflow pins the same JDK/SDK/NDK/CMake set.
+An Android API 35 emulator was previously used for app launch, core local flows, notification-channel creation with permission denied and malformed-data recovery. That run predates this release-candidate work and does not establish the complete happy path, reinstall/restore, current artifact behavior or physical-device notification delivery/taps. Re-run checks against the exact candidate and update this section with dated evidence.
 
-Reproduce locally after installing those SDK packages and setting `JAVA_HOME` to JDK 17 and both `ANDROID_HOME` / `ANDROID_SDK_ROOT` to the Android SDK root:
+## Release procedure
 
-```sh
-npx expo prebuild --clean --platform android
-cd android
-./gradlew --no-daemon clean assembleDebug
-```
-
-The clean debug APK is produced at `android/app/build/outputs/apk/debug/app-debug.apk`. On the inspected Mac these variables pointed at the local JDK 17 and `/opt/homebrew/share/android-commandlinetools`; do not copy that host-specific SDK path into project config.
-
-EAS identity was checked against the authenticated Expo account on 2026-09-27: owner `smart-box`, project `@smart-box/ryczalt`, ID `90116624-70fc-4f49-92f7-e787344dc969`, package and bundle ID `pl.ryczalt.rental`. Expo account access showed this project under `smart-box`; the separate project ID is not the parent `ryczalt_it` ID. The repository's `EXPO_TOKEN` secret exists. App-store credentials and a distribution release have not been verified or created.
-
-The lightweight privacy review found app records stored in AsyncStorage, no analytics SDK or backend/sync client in the app dependency/source tree, and outbound navigation opening the saved/selected URL without appending tenant or financial fields. The app now retains a rolling last-good local document and attempts recovery if the primary document is missing or invalid; it surfaces successful recovery in the UI. This is not a user-controlled backup/export, and AsyncStorage is app-local storage without encryption added by the app. Notification lock-screen text is generic; notification payloads retain only local navigation context. This source/config review is not a device/network traffic audit.
-
-## Release flow
-
-1. Merge reviewed implementation and documentation changes to the agreed release branch; keep docs-only PRs separate from code.
-2. Verify business acceptance against [MVP](MVP.md) and [USER_FLOWS](USER_FLOWS.md).
-3. Run `npm ci`, `npm run ci`, `npx expo-doctor`, Web export, clean Android prebuild and `./gradlew clean assembleDebug` using JDK 17 and the toolchain above.
-4. Test strict schema validation, corruption recovery and concurrent updates. Add a migration test only when there is an installed prior release to upgrade.
-5. On physical devices, verify permission denied/granted, task persistence, notification scheduling/cancellation/tap navigation, DST/timezone and app restart. Do not claim native verification from mocks alone.
-6. Verify exact tax examples, partial/corrected payments, user-visible wording and privacy. Confirm payment details and QR compatibility before advertising QR support.
-7. Confirm standalone Expo/EAS identity (already verified above) and separately prepare Android/iOS signing and distribution. Never reuse the `ryczalt_it` project ID or signing credentials.
-8. Update `CHANGELOG.md`, release notes, supported platforms and known limitations; only then tag/publish a release.
-
-## Local-data safety
-
-Document every schema change. Before user data exists in released installations, the current fresh-install schema can be changed without a migration bridge. After release, do not silently reset or lose confirmed receipts/tax payments; add and test an explicit migration before an incompatible schema change. A rollback to an older build may not understand newer data: test compatibility or state the limitation. The internal rolling recovery snapshot is covered by code tests but has not yet been device-tested. It is not a user-controlled backup/export and cannot be browsed or restored on demand. AsyncStorage is not encrypted by the app. User-facing JSON export/import remains parked until format, privacy and invalid-input requirements are defined. Do not imply cloud sync, encryption or user-controlled backup exists in release notes.
-
-## Documentation discipline
-
-`PRODUCT` = vision; `MVP` = acceptance scope; `ROADMAP` = planned work; `CHANGELOG` = delivered work; release notes = one published revision. Keep these consistent and mark incomplete features as planned.
+1. Keep product/docs changes on a reviewable branch and merge to `main` only after normal CI is green.
+2. Verify main CI and EAS Android production workflow for the exact commit; retain the artifact and build ID.
+3. Run the full emulator landlord path and backup round-trip, then physical-device notification checks in [PRIVATE_BETA_ANDROID_CHECKLIST](PRIVATE_BETA_ANDROID_CHECKLIST.md).
+4. Confirm version consistency across `package.json` and `app.json`; bump to a POC RC only once all gates pass.
+5. Create the RC tag only after green CI/EAS and accepted manual evidence; record SHA, artifact, tests and limitations. Never imply a hosted/deployed/mobile result from unit tests or config inspection alone.

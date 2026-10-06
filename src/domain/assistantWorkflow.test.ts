@@ -69,19 +69,12 @@ describe("assistant workflows across domain modules", () => {
     expect(deriveTasks(doc, now).some((task) => task.id === taskId)).toBe(false);
   });
 
-  it("projects fixed and variable bills, resolves only from recorded payment, and drops deleted bills", () => {
+  it("retains old bill records without projecting removed bill tasks", () => {
     const doc = document();
-    const fixedId = "RECURRING_BILL:fixed:2026-09";
-    const variableId = "RECURRING_BILL:variable:2026-09";
     const tasks = deriveTasks(doc, now);
-    expect(tasks.find((task) => task.id === fixedId)).toMatchObject({ expectedGrosz: 60_000, manuallyCompletable: false });
-    expect(tasks.find((task) => task.id === variableId)?.detail).toContain("Sprawdź bieżącą kwotę");
-    expect(tasks.find((task) => task.id === fixedId)?.manuallyCompletable).toBe(false);
+    expect(tasks.some((task) => task.id.startsWith("RECURRING_BILL:"))).toBe(false);
     doc.billPayments = [{ id: "bp", billId: "fixed", period: "2026-09", paidAt: "2026-09-20", amount: "600.00" }];
-    expect(deriveTasks(doc, now).find((task) => task.id === fixedId)?.status).toBe("completed");
-    doc.recurringBills = doc.recurringBills.filter((bill) => bill.id !== "variable");
-    doc.billPayments = doc.billPayments.filter((payment) => payment.billId !== "variable");
-    expect(deriveTasks(doc, now).some((task) => task.id.startsWith("RECURRING_BILL:variable:"))).toBe(false);
+    expect(deriveTasks(doc, now).some((task) => task.id.startsWith("RECURRING_BILL:"))).toBe(false);
   });
 
   it("replaces agreement reminder keys after date edits and removes them when the date is cleared", () => {

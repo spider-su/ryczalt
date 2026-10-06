@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RentalDocument } from "../model/rental";
-import { deriveTasks, expectedRentForMonth, setTaskState, taskNotificationPlan } from "./tasks";
+import { deriveTasks, expectedRentForMonth, taskNotificationPlan } from "./tasks";
 
 function document(): RentalDocument {
   return {
@@ -32,30 +32,6 @@ describe("personal assistant tasks", () => {
     const task = deriveTasks(doc, new Date(2026, 9, 1)).find((item) => item.id === "TAX_PAYMENT:2026-09");
     expect(task).toMatchObject({ expectedGrosz: 8500, remainingGrosz: 8500 });
   });
-  const billTask = (doc: RentalDocument, period = "2026-09") => deriveTasks(doc, new Date(2026, 8, 26, 12)).find((item) => item.id === `RECURRING_BILL:power:${period}`)!;
-
-  it("resolves fixed recurring bills only when period payments cover the expected amount", () => {
-    const doc = document();
-    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, expectedAmount: "600.00" }];
-    expect(billTask(doc)).toMatchObject({ status: "needs-attention", expectedGrosz: 60_000, confirmedGrosz: 0, remainingGrosz: 60_000 });
-    doc.billPayments = [{ id: "b1", billId: "power", period: "2026-09", paidAt: "2026-09-12", amount: "200.00" }];
-    expect(billTask(doc)).toMatchObject({ status: "needs-attention", confirmedGrosz: 20_000, remainingGrosz: 40_000 });
-    expect(billTask(doc).detail).toContain("pozostało 400,00 zł");
-    doc.billPayments.push({ id: "b2", billId: "power", period: "2026-09", paidAt: "2026-09-18", amount: "400.00" });
-    expect(billTask(doc)).toMatchObject({ status: "completed", remainingGrosz: 0 });
-    doc.billPayments[1]!.amount = "500.00";
-    expect(billTask(doc)).toMatchObject({ status: "completed", remainingGrosz: 0, confirmedGrosz: 70_000 });
-    doc.billPayments.splice(1, 1);
-    expect(billTask(doc)).toMatchObject({ status: "needs-attention", remainingGrosz: 40_000 });
-  });
-
-  it("counts only payments for the target fixed-bill period", () => {
-    const doc = document();
-    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, expectedAmount: "600.00" }];
-    doc.billPayments = [{ id: "b1", billId: "power", period: "2026-08", paidAt: "2026-08-18", amount: "600.00" }];
-    expect(billTask(doc)).toMatchObject({ status: "needs-attention", confirmedGrosz: 0, remainingGrosz: 60_000 });
-  });
-
   it("does not generate rent tasks after the rental agreement end month", () => {
     const doc = document();
     doc.properties[0]!.leaseEndDate = "2026-10-15";
@@ -81,16 +57,13 @@ describe("personal assistant tasks", () => {
     expect(task.notificationAt).toEqual(new Date(2026, 8, 13, 9));
   });
 
-  it("keeps variable bills amount-free and resolves them after one payment in the target period", () => {
+  it("ignores legacy bills and custom reminders while retaining rental tasks", () => {
     const doc = document();
     doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, variableAmount: true, expectedAmount: "600.00" }];
-    expect(billTask(doc)).toMatchObject({ status: "needs-attention" });
-    expect(billTask(doc).expectedGrosz).toBeUndefined();
-    expect(billTask(doc).detail).toContain("Sprawdź bieżącą kwotę.");
-    doc.billPayments = [{ id: "b1", billId: "power", period: "2026-08", paidAt: "2026-08-18", amount: "650.00" }];
-    expect(billTask(doc).status).toBe("needs-attention");
-    doc.billPayments[0]!.period = "2026-09";
-    expect(billTask(doc).status).toBe("completed");
+    doc.customReminders = [{ id: "r1", title: "Polisa", dueDate: "2026-10-15", recurrence: "ONCE" }];
+    const tasks = deriveTasks(doc, new Date(2026, 8, 26, 12));
+    expect(tasks.some((item) => item.id.startsWith("RECURRING_BILL:") || item.id.startsWith("CUSTOM_REMINDER:"))).toBe(false);
+    expect(tasks.some((item) => item.type === "TENANT_PAYMENT_CHECK")).toBe(true);
   });
 
   it("uses explicit rent-rate history and does not invent historical expectations", () => {
@@ -125,19 +98,11 @@ describe("personal assistant tasks", () => {
     expect(october).toMatchObject({ title: "Sprawdź czynsz — Reduta 26B", expectedGrosz: 260_000, confirmedGrosz: 0, remainingGrosz: 260_000, status: "upcoming" });
   });
 
-  it("classifies upcoming, snoozed, dismissed and manually completed tasks without changing due dates", () => {
+  it("does not recreate tasks from legacy personal-reminder completion state", () => {
     const doc = document();
     doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-10-15", propertyId: "p1", recurrence: "ONCE" }];
-    const now = new Date(2026, 8, 26, 12);
-    const id = "CUSTOM_REMINDER:r1:2026-10-15";
-    expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("upcoming");
-    doc.taskStates = setTaskState(doc.taskStates, id, { snoozedUntil: new Date(2026, 8, 27, 9).toISOString() });
-    expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("snoozed");
-    expect(taskNotificationPlan(doc, now).find((item) => item.key === id)?.fireAt).toEqual(new Date(2026, 8, 27, 9));
-    doc.taskStates = setTaskState(doc.taskStates, id, { snoozedUntil: undefined, dismissedAt: now.toISOString() });
-    expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("dismissed");
-    doc.taskStates = setTaskState(doc.taskStates, id, { dismissedAt: undefined, completedAt: now.toISOString() });
-    expect(deriveTasks(doc, now).find((task) => task.id === id)?.status).toBe("completed");
+    doc.taskStates = [{ taskId: "CUSTOM_REMINDER:r1:2026-10-15", completedAt: "2026-10-01T08:00:00.000Z" }];
+    expect(deriveTasks(doc, new Date(2026, 8, 26, 12)).some((task) => task.id.startsWith("CUSTOM_REMINDER:"))).toBe(false);
   });
 
   it("derives paid bills and taxes from their actual payment records", () => {
@@ -150,23 +115,16 @@ describe("personal assistant tasks", () => {
     expect(deriveTasks(doc, new Date(2026, 8, 26)).find((task) => task.id === taxId)?.status).toBe("completed");
   });
 
-  it("keeps rent and bill tasks in-app while honoring their notification switches", () => {
+  it("keeps rent tasks while ignoring persisted legacy bill reminders", () => {
     const doc = document();
     doc.recurringBills = [{ id: "electricity", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false }];
     const now = new Date(2026, 8, 26, 12);
     const tasks = deriveTasks(doc, now);
     expect(tasks.some((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-09")).toBe(true);
-    expect(tasks.some((task) => task.id === "RECURRING_BILL:electricity:2026-09")).toBe(true);
+    expect(tasks.some((task) => task.id.startsWith("RECURRING_BILL:"))).toBe(false);
     const plan = taskNotificationPlan(doc, now);
     expect(plan.some((item) => item.key === "TENANT_PAYMENT_CHECK:p1:2026-09")).toBe(false);
-    expect(plan.some((item) => item.key === "RECURRING_BILL:electricity:2026-09")).toBe(false);
-  });
-
-  it("includes the bill month in the scheduled notification payload", () => {
-    const doc = document();
-    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: true }];
-    const notification = taskNotificationPlan(doc, new Date(2026, 8, 26, 12)).find((item) => item.key === "RECURRING_BILL:power:2026-10");
-    expect(notification?.data).toMatchObject({ category: "bill", billId: "power", period: "2026-10" });
+    expect(plan.some((item) => item.key.startsWith("RECURRING_BILL:"))).toBe(false);
   });
   it("keeps calculated future tax tasks when earlier periods have snapshots", () => {
     const doc = document();
