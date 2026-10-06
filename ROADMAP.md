@@ -1,5 +1,15 @@
 # Ryczałt roadmap
 
+## Product principle: memory outsourcing
+
+Ryczałt is not a nicer spreadsheet. Recording one monthly row is easy; remembering everything around it is the problem.
+
+**Store facts. Derive obligations. Surface exceptions. Become quiet when everything is done.**
+
+Configure an apartment and its terms once. From those facts the app should remember what is expected, when it is expected, what is still unconfirmed, what tax follows, which deadlines are approaching, and what needs attention. Prefer derived tasks over asking the landlord to maintain another reminder or checklist.
+
+A useful feature test is: **does this remove something the landlord otherwise has to remember, calculate, search for, or repeatedly type?** New functionality should normally enrich the existing Pulpit, Mieszkanie, Przychód or Podatek workflow rather than create another major module.
+
 ## POC freeze gate
 
 The POC feature set is frozen after the current correctness PR, portable local backup/restore, and Android/iOS build smoke tests.
@@ -36,6 +46,13 @@ Do not implement during the POC unless user evidence changes the priority:
 - additional tax regimes beyond the supported private-rental ryczałt scope;
 - analytics/engagement machinery;
 - speculative dashboard/UI polish after the freeze;
+- gentle tenant payment reminders after the due date plus a grace period when payment is still unconfirmed; start with landlord-approved SMS/WhatsApp/email text and cancel pending reminders after confirmation;
+- rent/indexation review reminders derived from apartment terms;
+- stronger lease-expiry actions/reminders without a contract-management module;
+- lightweight deposit/kaucja state and settlement reminder;
+- contextual anomaly checks (unexpected amount, possible duplicate, unusual period/date) rather than an analytics dashboard;
+- lightweight annual landlord summary, with PIT-28 export considered separately above;
+- document attachments only if users demonstrate a real need; avoid document-management scope;
 - quarterly settlement dead-code cleanup unless it creates a correctness or maintenance blocker.
 
 ## Product boundary
