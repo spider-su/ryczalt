@@ -4,7 +4,7 @@
 
 From the empty setup screen, choose **Zobacz demo** to explore two sample apartments and their payment/tax states. Demo changes stay in memory for that session, do not touch saved local data, and do not schedule OS reminders. **Wyjdź z demo** returns to the current local data.
 
-> **Implementation status:** confirmed rental income, tax calculations and payment status, guided setup, and one-time/monthly/yearly reminders are implemented. The tax screen already shows cumulative revenue and the applicable threshold; the fuller annual/PIT-28 verification summary and JSON backup/restore are upcoming, not implemented. The app does not connect to a bank or file PIT-28 electronically. See [the roadmap](docs/ROADMAP.md) and [release readiness](docs/RELEASES.md). Roadmap milestones do not imply published app versions.
+> **POC scope:** private rental only; manually confirmed rent and tax payments; apartment/current tenant/contact; owner income and media; local rent, tax and lease reminders; local JSON export/import. Recurring bills and user-created personal reminders are removed. Existing local files with those legacy fields remain readable. All data is local in AsyncStorage without app-level encryption; Android system backup may help restore but is device/settings dependent. No backend, bank integration, cloud sync or electronic PIT-28 filing. Tax is informational; future unverified years use a clearly marked provisional latest-verified-rules fallback. See the [release gate](ROADMAP.md), [product](docs/PRODUCT.md) and [release evidence](docs/RELEASES.md).
 
 ## Documentation
 
@@ -23,7 +23,7 @@ From the empty setup screen, choose **Zobacz demo** to explore two sample apartm
 
 ## Current technical baseline
 
-Expo SDK 57, React Native 0.86, React 19, TypeScript, AsyncStorage, Vitest and ESLint. The versioned local document holds apartments, manually confirmed income and tax-payment records, recurring bills, and separately confirmed bill payments. It includes a local ryczałt calculation and settlement flow. Monetary values are PLN decimal strings; avoid floating-point money calculations.
+Expo SDK 57, React Native 0.86, React 19, TypeScript, AsyncStorage, Vitest and ESLint. The versioned local document holds apartments, manually confirmed income and tax-payment records, reminders/task state and validated tax snapshots. Monetary values are PLN decimal strings; avoid floating-point money calculations. Legacy bill/reminder fields are accepted but ignored.
 
 Local storage key: `pl.ryczalt.rental.localDocument.v1`; current schema is version 1 and is intended for fresh installs. No previous schema is converted. Apartment terms are effective-dated; closed months persist apartment and account-tax snapshots. Pause marks vacancy and archive preserves history as a terminal soft delete. New apartments can seed individual historical monthly receipts with `INITIAL_IMPORT` provenance; existing months are not duplicated. Opening tax balances are aggregate prior-to-tracking context; any difference remains explicitly unassigned rather than creating a dated monthly obligation. Rent reminders are derived, grouped by due date/address, and use one global delay preference. Invalid/corrupt or unsupported documents open a recovery screen with raw-data copy and an explicitly confirmed reset. The app does not detect bank transfers or confirm payments automatically.
 

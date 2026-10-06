@@ -2,7 +2,13 @@
 
 Run this checklist on each candidate beta build. Record build commit, APK/EAS build ID, device model, Android version and date before inviting testers. An emulator pass does not replace a physical-device pass.
 
-## Device run
+## Latest candidate evidence
+
+Candidate commit/artifact: pending. The emulator and code checks in this working session are not a released candidate or evidence of the full landlord happy path. Physical Android device: unavailable in the current environment (ADB exposes only an emulator), so notification delivery/tap/reboot/permission-cycle gates remain open.
+
+POC data boundary: rental, tenant/contact, income, tax payments and reminder settings are stored locally in AsyncStorage without app-level encryption. Android `allowBackup` is enabled, but OS backup/restore depends on device/version/user settings and is not guaranteed. User-controlled JSON export/import is implemented; the required clear-data/reinstall round-trip is still a release gate.
+
+## Historical device run
 
 Latest recorded emulator: Android Studio AVD `ryczalt-api35`, model `sdk_gphone64_arm64`, Android API 35, AArch64, package `pl.ryczalt.rental`. On 2026-09-27, a local debug APK was installed and launched with Metro; all tabs and core local flows were manually exercised. This emulator evidence predates the current POC hardening changes and is not evidence for their runtime behavior. No physical Android device has been verified for this candidate.
 
@@ -17,8 +23,7 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | Request notification permission on physical device | Not run; an earlier emulator run granted permission |
 | Launch with notification permission already granted in system settings on physical device | Not run |
 | Android startup creates reminder channel independently of permission | Passed on API 35 emulator with `POST_NOTIFICATIONS` denied; pre-granted system-settings state not verified |
-| Rent, tax, bill and agreement notifications arrive at expected time | Not run |
-| One-time, monthly and yearly reminder notifications arrive for the correct occurrence | Not run |
+| Rent, tax and agreement notifications arrive at expected time | Not run on physical device |
 | Tap each notification opens the correct screen/context | Not run |
 | Snooze reschedules without changing original due date | Not run |
 | Confirm/correct/delete underlying record cancels or reopens schedule correctly | Domain tests only; OS cancellation not run |
@@ -26,22 +31,28 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | Change timezone; verify recalculation | Not run |
 | DST boundary | Not run |
 | Reboot device | Not run |
-| Fresh install and relaunch with schema 1 | App is not yet installed on user devices; verify on emulator before beta |
-| Upgrade an installed user schema | Not applicable before first distribution; add and verify an explicit migration before shipping any incompatible later schema |
+| Legacy document with bill/custom-reminder fields loads without crash/data loss | Automated compatibility test; candidate device upgrade not run |
+| Fresh install/restart with current local schema | Historical emulator evidence only; rerun against RC candidate |
 | Recover a damaged/missing primary from last-good local snapshot and show recovery notice | Automated storage tests; device recovery flow not yet run |
 | Both primary and backup damaged: retain recovery screen and offer explicit raw-data handling/reset | Automated storage tests cover preserving corruption error; device flow not yet run |
 | Tax status and deadline around Warsaw midnight, DST, weekend/public holiday, and December/Q4 January deadline | Domain tests only; device timezone/DST run not done |
-| Verify newly supported tax-year rates, thresholds, spouse conditions and due dates before January release | Required release check; current engine supports 2025 and 2026 only |
+| Verify exact-year rules and visibly provisional future-year fallback | Focused automated tests; candidate UI verification pending |
+| JSON backup export → clear/uninstall → reinstall → import | Automated format validation only; device round-trip not run |
+| Restored apartments, tenant/contact, income, tax payments, reminders, schema and tax results | Not run |
+
+## POC happy-path checklist
+
+On a clean candidate install, record apartment/address, owner income, media amount and paid-by-tenant flag, tenant/contact, lease end, rent day and reminder settings. Confirm full and partial rent, dashboard totals, selected tax period, tax payment, overpayment carry-forward, restart persistence, apartment/payment edits and deletion/correction with recalculated tax. Then complete the JSON backup round-trip above and compare restored derived tax/reminder results. No result is claimed until recorded against a build SHA.
 
 ## Manual procedure
 
 1. Install the candidate APK on a clean device and record its build/version.
 2. Repeat once with notification permission denied and once granted; confirm in-app tasks remain visible in both cases.
 3. Use test-only records with due times near the current time to verify each category, then tap notifications and inspect navigation context.
-4. Toggle each global reminder category and per-bill switch off/on; rent reminders derive from payment days and must group apartments sharing a due date. Restart between runs and check for stale or duplicate OS schedules.
-5. Snooze a task, confirm a payment, edit/delete a receipt, mark a bill paid, change/remove an agreement end date, and complete a custom reminder. Confirm only explicit recorded source data resolves financial tasks.
+4. Toggle rent, tax and agreement reminder settings. Rent reminders derive from payment days and group apartments sharing a due date. Restart between runs and check for stale or duplicate OS schedules.
+5. Snooze a supported task, confirm a payment, edit/delete a receipt and change/remove an agreement end date. Confirm only explicit recorded source data resolves financial tasks.
 6. Force-stop/reopen, change device timezone, and reboot. Check schedule reconciliation and document Android version/OEM-specific differences.
-7. Repeat first-install and app-relaunch checks on a clean install. No prior user schema exists to upgrade; add upgrade verification when a prior release is distributed.
+7. Import a legacy local document containing removed bill/custom-reminder fields and verify apartment, income and tax data remains usable; verify the legacy fields do not reappear in UI/tasks.
 8. Repeat the notification run on at least one physical Android device: test a fresh permission request and permission pre-granted in system settings, timed delivery, tap navigation, snooze, force-close/restart, duplicate prevention, and the expected local timezone/date. Record device, OS, timezone, build, and observed delivery timestamps.
 
 Do not use real tenant or financial records in screenshots, logs or shared beta evidence.

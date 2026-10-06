@@ -11,6 +11,14 @@ const base = (): RentalDocument => ({
 });
 
 describe("period snapshots", () => {
+  it("persists the verified rules year used for a provisional future settlement", () => {
+    const document = base();
+    document.properties[0]!.rentSchedule = [{ effectiveFrom: "2027-01", amount: "2500.00", taxableTreatment: "OWNER_RENT" }];
+    document.incomeEntries = [{ id: "receipt-future", propertyId: "flat-a", receivedAt: "2027-01-10", rentalMonth: "2027-01", amount: "2500.00", taxableAmount: "2500.00" }];
+    const closed = closeRentalMonth(document, "2027-01", new Date("2027-02-01T10:00:00.000Z"));
+    expect(closed.taxSettlementSnapshots?.find((snapshot) => snapshot.period === "2027-01")).toMatchObject({ rulesYear: 2027, appliedRulesYear: 2026, obligation: "213.00" });
+  });
+
   it("saves apartment and account tax results once and ignores later apartment edits", () => {
     const document = base();
     const closed = closeRentalMonth(document, "2026-09", new Date("2026-10-01T10:00:00.000Z"));

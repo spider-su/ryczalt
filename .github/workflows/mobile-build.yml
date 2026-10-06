@@ -50,7 +50,10 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Build preview on develop
         if: (github.event_name == 'push' && github.ref == 'refs/heads/develop') || (github.event_name == 'workflow_dispatch' && inputs.profile == 'preview')
-        run: eas build --platform android --profile preview --non-interactive
+        run: eas build --platform android --profile preview --non-interactive --wait
       - name: Build production artifact on main
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.profile == 'production')
-        run: eas build --platform android --profile production --non-interactive
+        run: |
+          echo "Source commit: $GITHUB_SHA"
+          echo "EAS profile: production; platform: Android"
+          eas build --platform android --profile production --non-interactive --wait

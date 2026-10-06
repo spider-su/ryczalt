@@ -10,21 +10,23 @@ Configure an apartment and its terms once. From those facts the app should remem
 
 A useful feature test is: **does this remove something the landlord otherwise has to remember, calculate, search for, or repeatedly type?** New functionality should normally enrich the existing Pulpit, Mieszkanie, Przychód or Podatek workflow rather than create another major module.
 
-## POC freeze gate
+## POC release candidate — single source of truth
 
-The POC feature set is frozen after the current correctness PR, portable local backup/restore, and Android/iOS build smoke tests.
+This file is the release gate/status source for the lightweight private-rental POC. Product scope is frozen: apartment/current tenant and contact, owner income and media, manual rent and tax payment confirmation, rent/tax/lease reminders, local-first storage, and JSON backup/restore. Bills and user-created personal reminders are removed; older documents containing their legacy fields must continue to load. No backend, bank integration, cloud sync, or electronic filing.
 
-Before tagging the POC release candidate:
+**Status: NOT READY.** Do not tag or publish until every box is supported by candidate-specific evidence.
 
-- merge the final correctness fixes;
-- run the complete Android landlord happy path on a clean emulator/physical device;
-- verify upgrade over existing local data and persistence after restart;
-- verify backup round-trip: current state → backup file → clean state/install → restore → equivalent financial screens;
-- produce an Android local artifact;
-- produce an iOS Simulator artifact locally on macOS with `eas build --platform ios --profile ios-simulator --local` and smoke-test onboarding, apartment setup, rent confirmation, Przychód, Podatek, Ustawienia, backup and restore;
-- fix only incorrect financial results, data-loss risks, broken core workflows, or device/platform blockers.
+- [ ] Main typecheck, lint, unit tests, Expo Doctor, Web export and Android prebuild green.
+- [ ] EAS Android production workflow green; downloadable artifact and build ID recorded against the exact main SHA.
+- [ ] Clean Android emulator happy path, correction/recalculation, and restart persistence pass.
+- [ ] Legacy local document loads; damaged-storage recovery behaves safely.
+- [ ] Export → clear app data/uninstall → reinstall → import round-trip verified, including tax and reminder results.
+- [ ] Physical Android notification permission, channel, delivery, tap routing, restart/reboot, revoke/regrant and duplicate checks pass.
+- [ ] Tax calculation, overpayment carry-forward, exact-year selection, provisional fallback warning and deadline tests pass.
+- [x] PR #38 scope cleanup is merged; bills/custom reminders are absent from UI and notifications.
+- [ ] Product, notification, data and tax documentation agrees on the POC scope and limitations.
 
-After this gate, do not add speculative POC features. Validate the existing monthly workflow with real landlords first.
+Only after all gates pass: set one consistent POC RC version in package/app metadata, create the release tag, and record SHA, artifact/build ID, test evidence, and known limitations. Do not create a release tag while any CI or acceptance gate is red or unverified.
 
 ## Next after POC validation
 
@@ -61,7 +63,7 @@ Ryczałt is a small landlord assistant, not a property-management suite. The rec
 
 **confirm rent → see what needs attention → know the current tax position → record payment → done.**
 
-Local-first data remains intentional. File backup/restore is the POC safety mechanism; cloud synchronization is not required for validation.
+Local-first data remains intentional. JSON export/import is the POC safety mechanism; Android system backup may restore AsyncStorage depending on device settings but is not guaranteed. Data, including tenant/contact details, is stored in AsyncStorage without app-level encryption.
 
 
 ## POC scope simplification

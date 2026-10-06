@@ -12,7 +12,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import { createRentalBackup, parseRentalBackup } from "../data/localRentalStore";
 import { pickRentalBackupContents, saveRentalBackupFile } from "../data/rentalBackupFile";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -25,7 +24,6 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidTaxMicroAccount } from "../domain/rentalValidation";
 import { hasTaxRulesForYear } from "../domain/ryczaltTax";
-import { missingPaymentDetails } from "../domain/paymentDetails";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
 import type { SetupAction } from "../domain/setupProgress";
@@ -38,7 +36,7 @@ import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLi
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
-import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsBillsEmpty, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
+import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
   address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
@@ -530,9 +528,9 @@ export function SettingsScreen() {
         <Text style={[sectionTitle, { marginTop: 18 }]}>Stan początkowy {document.settings.taxYear}</Text>
         <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w tym roku. Kwoty wpływają na roczny próg i pokazują zbiorczy stan, bez przypisywania różnicy do nieznanego miesiąca.</Text>
         <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
-        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
         <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
-        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
         <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz stan początkowy</Text></Pressable>
         </> : null}
         {activeSection === "notifications" ? <>
@@ -678,8 +676,8 @@ export function SettingsScreen() {
             <TextInput accessibilityLabel="Warunki obowiązują od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder="2026-10" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
             <Text style={{ ...muted, marginBottom: 8 }}>Zmiany czynszu, mediów, podstawy podatku i terminu dotyczą tego miesiąca i kolejnych. Zamknięte miesiące pozostają bez zmian.</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "2500" })}</View>
-              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "0" })}</View>
+              <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "np. 2500" })}</View>
+              <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "np. 0" })}</View>
             </View>
             <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
             <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
@@ -693,9 +691,9 @@ export function SettingsScreen() {
             })}
             <Text style={{ ...muted, marginBottom: 8 }}>Razem od najemcy: {tenantDraftTotal(draft)} / mies.</Text>
             <View onLayout={setupFocus === "payment-day" ? (event) => { propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true }); setSetupFocus(null); } : undefined}>
-              {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "5" })}
+              {field("Termin płatności", "paymentDay", { keyboardType: "number-pad", placeholder: "np. 5" })}
             </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={disclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><MaterialIcons name={showAdvancedProperty ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={advancedDisclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><MaterialIcons name={showAdvancedProperty ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></Pressable>
             {showAdvancedProperty ? <>
             <Text style={sectionTitle}>Daty najmu</Text>
             {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
@@ -850,6 +848,7 @@ const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignIte
 const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
 const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
 const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
+const staticPaymentValue = { color: theme.colors.textPrimary, fontSize: 16, minHeight: 38, paddingVertical: 7 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 };
 const validationError = { color: theme.colors.danger, fontSize: 13, marginTop: 3 };
 const invalidInput = { borderColor: theme.colors.danger };
@@ -865,9 +864,6 @@ const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: them
 const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
 const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
 const taxableOptionSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
-const radioMark = { width: 22, color: theme.colors.textMuted, fontSize: 20, textAlign: "center" as const };
-const radioMarkSelected = { color: theme.colors.accent };
 const taxableOptionLabel = { color: theme.colors.textPrimary, flex: 1, fontSize: 14 };
 const taxableOptionLabelSelected = { fontWeight: "600" as const };
-const disclosureRow = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingVertical: 12 };
-const disclosureChevron = { color: theme.colors.textSecondary, fontSize: 18, fontWeight: "700" as const };
+const advancedDisclosureRow = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingVertical: 12 };

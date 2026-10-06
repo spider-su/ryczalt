@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
@@ -32,7 +32,6 @@ export function PulpitScreen() {
   const { document, update, enterDemoMode } = useRentalData();
   const { permission } = useReminders();
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
   const [selectedMonth, setSelectedMonth] = useState(() => todayIsoDate().slice(0, 7));
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);

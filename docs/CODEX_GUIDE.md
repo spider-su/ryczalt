@@ -2,11 +2,11 @@
 
 Use this document as the default context for implementation tasks in this repository.
 
-## Current capability snapshot (`main` and `develop`)
+## Current POC capability snapshot
 
-- **Implemented:** Pulpit and three supporting tabs; schema-1 fresh-install local persistence; confirmed income and tax/bill payments; effective-month owner rent; separate tenant payment and explicit taxable-treatment settings; apartment lifecycle; historical rent bootstrap; shared tax engine and task projection; grouped rent reminders with global delay; administration/electricity links; one-time/monthly/yearly custom reminders and compact statistics; guided setup.
+- **Implemented:** private-rental Pulpit and supporting tabs; validated schema-1 local persistence; confirmed rental income and tax payments; effective-month owner rent and separate media; explicit taxable treatment; apartment lifecycle/current tenant/contact; historical rent bootstrap; shared tax engine; grouped rent, tax and lease reminders; user-controlled JSON backup/restore; guided setup. Legacy bill/custom-reminder fields remain readable but are not surfaced or scheduled.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
-- **Upcoming priorities:** year-to-date/annual tax and PIT-28 verification summary, and local JSON backup/restore. These are not implemented. Investory integration remains later/optional.
+- **POC release readiness:** see the root [ROADMAP](../ROADMAP.md); emulator happy path, JSON restore round-trip and physical notification verification are evidence gates. Tax rules are versioned; a future unverified year uses a visible provisional fallback. Investory integration remains later/optional.
 
 Source code and tests on the checked-out branch are authoritative; these labels should be revisited when code changes.
 
@@ -125,7 +125,7 @@ Keep apartment setup small but sufficient for derived workflows:
 - rent due day (default 5 for new apartments);
 - optional agreement end date;
 - administration and electricity-provider links;
-- optional fixed/variable recurring bills.
+- optional administrator/electricity provider links.
 
 Do not turn this into full contract lifecycle management.
 
@@ -180,7 +180,7 @@ No competitor screen should be copied. Adapt only interaction patterns documente
 
 ## 10. Scope guardrails
 
-Product priority is confirmed income → ryczałt calculation → payment deadline → annual settlement readiness. Apartment setup, expected rent, reminders, tax payment details and local backup/restore support that job. Recurring bills, links, agreement reminders and light statistics are conveniences. Do not let them displace the core workflow.
+Product priority is confirmed income → ryczałt calculation → payment deadline → annual settlement readiness. Apartment setup, expected rent, rent/tax/lease reminders, tax payment details and local backup/restore support that job. Bills and custom/personal reminders are outside the POC scope. Do not let supporting workflows displace the core.
 
 Do not implement upcoming features unless they are explicitly in scope for the task:
 - year-to-date/annual tax summary and PIT-28 verification readiness (upcoming 0.6/0.7; not electronic filing);
@@ -237,7 +237,7 @@ At minimum consider:
 
 ## 13. Release discipline
 
-Roadmap milestones are not releases. Do not bump versions or claim a feature shipped merely because its code exists on a feature branch.
+Roadmap milestones are not releases. Do not bump versions or claim release readiness from source code, unit tests or a feature branch alone; see the exact-evidence gates in the root [ROADMAP](../ROADMAP.md).
 
 Before release, follow `docs/RELEASES.md`, especially:
 - local data migration, when there is a released prior schema;

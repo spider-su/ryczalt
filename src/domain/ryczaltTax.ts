@@ -5,8 +5,19 @@ export const RYCZALT_RULES = {
   2026: { lowerLimitPln: 100_000, lowerRate: 85, upperRate: 125 },
 } as const;
 export const SUPPORTED_TAX_YEARS = Object.keys(RYCZALT_RULES).map(Number) as (keyof typeof RYCZALT_RULES)[];
-export function hasTaxRulesForYear(year: number): year is keyof typeof RYCZALT_RULES {
-  return Object.prototype.hasOwnProperty.call(RYCZALT_RULES, year);
+export function hasTaxRulesForYear(year: number): boolean {
+  return year >= Math.min(...SUPPORTED_TAX_YEARS);
+}
+/** Select verified year-specific rules, or the latest verified year provisionally for future years. */
+export function taxRulesYearFor(year: number): number {
+  if (!Number.isInteger(year) || year < Math.min(...SUPPORTED_TAX_YEARS)) throw new Error(`Tax rules for ${year} are not available`);
+  if (Object.prototype.hasOwnProperty.call(RYCZALT_RULES, year)) return year;
+  const latest = Math.max(...SUPPORTED_TAX_YEARS);
+  if (year > latest) return latest;
+  throw new Error(`Tax rules for ${year} are not available`);
+}
+export function taxRulesAreProvisional(year: number): boolean {
+  return taxRulesYearFor(year) !== year;
 }
 export function taxNavigationYears(now = new Date(), firstYear = 2025): number[] {
   return Array.from({ length: Math.max(0, now.getFullYear() - firstYear + 1) }, (_, index) => firstYear + index);
@@ -24,6 +35,7 @@ export function settlementPeriodForMonth(month: string, mode: SettlementMode): s
 
 export type Settlement = {
   period: string;
+  rulesYear: number;
   revenueGrosz: number;
   taxableBaseGrosz: number;
   cumulativeRevenueGrosz: number;
@@ -105,8 +117,7 @@ export function taxOnRevenue(
 ): number {
   if (!Number.isSafeInteger(cumulativeRevenueGrosz) || cumulativeRevenueGrosz < 0)
     throw new Error("Revenue amount is out of range");
-  const rules = RYCZALT_RULES[taxYear as keyof typeof RYCZALT_RULES];
-  if (!rules) throw new Error(`Tax rules for ${taxYear} are not available`);
+  const rules = RYCZALT_RULES[taxRulesYearFor(taxYear) as keyof typeof RYCZALT_RULES];
   const taxableBaseGrosz = roundTaxBaseGrosz(cumulativeRevenueGrosz);
   return taxOnBaseAfter(taxableBaseGrosz, 0, rules, jointSpouseThreshold);
 }
@@ -136,6 +147,8 @@ export function calculateTaxYear(args: {
   today?: string;
 }): TaxYearCalculation {
   const { entries, payments, taxYear, mode, jointSpouseThreshold = false } = args;
+  const rulesYear = taxRulesYearFor(taxYear);
+  const taxRules = RYCZALT_RULES[rulesYear as keyof typeof RYCZALT_RULES];
   const now = new Date();
   const today = args.today ?? todayInPoland(now);
   const periods = Array.from({ length: mode === "monthly" ? 12 : 4 }, (_, i) =>
@@ -181,8 +194,6 @@ export function calculateTaxYear(args: {
       if (!Number.isSafeInteger(next)) throw new Error("Period revenue is too large");
       return next;
     }, 0);
-    const taxRules = RYCZALT_RULES[taxYear as keyof typeof RYCZALT_RULES];
-    if (!taxRules) throw new Error(`Tax rules for ${taxYear} are not available`);
     const taxableBaseGrosz = roundTaxBaseGrosz(revenueGrosz);
     const periodObligationGrosz = taxOnBaseAfter(taxableBaseGrosz, cumulativeTaxableBaseGrosz, taxRules, jointSpouseThreshold);
     const obligationGrosz = periodObligationGrosz;
@@ -212,7 +223,7 @@ export function calculateTaxYear(args: {
     const dueDate = paymentDeadline(taxYear, index, mode);
     const paidGrosz = paymentTotals[index]!;
     const outstandingForPeriodGrosz = unpaidByPeriod.get(index) ?? 0;
-    return { period, revenueGrosz, taxableBaseGrosz, cumulativeRevenueGrosz, obligationGrosz,
+    return { period, rulesYear, revenueGrosz, taxableBaseGrosz, cumulativeRevenueGrosz, obligationGrosz,
       cumulativeTaxGrosz, allocatedPaidGrosz: obligationGrosz - outstandingForPeriodGrosz, paidGrosz,
       creditAppliedGrosz: creditUsedGrosz, outstandingGrosz: outstandingForPeriodGrosz,
       overpaidGrosz, dueDate, status: "due" as const };
@@ -254,9 +265,14 @@ function roundTaxNumerator(groszTimesThousandths: bigint): number {
 function paymentDeadline(year: number, index: number, mode: SettlementMode): string {
   const month = mode === "monthly" ? index + 2 : (index + 1) * 3 + 1;
   const due = new Date(Date.UTC(year + Math.floor((month - 1) / 12), (month - 1) % 12, 20));
+  const override = TAX_DEADLINE_OVERRIDES[year]?.[`${mode}:${index}`];
+  if (override) return override;
   while (isPolishNonWorkingDay(due)) due.setUTCDate(due.getUTCDate() + 1);
   return due.toISOString().slice(0, 10);
 }
+
+/** Exceptional statutory deadline changes can be represented by tax year and period index. */
+export const TAX_DEADLINE_OVERRIDES: Readonly<Record<number, Readonly<Record<string, string>>>> = {};
 
 function isPolishNonWorkingDay(date: Date): boolean {
   const day = date.getUTCDay();

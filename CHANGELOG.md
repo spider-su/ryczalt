@@ -8,6 +8,7 @@ This file records **delivered and verified changes**, not roadmap promises.
 
 - Simplified apartment entry with progressive disclosure, lifecycle states, compact property rows, a calculated tenant-paid total and global delayed rent reminders.
 - Added schema-v6 migration defaults and an idempotent completed-month rent bootstrap with separate tenant-total and taxable-owner amounts.
+- POC tax-year fallback to latest verified rules for future years, with provisional-state calculation metadata and a visible tax-screen warning.
 
 ### Fixed
 
@@ -16,6 +17,8 @@ This file records **delivered and verified changes**, not roadmap promises.
 - Persisted-data validation rejects invalid dates and periods; recovery lets the user copy raw data and reset only after explicit confirmation.
 - Tax payments apply to the oldest outstanding periods first and carry excess credit forward without changing income records.
 - Android reminder channels are ensured at startup and foreground; transient scheduling failures remain retryable without changing permission state.
+- Fixed the removed-bills/reminders merge leftovers, Settings disclosure declarations and tax-recipient style; legacy fields remain loadable but no longer project tasks or notifications.
+- Kept historical rent bootstrap tax payments opt-in so the app never assumes a prior tax payment was made.
 - Fixed recurring-bill completion uses the exact sum of confirmed payments for that bill and period; partial payments leave the task open. Variable bills resolve after an explicit payment.
 - Recurring-bill tasks and notification taps preserve the bill period through confirmation, independently of the actual payment date.
 - Reminder recurrence uses deterministic month-end and leap-day rules without changing the saved anchor date.
@@ -31,6 +34,6 @@ This file records **delivered and verified changes**, not roadmap promises.
 
 - Updated MVP, notification and user-flow documentation for recurring-bill partial payments and period-aware confirmation.
 - Documented the local-first product boundaries, architecture, data/migration contract, calculation expectations, competitive patterns and release gates.
-- Repositioned product and roadmap documentation around confirmed rent, tax calculation, payment deadlines, annual verification readiness and local backup/restore priorities; clarified that PIT-28 filing and backup/restore are not implemented.
+- Aligned the release checklist and product/data/notification/tax documentation on local JSON export/import as a POC gate, local unencrypted AsyncStorage, best-effort Android backup, removed non-core features, and provisional future tax-year rules.
 
 All entries remain **unreleased** until a versioned release is explicitly tagged. Proposed roadmap milestones are not app versions or published releases.

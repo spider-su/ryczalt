@@ -52,7 +52,7 @@ describe("rental presentation helpers", () => {
   });
 
   it("puts only active operational tasks in attention; rent stays with the monthly rent summary", () => {
-    const operationalTypes: AssistantTask["type"][] = ["TAX_PAYMENT", "RECURRING_BILL", "RENTAL_AGREEMENT_END", "CUSTOM_REMINDER"];
+    const operationalTypes: AssistantTask["type"][] = ["TAX_PAYMENT", "RENTAL_AGREEMENT_END"];
     const active = operationalTypes.map((type) => ({ ...task(type, "needs-attention", 0), type }));
     const rent = { ...task("rent", "needs-attention", 0), type: "TENANT_PAYMENT_CHECK" as const };
     const dismissed = { ...active[0]!, id: "dismissed", status: "dismissed" as const };
@@ -144,7 +144,7 @@ describe("rental presentation helpers", () => {
   });
 
   it("keeps settings capability reachable by category", () => {
-    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Rachunki cykliczne", "Powiadomienia", "Dane lokalne"]);
+    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Powiadomienia", "Dane lokalne"]);
     expect(settingsSections.map(({ label }) => label).join(" ")).not.toMatch(/kopia zapasowa|backup|restore/i);
   });
 

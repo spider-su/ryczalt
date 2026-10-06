@@ -111,7 +111,7 @@ describe("task reminders and payment details", () => {
     const plan = taskNotificationPlan(doc, now);
     expect(plan.map((item) => item.key)).toEqual(expect.arrayContaining([
       expect.stringMatching(/^TENANT_PAYMENT_CHECK:/), expect.stringMatching(/^RENTAL_AGREEMENT_END:/),
-      expect.stringMatching(/^TAX_PAYMENT:/), expect.stringMatching(/^RECURRING_BILL:/), expect.stringMatching(/^CUSTOM_REMINDER:/),
+      expect.stringMatching(/^TAX_PAYMENT:/),
     ]));
     for (const reminder of plan) {
       expect(`${reminder.title} ${reminder.body}`).not.toMatch(/Prąd|Sprawdź licznik|3000|1000|poufne/);
@@ -121,8 +121,6 @@ describe("task reminders and payment details", () => {
       "TENANT_PAYMENT_CHECK:group:": "rent",
       "RENTAL_AGREEMENT_END:": "agreements",
       "TAX_PAYMENT:": "tax",
-      "RECURRING_BILL:": "bills",
-      "CUSTOM_REMINDER:": "custom",
     };
     for (const [prefix, category] of Object.entries(keyCategory)) {
       const switchedOff = structuredClone(doc);
@@ -136,15 +134,10 @@ describe("task reminders and payment details", () => {
 
     const sourceSwitchesOff = structuredClone(doc);
     sourceSwitchesOff.settings.reminderCategories.rent = false;
-    sourceSwitchesOff.recurringBills[0]!.reminderEnabled = false;
     expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))).toBe(false);
-    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("RECURRING_BILL:b1:"))).toBe(false);
     expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("TENANT_PAYMENT_CHECK:"))).toBe(true);
-    expect(deriveTasks(sourceSwitchesOff, now).some((task) => task.id.startsWith("RECURRING_BILL:b1:"))).toBe(true);
     sourceSwitchesOff.settings.reminderCategories.rent = true;
-    sourceSwitchesOff.recurringBills[0]!.reminderEnabled = true;
     expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))).toBe(true);
-    expect(taskNotificationPlan(sourceSwitchesOff, now).some((item) => item.key.startsWith("RECURRING_BILL:b1:"))).toBe(true);
 
     const active = taskNotificationPlan(doc, now);
     const rentKey = active.find((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))!.key;
