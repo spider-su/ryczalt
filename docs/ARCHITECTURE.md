@@ -32,3 +32,7 @@ Use local notifications on supported native devices with permission handling and
 On Android, create the reminder channel at startup independently of notification permission; channel setup is idempotent. Permission/support state is separate from schedule reconciliation. A scheduling failure does not mark permission unavailable; reconciliation retries after data/settings changes and when the app returns to the foreground.
 
 See [DATA_MODEL](DATA_MODEL.md), [NOTIFICATIONS](NOTIFICATIONS.md) and [RELEASES](RELEASES.md).
+
+## Separately hosted web calculator
+
+The public calculator at [ryczalt.smart-box.workers.dev](https://ryczalt.smart-box.workers.dev/) is not part of the Expo app architecture. It is a static HTML/CSS/vanilla-JavaScript site served as Cloudflare Worker static assets, configured by root `wrangler.jsonc` with `site/` as its asset directory. Calculation runs in the browser using integer grosz arithmetic; the page has no app API, backend, persistence, or shared tax-engine module. It is therefore a separate tax-maintenance and deployment surface. Do not infer mobile-app behavior, app-data handling, or EAS artifact readiness from the site. See [WEB_CALCULATOR](WEB_CALCULATOR.md) for its purpose, limitations and operational verification notes.

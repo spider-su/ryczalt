@@ -35,5 +35,6 @@ This file records **delivered and verified changes**, not roadmap promises.
 - Updated MVP, notification and user-flow documentation for recurring-bill partial payments and period-aware confirmation.
 - Documented the local-first product boundaries, architecture, data/migration contract, calculation expectations, competitive patterns and release gates.
 - Aligned the release checklist and product/data/notification/tax documentation on local JSON export/import as a POC gate, local unencrypted AsyncStorage, best-effort Android backup, removed non-core features, and provisional future tax-year rules.
+- Documented the separately hosted public tax calculator's product role, simplified calculation boundary, static Cloudflare Workers implementation and independent tax/deployment maintenance checks.
 
 All entries remain **unreleased** until a versioned release is explicitly tagged. Proposed roadmap milestones are not app versions or published releases.

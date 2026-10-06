@@ -16,6 +16,8 @@ This file is the release gate/status source for the lightweight private-rental P
 
 **Status: NOT READY.** Do not tag or publish until every box is supported by candidate-specific evidence.
 
+The public [web tax calculator](https://ryczalt.smart-box.workers.dev/) is a separate informational companion hosted as static Cloudflare Worker assets. It is not an app release gate, app Web build, shared tax engine, or backend. Its purpose, current calculation limits, technology and independent maintenance/deployment checks are documented in [WEB_CALCULATOR](docs/WEB_CALCULATOR.md).
+
 - [ ] Main typecheck, lint, unit tests, Expo Doctor, Web export and Android prebuild green.
 - [ ] EAS Android production workflow green; downloadable artifact and build ID recorded against the exact main SHA.
 - [ ] Clean Android emulator happy path, correction/recalculation, and restart persistence pass.
@@ -24,7 +26,7 @@ This file is the release gate/status source for the lightweight private-rental P
 - [ ] Physical Android notification permission, channel, delivery, tap routing, restart/reboot, revoke/regrant and duplicate checks pass.
 - [ ] Tax calculation, overpayment carry-forward, exact-year selection, provisional fallback warning and deadline tests pass.
 - [x] PR #38 scope cleanup is merged; bills/custom reminders are absent from UI and notifications.
-- [ ] Product, notification, data and tax documentation agrees on the POC scope and limitations.
+- [ ] Product, notification, data, tax and public-calculator documentation agrees on the POC scope, calculation boundaries and limitations.
 
 Only after all gates pass: set one consistent POC RC version in package/app metadata, create the release tag, and record SHA, artifact/build ID, test evidence, and known limitations. Do not create a release tag while any CI or acceptance gate is red or unverified.
 

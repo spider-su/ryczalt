@@ -58,6 +58,10 @@ No backend, bank integration, automatic payment confirmation or cloud sync. User
 
 Not Investory (no portfolio analytics, valuations or retirement planning); not `ryczalt_it` (no JDG/VAT/KSeF accounting); not a full property manager (no tenant accounts, messaging, document repository or maintenance tickets).
 
+## Public web companion
+
+The independently hosted [public calculator](https://ryczalt.smart-box.workers.dev/) is a lightweight, informational introduction for landlords who want a quick annual estimate before installing the app. It is a standalone static page, not a Web version of the local rental ledger and not an app backend. It does not receive or synchronize apartment, tenant, payment or tax-payment records. Its calculation and annual tax copy are separate from the app's tax engine and must be reviewed independently when rules change. Technical and calculation boundaries are recorded in [WEB_CALCULATOR](WEB_CALCULATOR.md).
+
 ## Status
 
 - **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent/tax/lease notifications and compact statistics. Bills and personal reminders are removed from the POC UI/scheduling; legacy fields remain readable.
