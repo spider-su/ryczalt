@@ -14,6 +14,8 @@ Private rental only; manual rent and tax payment confirmation; local reminders f
 
 Tax calculations are informational. Rules are versioned by year; exact verified rules take precedence, while future unverified years use the latest verified rules provisionally with a visible warning and saved applied-rules-year metadata. Users must verify the result before paying.
 
+The [public web calculator](https://ryczalt.smart-box.workers.dev/) is a separate static Cloudflare Worker companion, not the app's Web release or an app-data service. Its URL returned HTTP 200 on 2026-10-06; that check did not verify the deployed revision or recertify its tax calculation. Check the live page, APK/download link, tax copy and metadata independently before promoting them. See [WEB_CALCULATOR](WEB_CALCULATOR.md).
+
 ## Prior verification (not current candidate evidence)
 
 An Android API 35 emulator was previously used for app launch, core local flows, notification-channel creation with permission denied and malformed-data recovery. That run predates this release-candidate work and does not establish the complete happy path, reinstall/restore, current artifact behavior or physical-device notification delivery/taps. Re-run checks against the exact candidate and update this section with dated evidence.

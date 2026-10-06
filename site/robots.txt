@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ryczalt.smart-box.workers.dev/sitemap.xml

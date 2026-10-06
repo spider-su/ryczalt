@@ -1,0 +1,8 @@
+{
+  "name": "ryczalt",
+  "compatibility_date": "2026-10-04",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./site"
+  }
+}

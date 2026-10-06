@@ -14,6 +14,7 @@ From the empty setup screen, choose **Zobacz demo** to explore two sample apartm
 - [Competitor patterns we intentionally adopt](docs/COMPETITIVE_ANALYSIS.md)
 - [Codex implementation context](docs/CODEX_GUIDE.md)
 - [Technical architecture](docs/ARCHITECTURE.md)
+- [Public web calculator: idea, implementation and technical details](docs/WEB_CALCULATOR.md)
 - [Local data contract](docs/DATA_MODEL.md)
 - [Tasks and local notifications](docs/NOTIFICATIONS.md)
 - [Roadmap](docs/ROADMAP.md)
@@ -28,6 +29,8 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript, AsyncStorage, Vitest and E
 Local storage key: `pl.ryczalt.rental.localDocument.v1`; current schema is version 1 and is intended for fresh installs. No previous schema is converted. Apartment terms are effective-dated; closed months persist apartment and account-tax snapshots. Pause marks vacancy and archive preserves history as a terminal soft delete. New apartments can seed individual historical monthly receipts with `INITIAL_IMPORT` provenance; existing months are not duplicated. Opening tax balances are aggregate prior-to-tracking context; any difference remains explicitly unassigned rather than creating a dated monthly obligation. Rent reminders are derived, grouped by due date/address, and use one global delay preference. Invalid/corrupt or unsupported documents open a recovery screen with raw-data copy and an explicitly confirmed reset. The app does not detect bank transfers or confirm payments automatically.
 
 Native reminders are opt-in, categorized, reconciled from current local data, and scheduled for 09:00 in device-local time. Web keeps in-app reminders/status but does not schedule OS notifications. Payment details support copy actions; a Polish-bank-compatible QR format is deliberately deferred pending reliable compatibility verification. See [notification behavior](docs/NOTIFICATIONS.md), [data model](docs/DATA_MODEL.md), and [tax rules](docs/TAX_RULES.md).
+
+The separate [public tax calculator](https://ryczalt.smart-box.workers.dev/) is a static informational companion, not the app's Web release or a backend for app data. Its purpose, calculation boundary, implementation and deployment notes are in [WEB_CALCULATOR.md](docs/WEB_CALCULATOR.md); its tax content is maintained separately from the app's versioned tax engine.
 
 ## Development
 
