@@ -8,11 +8,13 @@ Release candidate evidence must record the exact main SHA, app version, GitHub C
 
 ## Product and privacy boundaries
 
-The Android app stores apartment, tenant/contact, income, tax-payment and reminder configuration locally in AsyncStorage. The app does not add encryption to that storage. Android system backup is enabled, but restore depends on Android/device/user settings and is not guaranteed. User-controlled JSON export/import is available and is a POC gate. There is no backend, account, bank connection, cloud sync or electronic PIT-28 submission.
+Native Android/iOS apartment, tenant/contact, income, tax-payment and reminder records are encrypted locally with AES-256-GCM; the device-bound key is stored by SecureStore/Keychain/Keystore. Android system backup is disabled. Valid pre-encryption local documents migrate on first load; JSON export/import remains user-controlled plaintext. Browser storage is not app-encrypted. No backend, account, bank connection, cloud sync or electronic PIT-28 submission exists. Privacy and store declaration evidence remains incomplete; see [PRIVACY_RELEASE_EVIDENCE](PRIVACY_RELEASE_EVIDENCE.md).
 
 Private rental only; manual rent and tax payment confirmation; local reminders for rent, tax and lease expiry. Non-core recurring bills and custom/personal reminders are removed from UI/task/notification flows. Legacy fields remain compatible in old local documents/backups and are ignored by current projections.
 
 Tax calculations are informational. Rules are versioned by year; exact verified rules take precedence, while future unverified years use the latest verified rules provisionally with a visible warning and saved applied-rules-year metadata. Users must verify the result before paying.
+
+Reminder plans are normalized by stable logical key before reconciliation. Identical entries collapse; invalid or conflicting duplicate identities fail before pending OS notifications are changed. Document commits, permission changes, restart and foreground resume trigger serialized reconciliation against the latest committed document. Pending notification behavior is covered by automated tests; Android delivery, tap routing, reboot and device-specific behavior remain separate physical-device gates.
 
 The [public web calculator](https://ryczalt.smart-box.workers.dev/) is a separate static Cloudflare Worker companion, not the app's Web release or an app-data service. Its URL returned HTTP 200 on 2026-10-06; that check did not verify the deployed revision or recertify its tax calculation. Check the live page, APK/download link, tax copy and metadata independently before promoting them. See [WEB_CALCULATOR](WEB_CALCULATOR.md).
 

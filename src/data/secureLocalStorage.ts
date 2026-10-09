@@ -1,13 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Crypto from "expo-crypto";
-import * as SecureStore from "expo-secure-store";
 import { gcm } from "@noble/ciphers/aes.js";
 import { Platform } from "react-native";
 
 const KEY_ID = "pl.ryczalt.rental.document-encryption-key.v1";
 const PREFIX = "ryczalt-encrypted:v1:";
 const AAD = new TextEncoder().encode("pl.ryczalt.rental.local-document.v1");
-const keyOptions = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+const keyOptions = async () => {
+  const SecureStore = await import("expo-secure-store");
+  return { module: SecureStore, options: { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY } };
+};
+
+async function randomBytes(count: number): Promise<Uint8Array> {
+  const Crypto = await import("expo-crypto");
+  return Crypto.getRandomBytesAsync(count);
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -27,12 +33,13 @@ async function encryptionKey(): Promise<Uint8Array> {
 }
 
 async function readOrCreateEncryptionKey(): Promise<Uint8Array> {
-  let encoded = await SecureStore.getItemAsync(KEY_ID, keyOptions);
+  const { module: SecureStore, options } = await keyOptions();
+  let encoded = await SecureStore.getItemAsync(KEY_ID, options);
   if (encoded === null) {
-    const candidate = bytesToBase64(await Crypto.getRandomBytesAsync(32));
-    await SecureStore.setItemAsync(KEY_ID, candidate, keyOptions);
+    const candidate = bytesToBase64(await randomBytes(32));
+    await SecureStore.setItemAsync(KEY_ID, candidate, options);
     // Another startup may have initialized the key concurrently; always use the stored winner.
-    encoded = await SecureStore.getItemAsync(KEY_ID, keyOptions);
+    encoded = await SecureStore.getItemAsync(KEY_ID, options);
   }
   if (encoded === null) throw new Error("Local encryption key is unavailable.");
   const key = base64ToBytes(encoded);
@@ -56,7 +63,7 @@ export async function getProtectedItem(key: string): Promise<string | null> {
 
 export async function setProtectedItem(key: string, value: string): Promise<void> {
   if (Platform.OS === "web") return AsyncStorage.setItem(key, value);
-  const nonce = await Crypto.getRandomBytesAsync(12);
+  const nonce = await randomBytes(12);
   const cipher = gcm(await encryptionKey(), nonce, AAD).encrypt(new TextEncoder().encode(value));
   await AsyncStorage.setItem(key, `${PREFIX}${bytesToBase64(nonce)}:${bytesToBase64(cipher)}`);
 }
@@ -66,7 +73,8 @@ export async function removeProtectedItem(key: string): Promise<void> {
 }
 
 export async function removeLocalEncryptionKey(): Promise<void> {
-  await SecureStore.deleteItemAsync(KEY_ID, keyOptions);
+  const { module: SecureStore, options } = await keyOptions();
+  await SecureStore.deleteItemAsync(KEY_ID, options);
   keyPromise = null;
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RentalDocument } from "../model/rental";
-import { createSerializedReconciler, reconcileReminderSchedule } from "../notifications/reconcile";
+import { createSerializedReconciler, NotificationPlanInvariantError, normalizeReminderPlan, reconcileReminderSchedule } from "../notifications/reconcile";
 import { missingPaymentDetails } from "./paymentDetails";
 import { isValidPolishBankAccount } from "./rentalValidation";
 import { supportsLocalNotifications } from "../notifications/support";
@@ -26,7 +26,7 @@ describe("task reminders and payment details", () => {
     const now = new Date(2026, 8, 1, 8);
     const september = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:2026-09:"));
     expect(september).toHaveLength(1);
-    expect(september[0]?.body).toContain("Parkowa, Mogilska 12 / 8");
+    expect(september[0]?.body).not.toMatch(/Parkowa|Mogilska/);
     doc.properties[1]!.paymentDay = 25;
     doc.properties[1]!.rentSchedule![0]!.paymentDay = 25;
     const split = taskNotificationPlan(doc, now).filter((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:2026-09:"));
@@ -50,7 +50,7 @@ describe("task reminders and payment details", () => {
     const agreement = taskNotificationPlan(doc, new Date(2026, 9, 1, 8)).find((item) => item.key === "RENTAL_AGREEMENT_END:p1:2026-12-31:30");
     expect(agreement?.fireAt).toEqual(new Date(2026, 11, 1, 9));
     const cancel = vi.fn(async () => undefined);
-    const schedule = vi.fn(async () => undefined);
+    const schedule = vi.fn(async (_reminder: (typeof plan)[number]) => undefined);
     await reconcileReminderSchedule(plan, [], cancel, schedule);
     await reconcileReminderSchedule(plan, plan.map((item, index) => ({ identifier: `${index}`, reminderKey: `ryczalt:${item.key}`, signature: item.signature })), cancel, schedule);
     expect(schedule).toHaveBeenCalledTimes(plan.length);
@@ -59,12 +59,32 @@ describe("task reminders and payment details", () => {
 
   it("retries a transient scheduling failure without changing support or permission state", async () => {
     const plan = taskNotificationPlan(fixture(), new Date(2026, 0, 1, 8));
-    const cancel = vi.fn(async () => undefined);
+    const cancel = vi.fn(async (_identifier: string) => undefined);
     const schedule = vi.fn().mockRejectedValueOnce(new Error("temporary OS scheduling failure")).mockResolvedValue(undefined);
-    await expect(reconcileReminderSchedule(plan, [], cancel, schedule)).rejects.toThrow("temporary OS scheduling failure");
+    await expect(reconcileReminderSchedule(plan, [], cancel, schedule)).rejects.toMatchObject({ phase: "schedule" });
     expect(supportsLocalNotifications("android")).toBe(true);
     expect(await reconcileReminderSchedule(plan, [], cancel, schedule)).toBeUndefined();
     expect(schedule).toHaveBeenCalledTimes(plan.length + 1);
+  });
+
+  it("retries after a partial cancellation failure and converges without duplicate keys", async () => {
+    const plan = taskNotificationPlan(fixture(), new Date(2026, 8, 26, 8));
+    const rent = plan.find((item) => item.key.startsWith("TENANT_PAYMENT_CHECK:group:"))!;
+    const pending = [
+      { identifier: "keep", reminderKey: `ryczalt:${rent.key}`, signature: rent.signature },
+      { identifier: "duplicate", reminderKey: `ryczalt:${rent.key}`, signature: rent.signature },
+    ];
+    const cancel = vi.fn().mockRejectedValueOnce(new Error("OS cancellation failed")).mockImplementation(async (identifier: string) => {
+      const index = pending.findIndex((item) => item.identifier === identifier);
+      if (index >= 0) pending.splice(index, 1);
+    });
+    const schedule = vi.fn(async () => undefined);
+    await expect(reconcileReminderSchedule(plan, structuredClone(pending), cancel, schedule)).rejects.toMatchObject({ phase: "cancel" });
+    await reconcileReminderSchedule(plan, structuredClone(pending), cancel, schedule);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.identifier).toBe("keep");
+    expect(schedule).toHaveBeenCalledTimes(plan.length - 1);
+    expect(new Set(pending.map((item) => item.reminderKey)).size).toBe(1);
   });
 
   it("ensures the Android channel independently and tolerates repeated initialization", async () => {
@@ -100,6 +120,40 @@ describe("task reminders and payment details", () => {
     ], cancel, schedule);
     expect(cancel).toHaveBeenCalledWith("rent-duplicate");
     expect(schedule).not.toHaveBeenCalledWith(rent);
+  });
+
+  it("collapses identical desired keys before scheduling", async () => {
+    const plan = taskNotificationPlan(fixture(), new Date(2026, 8, 26, 8));
+    const duplicate = plan[0]!;
+    const schedule = vi.fn(async (_reminder: (typeof plan)[number]) => undefined);
+    const cancel = vi.fn(async (_identifier: string) => undefined);
+    expect(normalizeReminderPlan([...plan, structuredClone(duplicate)])).toHaveLength(plan.length);
+    await reconcileReminderSchedule([...plan, structuredClone(duplicate)], [], cancel, schedule);
+    expect(schedule).toHaveBeenCalledTimes(plan.length);
+    expect(new Set(schedule.mock.calls.map(([reminder]) => reminder.key)).size).toBe(plan.length);
+  });
+
+  it("rejects conflicting desired keys before changing OS schedules", async () => {
+    const plan = taskNotificationPlan(fixture(), new Date(2026, 8, 26, 8));
+    const original = plan[0]!;
+    const conflict = { ...original, signature: `${original.signature}:different` };
+    const schedule = vi.fn(async () => undefined);
+    const cancel = vi.fn(async () => undefined);
+    await expect(reconcileReminderSchedule([...plan, conflict], [], cancel, schedule)).rejects.toBeInstanceOf(NotificationPlanInvariantError);
+    expect(cancel).not.toHaveBeenCalled();
+    expect(schedule).not.toHaveBeenCalled();
+  });
+
+  it("normalizes direct unnormalized input and never schedules a duplicate logical key", async () => {
+    const plan = taskNotificationPlan(fixture(), new Date(2026, 8, 26, 8));
+    const duplicate = structuredClone(plan[0]!);
+    const pending: { identifier: string; reminderKey: string; signature: string }[] = [];
+    const schedule = vi.fn(async (reminder: (typeof plan)[number]) => {
+      pending.push({ identifier: `os-${pending.length}`, reminderKey: `ryczalt:${reminder.key}`, signature: reminder.signature });
+    });
+    await reconcileReminderSchedule([...plan, duplicate], pending, vi.fn(async () => undefined), schedule);
+    expect(pending).toHaveLength(plan.length);
+    expect(new Set(pending.map((item) => item.reminderKey)).size).toBe(plan.length);
   });
 
   it("converges to one pending occurrence when reconciliation runs twice or restarts", async () => {

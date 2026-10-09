@@ -2,11 +2,10 @@ import * as Notifications from "expo-notifications";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
 import { AppState, Linking, Platform } from "react-native";
 import { taskNotificationPlan } from "../domain/tasks";
-import { createSerializedReconciler, reconcileReminderSchedule } from "./reconcile";
+import { createSerializedReconciler, NotificationPlanInvariantError, NotificationReconciliationError, normalizeReminderPlan, reconcileReminderSchedule } from "./reconcile";
 import { useRentalData } from "../data/RentalDataProvider";
 import { supportsLocalNotifications } from "./support";
 import { ensureAndroidReminderChannel } from "./androidChannel";
-import { shouldReconcileNotifications } from "../data/demoRentalDocument";
 
 export type ReminderPermission = "unknown" | "granted" | "denied" | "unavailable";
 type ReminderContextValue = { permission: ReminderPermission; requestPermission: () => Promise<ReminderPermission> };
@@ -31,9 +30,14 @@ export function ReminderProvider({ children }: PropsWithChildren) {
   const serializedReconcile = useRef<(() => Promise<void>) | null>(null);
   if (!serializedReconcile.current) {
     serializedReconcile.current = createSerializedReconciler(() => desiredRef.current, async (desired) => {
-      if (!desired.document || !shouldReconcileNotifications(desired.isDemoMode, true, desired.permission === "granted")) return;
-      const plan = taskNotificationPlan(desired.document);
+      if (!desired.document || desired.isDemoMode || desired.permission === "unknown" || desired.permission === "unavailable") return;
+      let desiredCount = 0;
+      let pendingCount = 0;
       try {
+        const candidatePlan = desired.permission === "granted" ? taskNotificationPlan(desired.document) : [];
+        desiredCount = candidatePlan.length;
+        const plan = normalizeReminderPlan(candidatePlan);
+        desiredCount = plan.length;
         if (Platform.OS === "android") await ensureAndroidReminderChannel(Platform.OS, Notifications.setNotificationChannelAsync);
         const existing = await Notifications.getAllScheduledNotificationsAsync();
         const owned = existing.filter((item) => String(item.content.data?.reminderKey ?? "").startsWith("ryczalt:")).map((item) => ({
@@ -41,6 +45,7 @@ export function ReminderProvider({ children }: PropsWithChildren) {
           reminderKey: String(item.content.data?.reminderKey ?? ""),
           signature: String(item.content.data?.signature ?? ""),
         }));
+        pendingCount = owned.length;
         await reconcileReminderSchedule(plan, owned,
           (identifier) => Notifications.cancelScheduledNotificationAsync(identifier),
           async (reminder) => {
@@ -54,8 +59,20 @@ export function ReminderProvider({ children }: PropsWithChildren) {
             });
           },
         );
-      } catch {
-        // Scheduling failures are transient; foreground/data/settings changes retry.
+      } catch (error) {
+        const failure = error instanceof NotificationPlanInvariantError
+          ? "INVALID_PLAN"
+          : error instanceof NotificationReconciliationError
+            ? `OS_${error.phase.toUpperCase()}`
+            : "OS_QUERY_OR_CHANNEL";
+        console.warn("[Ryczałt notifications] reconciliation failed; retry on next app resume or committed data change.", {
+          failure,
+          desiredCount,
+          pendingCount,
+          ...(error instanceof NotificationPlanInvariantError
+            ? { invalidKeyCount: error.invalidKeyCount, conflictingDuplicateCount: error.conflictingDuplicateCount }
+            : {}),
+        });
       }
     });
   }
@@ -89,26 +106,39 @@ export function ReminderProvider({ children }: PropsWithChildren) {
     await serializedReconcile.current?.();
   }, []);
 
-  useEffect(() => {
-    if (!supportsLocalNotifications(Platform.OS)) return;
-    void Notifications.getPermissionsAsync().then((result) => setPermission(result.granted ? "granted" : result.canAskAgain ? "unknown" : "denied")).catch(() => setPermission("unavailable"));
+  const refreshPermission = useCallback(async () => {
+    if (!supportsLocalNotifications(Platform.OS)) {
+      setPermission("unavailable");
+      return;
+    }
+    try {
+      const result = await Notifications.getPermissionsAsync();
+      setPermission(result.granted ? "granted" : result.canAskAgain ? "unknown" : "denied");
+    } catch {
+      setPermission("unavailable");
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshPermission();
+  }, [refreshPermission]);
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
     void ensureAndroidReminderChannel(Platform.OS, Notifications.setNotificationChannelAsync).catch(() => undefined);
   }, []);
 
-  useEffect(() => { void reconcile(); }, [reconcile]);
+  useEffect(() => { void reconcile(); }, [document, isDemoMode, permission, reconcile]);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         if (Platform.OS === "android") void ensureAndroidReminderChannel(Platform.OS, Notifications.setNotificationChannelAsync).catch(() => undefined);
+        void refreshPermission();
         void reconcile();
       }
     });
     return () => subscription.remove();
-  }, [reconcile]);
+  }, [reconcile, refreshPermission]);
 
   const value = useMemo(() => ({ permission, requestPermission }), [permission, requestPermission]);
   return <ReminderContext.Provider value={value}>{children}</ReminderContext.Provider>;
