@@ -54,9 +54,10 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 
 ### D. Tax calculation and manual payment
 
-1. Open Podatek for the same current tax year/month. For `3500 zł` taxable confirmed receipts, verify displayed obligation is `298 zł` (8.5% rounded to whole PLN), with the due date and payment state visible.
-2. Confirm a `298 zł` tax payment for the displayed period.
-3. Verify remaining tax is `0 zł`, the state says no tax remains to pay, and the primary payment CTA is hidden/disabled. Tax revenue remains `3500 zł`.
+1. Open Podatek for the same current tax year/month and verify the taxable revenue, obligation, due date, and payment state against the receipts' saved taxable amounts. Do not assume taxable revenue equals gross receipts: under `OWNER_RENT`, the default taxable amount across partial receipts is capped at the scheduled owner's rent. In the C fixture (3,000 zł owner rent; 1,500 zł first receipt after editing; 2,000 zł second receipt), the second receipt defaults to 1,500 zł taxable, so total taxable revenue is 3,000 zł and the obligation is `255 zł` (8.5%, rounded to whole PLN). The separate 500 zł rent overpayment remains unallocated.
+   - If specifically exercising a 3,500 zł tax base and `298 zł` obligation, explicitly set the second receipt's taxable amount to `2,000 zł` with the taxable-amount override before confirming it. This verifies the tax calculator with that saved taxable amount; it is a separate scenario from the `OWNER_RENT` default and should only be used when the selected synthetic contractual treatment calls for the full amount to be taxable.
+2. Confirm the displayed obligation for the chosen taxable-base scenario (255 zł for the default C fixture, or 298 zł for the explicitly overridden 3,500 zł scenario).
+3. Verify remaining tax is `0 zł`, the state shows the period is paid, and the primary payment CTA is hidden/disabled. Verify the taxable revenue still matches the selected scenario (3,000 zł by default or 3,500 zł with the explicit override).
 4. Confirm the December/Q4 annual-date behavior in domain tests; do not change emulator date to try to reach December.
 5. Capture before/after tax evidence.
 
