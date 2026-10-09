@@ -27,6 +27,8 @@ The public [web tax calculator](https://ryczalt.smart-box.workers.dev/) is a sep
 - [ ] Tax calculation, overpayment carry-forward, exact-year selection, provisional fallback warning and deadline tests pass.
 - [x] PR #38 scope cleanup is merged; bills/custom reminders are absent from UI and notifications.
 - [ ] Product, notification, data, tax and public-calculator documentation agrees on the POC scope, calculation boundaries and limitations.
+- [ ] Privacy policy is completed and publicly hosted; Google Play Data safety and Apple App Privacy declarations are reviewed against exact release builds; candidate-specific evidence is recorded in [privacy release evidence](docs/PRIVACY_RELEASE_EVIDENCE.md).
+- [ ] Native local-data encryption migration, recovery, export/import and Android backup policy are validated on release builds; browser storage limitation is disclosed.
 
 Only after all gates pass: set one consistent POC RC version in package/app metadata, create the release tag, and record SHA, artifact/build ID, test evidence, and known limitations. Do not create a release tag while any CI or acceptance gate is red or unverified.
 
@@ -65,7 +67,7 @@ Ryczałt is a small landlord assistant, not a property-management suite. The rec
 
 **confirm rent → see what needs attention → know the current tax position → record payment → done.**
 
-Local-first data remains intentional. JSON export/import is the POC safety mechanism; Android system backup may restore AsyncStorage depending on device settings but is not guaranteed. Data, including tenant/contact details, is stored in AsyncStorage without app-level encryption.
+Local-first data remains intentional. Native Android/iOS data is encrypted at rest with a device-held key; Android system backup is disabled because ciphertext without that key cannot be restored. JSON export/import remains the user-controlled portability mechanism and exports plaintext. Browser storage is not app-encrypted. See [privacy release evidence](docs/PRIVACY_RELEASE_EVIDENCE.md).
 
 
 ## POC scope simplification

@@ -12,7 +12,7 @@ Tax snapshots retain `rulesYear` as the tax year and may also carry `appliedRule
 
 ## Storage and backup
 
-Rental, tenant/contact, income, tax and reminder configuration is stored locally in AsyncStorage without app-level encryption. No backend, account sync or remote backup exists. Android declares `android:allowBackup="true"`; OS backup/restore varies by device, Android version and user settings and is not guaranteed after uninstall.
+Rental, tenant/contact, income, tax and reminder configuration is stored locally. Android/iOS AsyncStorage values are AES-256-GCM encrypted with a random key stored through SecureStore/Keychain/Keystore; a valid legacy plaintext document is encrypted after validation on first load. The last-good recovery copy is encrypted too. Android system backup is disabled because the device-bound key is not backed up. User JSON backups remain plaintext for portability. Web storage remains browser-managed and is not app-encrypted. No backend, account sync or remote backup exists.
 
 User-controlled JSON export/import is implemented. Exported data includes the schema version and full local document. Restore validates the file before replacing current data and leaves the current document unchanged on validation failure. Export a copy outside the app before uninstall/device change. A full export → clear/uninstall → reinstall → import → compare financial results is required POC evidence; automated JSON tests alone do not prove that device round-trip.
 
