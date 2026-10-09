@@ -26,7 +26,7 @@ Settings exports a validated JSON document for the user to store outside the app
 
 ## Cross-cutting behavior
 
-- Rental records and tenant/contact data remain local in AsyncStorage without app-level encryption; there is no backend or bank integration.
+- Native Android/iOS rental records and tenant/contact data remain local and encrypted at rest; Web storage is browser-managed and not app-encrypted. There is no backend or bank integration. User-created JSON backups are plaintext and remain under the user's control.
 - Snooze changes reminder time only, never payment amount or legal deadline.
 - Denied notification permission does not remove in-app tasks; native delivery/tap behavior requires physical-device verification.
 - Existing documents containing removed bill/custom-reminder fields remain loadable, but those fields do not create UI, tasks or notifications.

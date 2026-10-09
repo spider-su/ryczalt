@@ -54,7 +54,7 @@ Competitor layouts and flows are references, not templates. Do not copy propriet
 
 ## Boundaries
 
-No backend, bank integration, automatic payment confirmation or cloud sync. User-controlled JSON export/import is implemented and is a POC release gate. Android system backup is enabled but depends on OS/device settings and does not guarantee restore after uninstall. Apartment, income, tax, reminder and tenant/contact data is stored locally in AsyncStorage without app-level encryption. Tax calculations are informational; rates are versioned and verified by year, with visible provisional fallback for future unverified years. The app does not submit electronic PIT-28. Investory integration remains later/optional.
+No backend, bank integration, automatic payment confirmation or cloud sync. User-controlled JSON export/import is implemented and is a POC release gate; exported files are plaintext. Native Android/iOS local records and recovery copies are encrypted at rest using a key held in the platform secure store. Android system backup is disabled so encrypted records cannot be restored without their device-bound key. Web storage is browser-managed and not app-encrypted. Tax calculations are informational; rates are versioned and verified by year, with visible provisional fallback for future unverified years. The app does not submit electronic PIT-28. Investory integration remains later/optional.
 
 Not Investory (no portfolio analytics, valuations or retirement planning); not `ryczalt_it` (no JDG/VAT/KSeF accounting); not a full property manager (no tenant accounts, messaging, document repository or maintenance tickets).
 

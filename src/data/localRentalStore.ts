@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getProtectedItem, isEncryptedLocalValue, removeLocalEncryptionKey, removeProtectedItem, setProtectedItem } from "./secureLocalStorage";
 
 import type {
   BillPayment,
@@ -111,12 +112,12 @@ export async function loadRentalDocument(): Promise<RentalDocument> {
 export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoadResult> {
   let raw: string | null;
   try {
-    raw = await AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
+    raw = await getProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY);
   } catch (primaryReadError) {
     return recoverFromBackup(primaryReadError);
   }
   if (raw === null) {
-    const backupRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_BACKUP_KEY);
+    const backupRaw = await getProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
     if (backupRaw !== null) return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
 
     // One-time namespace migration. Only a legacy document that validates against the
@@ -125,7 +126,7 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
     if (legacyRaw !== null) {
       try {
         const legacyDocument = parseRentalDocument(legacyRaw);
-        await AsyncStorage.setItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(legacyDocument));
+        await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(legacyDocument));
         return { document: legacyDocument, recoveredFromBackup: false };
       } catch {
         // Never classify an older namespace as corrupted current data and never delete it.
@@ -133,11 +134,29 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
     }
     return { document: emptyDocument(), recoveredFromBackup: false };
   }
+  let document: RentalDocument;
   try {
-    return { document: parseRentalDocument(raw), recoveredFromBackup: false };
+    document = parseRentalDocument(raw);
   } catch (primaryError) {
     if (primaryError instanceof RentalStoreError && primaryError.code === "UNSUPPORTED_VERSION") throw primaryError;
     return recoverFromBackup(primaryError);
+  }
+  // A valid pre-encryption document is upgraded in place only after validation succeeds.
+  if (!isEncryptedLocalValue(raw)) {
+    await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(document));
+    await migratePlaintextRecoveryCopy();
+  }
+  return { document, recoveredFromBackup: false };
+}
+
+async function migratePlaintextRecoveryCopy(): Promise<void> {
+  try {
+    const backupRaw = await getProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
+    if (backupRaw === null || isEncryptedLocalValue(backupRaw)) return;
+    const backup = parseRentalDocument(backupRaw);
+    await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(backup));
+  } catch {
+    // A bad recovery copy is retained for deliberate recovery; it must not block the valid primary.
   }
 }
 
@@ -145,29 +164,30 @@ export async function saveRentalDocument(
   document: RentalDocument,
 ): Promise<void> {
   const next = JSON.stringify(validateRentalDocument(document));
-  const currentRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
+  const currentRaw = await getProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY);
   if (currentRaw !== null) {
     try {
       const lastGood = parseRentalDocument(currentRaw);
-      await AsyncStorage.setItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(lastGood));
+      await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(lastGood));
     } catch (error) {
       if (!(error instanceof RentalStoreError) || error.code === "UNSUPPORTED_VERSION") throw error;
       // Never copy corrupted bytes into the backup; a valid existing backup remains untouched.
     }
   }
-  await AsyncStorage.setItem(RENTAL_DOCUMENT_STORAGE_KEY, next);
+  await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, next);
 }
 
 export async function readRawRentalDocument(): Promise<string | null> {
-  return AsyncStorage.getItem(RENTAL_DOCUMENT_STORAGE_KEY);
+  return getProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY);
 }
 
 /** Removes unreadable local data only after the user confirms an explicit reset. */
 export async function resetRentalDocument(): Promise<void> {
-  await AsyncStorage.removeItem(RENTAL_DOCUMENT_BACKUP_KEY);
-  await AsyncStorage.removeItem(RENTAL_DOCUMENT_STORAGE_KEY);
+  await removeProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
+  await removeProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY);
   await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_BACKUP_KEY);
   await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
+  await removeLocalEncryptionKey();
 }
 
 function parseRentalDocument(raw: string): RentalDocument {
@@ -183,7 +203,7 @@ function parseRentalDocument(raw: string): RentalDocument {
 async function recoverFromBackup(primaryError: unknown): Promise<RentalDocumentLoadResult> {
   let backupRaw: string | null;
   try {
-    backupRaw = await AsyncStorage.getItem(RENTAL_DOCUMENT_BACKUP_KEY);
+    backupRaw = await getProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
   } catch {
     throw primaryError;
   }

@@ -6,7 +6,7 @@ Run this checklist on each candidate beta build. Record build commit, APK/EAS bu
 
 Candidate commit/artifact: pending. The emulator and code checks in this working session are not a released candidate or evidence of the full landlord happy path. Physical Android device: unavailable in the current environment (ADB exposes only an emulator), so notification delivery/tap/reboot/permission-cycle gates remain open.
 
-POC data boundary: rental, tenant/contact, income, tax payments and reminder settings are stored locally in AsyncStorage without app-level encryption. Android `allowBackup` is enabled, but OS backup/restore depends on device/version/user settings and is not guaranteed. User-controlled JSON export/import is implemented; the required clear-data/reinstall round-trip is still a release gate.
+POC data boundary: rental, tenant/contact, income, tax payments and reminder settings are stored in an AES-256-GCM encrypted local document; its key is held in Android Keystore via SecureStore. Android backup is disabled because the device-bound key is not restored. User-controlled JSON export/import is implemented and exports plaintext; the required clear-data/reinstall round-trip remains a release gate.
 
 ## Historical device run
 
