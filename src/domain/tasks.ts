@@ -170,9 +170,8 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
   for (const [groupKey, group] of rentGroups) {
     const first = group[0]!;
     const fireAt = nextTaskNotificationAt(first, document, now)!;
-    const addresses = [...new Set(group.map((task) => document.properties.find((property) => property.id === task.propertyId)?.address).filter((address): address is string => Boolean(address)))];
     const title = "Sprawdź wpłaty czynszu";
-    const body = `Termin dzisiaj: ${addresses.join(", ")}`;
+    const body = "Otwórz Ryczałt, aby sprawdzić adresy i statusy wpłat.";
     notifications.push({ key: `TENANT_PAYMENT_CHECK:group:${groupKey}`, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
       data: { category: "rent", period: first.period, propertyId: first.propertyId, taskIds: group.map((task) => task.id) } });
   }

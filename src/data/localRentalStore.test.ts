@@ -25,6 +25,14 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
+vi.mock("./secureLocalStorage", () => ({
+  getProtectedItem: (key: string) => AsyncStorage.getItem(key),
+  setProtectedItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
+  removeProtectedItem: (key: string) => AsyncStorage.removeItem(key),
+  removeLocalEncryptionKey: vi.fn(),
+  isEncryptedLocalValue: (value: string | null) => value?.startsWith("ryczalt-encrypted:v1:") ?? false,
+}));
+
 const storage = vi.mocked(AsyncStorage);
 
 const validDocument: RentalDocument = {

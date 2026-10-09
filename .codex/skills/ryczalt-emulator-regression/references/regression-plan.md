@@ -4,7 +4,7 @@
 
 - AVD: `ryczalt-api35` (`sdk_gphone64_arm64`), Android API 35, default 320×640 at 160 dpi.
 - App package: `pl.ryczalt.rental`; use a fresh standalone release APK built from the current checkout, not Metro/debug.
-- Primary scenario label: `QA-Parkowa`; expected monthly rent PLN 3,000; payment day 10; use the app's current month and today's actual date when entering receipts.
+- Primary scenario label: `QA-Parkowa`; expected monthly rent PLN 3,000; payment day 10; use the app's current month and today's actual date when entering receipts. Never change the emulator clock to force a path.
 - Data is synthetic and stored only on the disposable emulator. No production tenant/account or backend is involved.
 - Evidence folder: `artifacts/emulator-e2e/<YYYYMMDD-HHMM>-<short-commit>/`. Never reuse a prior run folder. Store screenshots and `uiautomator` dumps there; record a short results.md with case outcomes and APK SHA-256.
 
@@ -37,24 +37,27 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 
 ### B. Apartment and current rent state
 
-1. Open Ustawienia → Mieszkania and add `QA-Parkowa` with expected monthly rent `3000 zł` and payment day `10`. Leave optional tenant and account fields blank. If the form prepopulates an end date, focus the date field by tapping at the end of the displayed ISO date, then press Backspace once per character (10 times for `YYYY-MM-DD`) and verify the field is empty after dismissing the keyboard. Save. Avoid relying on cursor-end key events; they did not reliably move the caret on the API 35 AVD.
+1. Open Ustawienia → Mieszkania and add `QA-Parkowa` with expected monthly rent `3000 zł` and payment day `10`. Choose a taxable-rent treatment so receipt confirmation can be saved. Leave optional tenant and account fields blank. If the form prepopulates an end date, focus the date field by tapping at the end of the displayed ISO date, then press Backspace once per character (10 times for `YYYY-MM-DD`) and verify the field is empty after dismissing the keyboard. Save. Avoid relying on cursor-end key events; they did not reliably move the caret on the API 35 AVD.
 2. Verify the apartment appears in settings and its current-month unpaid state appears on Pulpit. Confirm current month / due date is plausible for the emulator's real date.
 3. Capture property and dashboard evidence.
 
 ### C. Exact, partial, and multiple receipt reconciliation
 
-1. Open Przychód → Potwierdź wpłatę. Add a `3000 zł` receipt for QA-Parkowa dated today and assigned to the current rent month. Confirm.
+1. Compare today's actual date with QA-Parkowa's current-month payment due date. The bulk `Potwierdź otrzymane czynsze` flow intentionally lists only rents whose due date has arrived; the dashboard summary can still show the remaining expected amount before then. Do not treat an empty bulk list before the due date as a receipt-data failure.
+   - **Before the due date:** Do not use the dashboard's bulk-confirmation summary. On Pulpit, tap the QA-Parkowa apartment card to open its individual `Potwierdź wpłatę` quick-add form. Add a `3000 zł` receipt dated today and assigned to the current rent month, then confirm. The Przychód tab shows current-month rent status/history; it does not itself expose a new-receipt button in the default view.
+   - **On or after the due date:** Either use the Pulpit apartment-card quick-add flow or tap the dashboard's bulk-confirmation summary and select QA-Parkowa in `Potwierdź otrzymane czynsze`. Add/confirm a `3000 zł` receipt dated today for the current rent month. In the bulk sheet, verify the apartment row and amount are present before confirming. Never move the emulator date forward to reach this branch.
 2. Verify the property is fully paid, remaining is `0 zł`, the current rent task is no longer active, and confirmed income history contains one receipt.
 3. Edit that receipt to `1500 zł`. Verify the current expectation becomes partially paid, remaining is `1500 zł`, and the action/task remains available.
-4. Add another receipt for the same property and rent month for `2000 zł`, dated today. Verify total received is `3500 zł`, expected rent is satisfied, remaining is `0 zł`, and any `500 zł` excess is shown as excess/unallocated rather than silently lost or assigned to another month.
+4. Add another receipt for the same property and rent month for `2000 zł`, dated today. Use the Pulpit QA-Parkowa apartment card to open individual quick-add; this path is available whether or not the due date has arrived. Verify total received is `3500 zł`, expected rent is satisfied, remaining is `0 zł`, and any `500 zł` excess is shown as excess/unallocated rather than silently lost or assigned to another month.
 5. Verify Pulpit and Przychód agree on totals and status. The pending-confirmation section must not list the fully paid apartment; confirmed history should show both receipts.
 6. Capture evidence after exact, partial, and combined-payment states.
 
 ### D. Tax calculation and manual payment
 
-1. Open Podatek for the same current tax year/month. For `3500 zł` taxable confirmed receipts, verify displayed obligation is `298 zł` (8.5% rounded to whole PLN), with the due date and payment state visible.
-2. Confirm a `298 zł` tax payment for the displayed period.
-3. Verify remaining tax is `0 zł`, the state says no tax remains to pay, and the primary payment CTA is hidden/disabled. Tax revenue remains `3500 zł`.
+1. Open Podatek for the same current tax year/month and verify the taxable revenue, obligation, due date, and payment state against the receipts' saved taxable amounts. Do not assume taxable revenue equals gross receipts: under `OWNER_RENT`, the default taxable amount across partial receipts is capped at the scheduled owner's rent. In the C fixture (3,000 zł owner rent; 1,500 zł first receipt after editing; 2,000 zł second receipt), the second receipt defaults to 1,500 zł taxable, so total taxable revenue is 3,000 zł and the obligation is `255 zł` (8.5%, rounded to whole PLN). The separate 500 zł rent overpayment remains unallocated.
+   - If specifically exercising a 3,500 zł tax base and `298 zł` obligation, explicitly set the second receipt's taxable amount to `2,000 zł` with the taxable-amount override before confirming it. This verifies the tax calculator with that saved taxable amount; it is a separate scenario from the `OWNER_RENT` default and should only be used when the selected synthetic contractual treatment calls for the full amount to be taxable.
+2. Confirm the displayed obligation for the chosen taxable-base scenario (255 zł for the default C fixture, or 298 zł for the explicitly overridden 3,500 zł scenario).
+3. Verify remaining tax is `0 zł`, the state shows the period is paid, and the primary payment CTA is hidden/disabled. Verify the taxable revenue still matches the selected scenario (3,000 zł by default or 3,500 zł with the explicit override).
 4. Confirm the December/Q4 annual-date behavior in domain tests; do not change emulator date to try to reach December.
 5. Capture before/after tax evidence.
 

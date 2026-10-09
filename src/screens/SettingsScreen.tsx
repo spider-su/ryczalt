@@ -602,7 +602,7 @@ export function SettingsScreen() {
         {showArchivedProperties ? archivedProperties.map((property) => <View key={property.id} style={[ui.card, apartmentCard]}><Text style={apartmentTitle}>{property.address}</Text><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane · historia zachowana</Text><Pressable accessibilityRole="button" accessibilityLabel={`Utwórz nowe mieszkanie na podstawie ${property.address}`} onPress={() => openNewApartmentFromArchived(property)} style={{ paddingVertical: 10 }}><Text style={action}>Utwórz nowy wpis z tych danych</Text></Pressable></View>) : null}
         </> : null}
         {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text></View>
+          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text><Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane na urządzeniu. Aplikacja nie wysyła rejestru na serwer. Wersja przeglądarkowa nie zapewnia szyfrowania aplikacyjnego.</Text><Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text></View>
           <View style={[ui.card, trustCard]}>
             <Text style={sectionTitle}>Kopia danych</Text>
             <Text style={muted}>Zapisz kopię, aby móc przywrócić historię najmu i podatku na tym lub innym urządzeniu.</Text>
