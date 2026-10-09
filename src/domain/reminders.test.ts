@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RentalDocument } from "../model/rental";
-import { reconcileReminderSchedule } from "../notifications/reconcile";
+import { createSerializedReconciler, reconcileReminderSchedule } from "../notifications/reconcile";
 import { missingPaymentDetails } from "./paymentDetails";
 import { isValidPolishBankAccount } from "./rentalValidation";
 import { supportsLocalNotifications } from "../notifications/support";
@@ -100,6 +100,69 @@ describe("task reminders and payment details", () => {
     ], cancel, schedule);
     expect(cancel).toHaveBeenCalledWith("rent-duplicate");
     expect(schedule).not.toHaveBeenCalledWith(rent);
+  });
+
+  it("converges to one pending occurrence when reconciliation runs twice or restarts", async () => {
+    const plan = taskNotificationPlan(fixture(), new Date(2026, 8, 26, 8));
+    const pending: { identifier: string; reminderKey: string; signature: string }[] = [];
+    let serial = 0;
+    const cancel = vi.fn(async (identifier: string) => {
+      const index = pending.findIndex((item) => item.identifier === identifier);
+      if (index >= 0) pending.splice(index, 1);
+    });
+    const schedule = vi.fn(async (reminder: (typeof plan)[number]) => {
+      pending.push({ identifier: `os-${++serial}`, reminderKey: `ryczalt:${reminder.key}`, signature: reminder.signature });
+    });
+    const reconcile = () => reconcileReminderSchedule(plan, structuredClone(pending), cancel, schedule);
+    await reconcile();
+    await reconcile(); // app restart, OS schedules retained
+    expect(pending).toHaveLength(plan.length);
+    expect(new Set(pending.map((item) => item.reminderKey)).size).toBe(plan.length);
+    expect(schedule).toHaveBeenCalledTimes(plan.length);
+  });
+
+  it("serializes concurrent requests and reconciles the latest desired state", async () => {
+    let desired = "old";
+    const active: string[] = [];
+    const seen: string[] = [];
+    let peak = 0;
+    const reconcile = createSerializedReconciler(() => desired, async (value) => {
+      seen.push(value);
+      active.push(value);
+      peak = Math.max(peak, active.length);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active.pop();
+    });
+    const first = reconcile();
+    desired = "latest";
+    const second = reconcile();
+    await Promise.all([first, second]);
+    expect(peak).toBe(1);
+    expect(seen.at(-1)).toBe("latest");
+    expect(active).toEqual([]);
+  });
+
+  it("cancels obsolete occurrences on confirmation, correction and setting changes", async () => {
+    const doc = fixture();
+    const now = new Date(2026, 8, 1, 8);
+    const original = taskNotificationPlan(doc, now);
+    const scheduled = original.map((item, index) => ({ identifier: `os-${index}`, reminderKey: `ryczalt:${item.key}`, signature: item.signature }));
+    doc.incomeEntries.push({ id: "i2", propertyId: "p1", receivedAt: "2026-09-01", rentalMonth: "2026-09", amount: "3000.00", taxableAmount: "3000.00" });
+    doc.settings.rentReminderDelayDays = 3;
+    const changed = taskNotificationPlan(doc, now);
+    const cancel = vi.fn(async () => undefined);
+    const schedule = vi.fn(async () => undefined);
+    await reconcileReminderSchedule(changed, scheduled, cancel, schedule);
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("keeps logical reminder identities stable across repeated plan derivation", () => {
+    const doc = fixture();
+    const plan = taskNotificationPlan(doc, new Date("2026-09-01T08:00:00Z"));
+    const repeated = taskNotificationPlan(doc, new Date("2026-09-01T08:00:00Z"));
+    expect(plan.every((item) => item.key.length > 0 && !/^\d+$/.test(item.key))).toBe(true);
+    expect(new Set(plan.map((item) => item.key)).size).toBe(plan.length);
+    expect(repeated.map((item) => item.key)).toEqual(plan.map((item) => item.key));
   });
 
   it("uses generic lock-screen text and keeps each category switch independent", async () => {

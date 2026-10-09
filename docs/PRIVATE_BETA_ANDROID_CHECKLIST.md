@@ -55,4 +55,17 @@ On a clean candidate install, record apartment/address, owner income, media amou
 7. Import a legacy local document containing removed bill/custom-reminder fields and verify apartment, income and tax data remains usable; verify the legacy fields do not reappear in UI/tasks.
 8. Repeat the notification run on at least one physical Android device: test a fresh permission request and permission pre-granted in system settings, timed delivery, tap navigation, snooze, force-close/restart, duplicate prevention, and the expected local timezone/date. Record device, OS, timezone, build, and observed delivery timestamps.
 
+## Duplicate-notification regression procedure
+
+Run on a clean candidate APK on a physical Android device and record the APK SHA, app version, device model, Android version, locale and timezone. Do not mark this check passed from a JS bundle export or emulator run.
+
+1. Grant notification permission. Create test-only rental data that produces an upcoming grouped rent reminder, a tax deadline reminder and an agreement-expiration reminder. Confirm each notification tap opens its existing rent, tax or agreement context.
+2. Inspect the app's OS pending list with `Notifications.getAllScheduledNotificationsAsync()` (use a temporary local diagnostic build or debugger inspection). For each item, record `identifier`, `content.data.reminderKey`, `content.data.signature`, and trigger. Count by `reminderKey`: each key must occur once. Do not count Expo's generated `identifier` as the logical identity.
+3. Force-stop and reopen the app several times, including reopening after a device reboot. Reinspect the pending list after every launch. The same logical keys should remain at count one.
+4. Confirm a rent payment, correct its amount/date, change rent reminder delay, disable and re-enable rent/tax/agreement categories, snooze a task, and change a lease end date. Reinspect after each change; obsolete keys should be absent and each still-desired key should occur once.
+5. Verify grouping: apartments sharing a due date have one group key and no corresponding individual rent notifications. Change one apartment's due date and confirm groups split without stale schedules.
+6. Cause a local cancellation or scheduling attempt to fail in a diagnostic build, then restore normal operation and trigger reconciliation. Verify retries converge to one pending schedule per key without canceling unrelated app notifications.
+7. Allow each category's notification time to arrive and record actual alert count and delivery timestamps. Pending schedule count and delivered alert count are separate observations: a single pending schedule can still be delivered twice by OS/vendor behavior, while a duplicate alert alone does not prove two pending schedules.
+8. Tap each delivered alert and confirm navigation. Record pending-list snapshots and delivery observations separately in the table above; leave device-only checks marked not run until observed on hardware.
+
 Do not use real tenant or financial records in screenshots, logs or shared beta evidence.

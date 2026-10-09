@@ -2,6 +2,16 @@ import type { ReturnTypeTaskNotification } from "../domain/tasks";
 
 export type ScheduledReminder = { identifier: string; reminderKey: string; signature: string };
 
+/** Serialize OS mutations and read desired state only when each run begins. */
+export function createSerializedReconciler<T>(getLatest: () => T, reconcile: (desired: T) => Promise<void>) {
+  let queue = Promise.resolve();
+  return () => {
+    const run = () => reconcile(getLatest());
+    queue = queue.then(run, run);
+    return queue;
+  };
+}
+
 export async function reconcileReminderSchedule(
   plan: ReturnTypeTaskNotification[],
   scheduled: ScheduledReminder[],
