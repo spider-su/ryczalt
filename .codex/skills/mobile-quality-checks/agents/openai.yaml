@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ryczałt Quality Checks"
+  short_description: "Run mobile CI and Expo Doctor"
+  default_prompt: "Run Ryczałt quality checks and report test results and gaps."

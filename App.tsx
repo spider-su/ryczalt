@@ -2,7 +2,7 @@ import { createNavigationContainerRef, NavigationContainer } from '@react-naviga
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -18,6 +18,8 @@ import { notificationDataToIntent } from './src/navigation/notificationIntent';
 import { useRentalData } from './src/data/RentalDataProvider';
 import { LocalDataRecoveryScreen } from './src/screens/LocalDataRecoveryScreen';
 import { appSafeAreaEdges, tabBarSafeAreaStyle } from './src/navigation/safeAreaLayout';
+import { AppErrorBoundary } from './src/components/AppErrorBoundary';
+import { LoadingState } from './src/components/LoadingState';
 
 const Tabs = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef<any>();
@@ -57,7 +59,7 @@ function RentalApp() {
     return () => subscription.remove();
   }, []);
   if (loadError) return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><LocalDataRecoveryScreen error={loadError} retryLoad={retryLoad} copyRawData={copyRawData} resetLocalData={resetLocalData} /></SafeAreaView>;
-  if (!document) return <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><ActivityIndicator color={theme.colors.primary} /></SafeAreaView>;
+  if (!document) return <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} /><LoadingState state="loading" color={theme.colors.primary} /></SafeAreaView>;
   return <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }} edges={appSafeAreaEdges}><StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
     {isDemoMode ? <View accessibilityLabel="Tryb demo — przykładowe dane. Zmiany w demo nie są zapisywane." style={{ minHeight: 42, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: mode === 'dark' ? '#28252A' : '#F5F2F3', borderBottomWidth: 1, borderBottomColor: theme.colors.borderSubtle }}>
       <View style={{ flex: 1, paddingRight: 8 }}><Text style={{ color: theme.colors.textPrimary, fontSize: 12, fontWeight: '700' }}>Tryb demo — przykładowe dane</Text><Text style={{ color: theme.colors.textSecondary, fontSize: 10 }}>Zmiany w demo nie są zapisywane</Text></View>
@@ -81,4 +83,4 @@ function RentalApp() {
     </Tabs.Navigator>
   </View></NavigationContainer></SafeAreaView>;
 }
-export default function App() { return <SafeAreaProvider><ThemeProvider><RentalDataProvider><ReminderProvider><RentalApp /></ReminderProvider></RentalDataProvider></ThemeProvider></SafeAreaProvider>; }
+export default function App() { return <SafeAreaProvider><ThemeProvider><AppErrorBoundary><RentalDataProvider><ReminderProvider><RentalApp /></ReminderProvider></RentalDataProvider></AppErrorBoundary></ThemeProvider></SafeAreaProvider>; }
