@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
+import { FormButton, FormFeedback } from "../components/FormControls";
 import * as Clipboard from "expo-clipboard";
 import { theme } from "../theme/theme";
 
@@ -50,15 +51,11 @@ export function LocalDataRecoveryScreen({ error, retryLoad, copyRawData, resetLo
     <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 12 }}>Nie można otworzyć danych</Text>
     <Text style={{ color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22, marginBottom: 16 }}>{reason}</Text>
     <Text style={{ color: theme.colors.textSecondary, fontSize: 14, lineHeight: 21, marginBottom: 20 }}>Dane nie zostały automatycznie zmienione. Skopiuj surową zawartość przed resetem, jeśli chcesz ją zachować do odzyskania.</Text>
-    <Pressable accessibilityRole="button" disabled={busy} onPress={() => void copy()} style={{ minHeight: 48, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 12, marginBottom: 10 }}>
-      <Text style={{ color: theme.colors.primary, fontWeight: "700" }}>Kopiuj surowe dane</Text>
-    </Pressable>
-    <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setBusy(true); void retryLoad().finally(() => setBusy(false)); }} style={{ minHeight: 48, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 12, marginBottom: 10 }}>
-      <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Spróbuj ponownie</Text>
-    </Pressable>
-    <Pressable accessibilityRole="button" disabled={busy} onPress={confirmReset} style={{ minHeight: 48, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.danger, borderRadius: 12 }}>
-      <Text style={{ color: "white", fontWeight: "700" }}>Resetuj dane lokalne</Text>
-    </Pressable>
-    {!!message && <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.textSecondary, marginTop: 14 }}>{message}</Text>}
+    <View style={{ gap: 10 }}>
+      <FormButton label="Kopiuj surowe dane" tone="secondary" disabled={busy} onPress={() => void copy()} />
+      <FormButton label="Spróbuj ponownie" tone="secondary" busy={busy} onPress={() => { setBusy(true); void retryLoad().finally(() => setBusy(false)); }} />
+      <FormButton label="Resetuj dane lokalne" tone="danger" disabled={busy} onPress={confirmReset} />
+    </View>
+    {!!message && <View style={{ marginTop: 14 }}><FormFeedback message={message} error={message.startsWith("Nie udało")} /></View>}
   </View>;
 }
