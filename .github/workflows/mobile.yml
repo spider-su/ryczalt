@@ -60,6 +60,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Align Expo CLI with Expo Doctor
+        run: npm install --no-save --package-lock=false '@expo/cli@^57.0.29'
       - run: npm run ci
       - run: npx expo-doctor
       - run: npx expo export --platform web
