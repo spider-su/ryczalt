@@ -10,3 +10,5 @@ Reusable Codex workflows for this repository live under `.codex/skills/`. Each s
 Keep project-specific commands and the detailed regression cases in each skill's supporting files so this index stays short and easy to scan.
 
 - [Mobile quality checks](skills/mobile-quality-checks/SKILL.md): run typecheck, lint, unit tests and Expo Doctor before PR review.
+
+- [iOS Simulator regression](skills/ryczalt-ios-simulator-regression/SKILL.md): fresh native iOS Simulator build and synthetic-data rental/tax checks on macOS/Xcode; never claims real-iPhone verification.

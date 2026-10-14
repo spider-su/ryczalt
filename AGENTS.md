@@ -2,6 +2,10 @@
 
 This is the Ryczałt rental-management app, not the generic mobile template.
 
+## Engineering level and agent reuse
+
+This is a **hobby/personal app**, not enterprise software. Prefer the simplest complete solution and avoid speculative infrastructure or non-functional requirements. Read [engineering level](docs/ENGINEERING_LEVEL.md) and [reuse map](docs/AGENT_REUSE_GUIDE.md) before adding dependencies or architecture. Financial correctness, encryption, data recovery and privacy remain mandatory.
+
 ## Product invariants
 - Preserve rental/tax calculations, local-only data ownership, manual payment confirmation and offline behavior.
 - Do not change persisted rental document schema, encryption key IDs, encrypted value prefix, backup or recovery behavior without a dedicated migration and regression plan.
