@@ -84,12 +84,13 @@ let actions: {
   exitDemoMode: () => void;
   resetLocalData: () => Promise<void>;
   requestPermission: () => Promise<string>;
+  scheduleTestNotification: (minutes?: number) => Promise<string>;
 } | null;
 
 function Harness() {
   const rental = useRentalData();
   const reminders = useReminders();
-  actions = { update: rental.update, enterDemoMode: rental.enterDemoMode, exitDemoMode: rental.exitDemoMode, resetLocalData: rental.resetLocalData, requestPermission: reminders.requestPermission };
+  actions = { update: rental.update, enterDemoMode: rental.enterDemoMode, exitDemoMode: rental.exitDemoMode, resetLocalData: rental.resetLocalData, requestPermission: reminders.requestPermission, scheduleTestNotification: reminders.scheduleTestNotification };
   return null;
 }
 
@@ -193,6 +194,26 @@ describe("ReminderProvider committed-document integration", () => {
     expect(new Set(runtime.pending.map((item) => item.content.data?.reminderKey)).size).toBe(runtime.pending.length);
     expect(runtime.schedule).toHaveBeenCalledTimes(schedulesAfterFirstLaunch);
     await act(async () => restarted.unmount());
+  });
+
+
+  it("schedules an isolated five-minute test notification in demo mode", async () => {
+    const renderer = await renderProviders();
+    await act(async () => { actions!.enterDemoMode(); await flushEffects(); });
+    const scheduledBefore = runtime.schedule.mock.calls.length;
+    let result = "";
+    await act(async () => {
+      result = await actions!.scheduleTestNotification(5);
+      await flushEffects();
+    });
+    expect(result).toBe("scheduled");
+    expect(runtime.schedule).toHaveBeenCalledTimes(scheduledBefore + 1);
+    const request = runtime.schedule.mock.calls.at(-1)?.[0] as { content: { title?: string; data?: Record<string, unknown> }; trigger: { date?: Date } };
+    expect(request.content.title).toBe("Test przypomnienia");
+    expect(request.content.data?.notificationTest).toBe(true);
+    expect(request.content.data?.reminderKey).toBeUndefined();
+    expect(new Date(request.trigger.date!).getTime()).toBeGreaterThan(Date.now() + 4 * 60_000);
+    await act(async () => renderer.unmount());
   });
 
   it("reconciles an imported document and reset through the real data provider", async () => {
