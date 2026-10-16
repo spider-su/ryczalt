@@ -4,19 +4,27 @@
 
 - AVD: `ryczalt-api35` (`sdk_gphone64_arm64`), Android API 35, default 320×640 at 160 dpi.
 - App package: `pl.ryczalt.rental`; use a fresh standalone release APK built from the current checkout, not Metro/debug.
-- Primary scenario label: `QA-Parkowa`; expected monthly rent PLN 3,000; payment day 10; use the app's current month and today's actual date when entering receipts. Never change the emulator clock to force a path.
-- Data is synthetic and stored only on the disposable emulator. No production tenant/account or backend is involved.
-- Evidence folder: `artifacts/emulator-e2e/<YYYYMMDD-HHMM>-<short-commit>/`. Never reuse a prior run folder. Store screenshots and `uiautomator` dumps there; record a short results.md with case outcomes and APK SHA-256.
+- Primary synthetic apartment: `QA-Parkowa`.
+- Synthetic tenant: `Jan Testowy`, phone `500600700`, email `jan.testowy@example.invalid`.
+- Owner rent: PLN 3,000/month.
+- Media/charges: PLN 500/month, initially marked as paid by tenant.
+- Payment day: 10.
+- Taxable treatment: `OWNER_RENT` unless a case explicitly says otherwise.
+- Use the app's current month and the emulator's real date. Never change the emulator clock to force a due date.
+- No production tenant/account/backend data is used.
+- Evidence folder: `artifacts/emulator-e2e/<YYYYMMDD-HHMM>-<short-commit>/`. Store screenshots, UI dumps and `results.md`; never reuse a prior run folder.
 
 ## Safety and reset
 
-1. From the project root, record `git rev-parse --short HEAD`, `git status --short`, and APK checksum.
-2. Run `adb devices -l`; select the booted AVD. Verify `adb -s <serial> shell getprop ro.kernel.qemu` returns `1`. If it does not, stop without installing or clearing data.
-3. Verify emulator display size/density: `adb -s <serial> shell wm size` and `wm density`. If not 320×640 / 160 dpi, restore the AVD's default display configuration or record the deviation; don't silently compare screenshots across layouts.
-4. Install with `adb -s <serial> install -r artifacts/app/ryczalt.apk`; then run `adb -s <serial> shell pm clear pl.ryczalt.rental`. This clears only synthetic app data on the verified emulator and establishes an empty fixture. Launch with `adb -s <serial> shell am start -W -n pl.ryczalt.rental/.MainActivity`; the explicit component launch avoids a flaky launcher/monkey handoff immediately after `pm clear`.
-5. Do not clear Android-wide state, change device time, or clear data after discovering a failure. Capture evidence first. The next run starts from the same app-data reset.
+1. Record `git rev-parse --short HEAD`, `git status --short`, APK SHA-256 and current branch.
+2. Run `adb devices -l`; verify the selected target is the disposable emulator with `adb -s <serial> shell getprop ro.kernel.qemu` returning `1`.
+3. Verify `wm size` = 320×640 and `wm density` = 160, or record the deviation.
+4. Install the fresh APK, then clear **only** this app's data with `adb -s <serial> shell pm clear pl.ryczalt.rental`.
+5. Launch with `adb -s <serial> shell am start -W -n pl.ryczalt.rental/.MainActivity`.
+6. Do not clear app data again after a failure until evidence is captured.
+7. Do not change device time. Notification timing must use the real emulator clock.
 
-Evidence commands (replace `<serial>` and `<run-dir>`):
+Evidence commands:
 
 ```sh
 mkdir -p <run-dir>
@@ -27,62 +35,246 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 
 ## Required cases
 
-### A. Fresh launch and safe areas
+### A. Fresh launch, safe areas, demo isolation and notification smoke test
 
-1. Launch to Pulpit after the empty-data reset; save `01-launch` evidence.
-2. Verify title and content start below the Android status bar, with no doubled/excessive top gap.
-3. Verify all four bottom tabs—Pulpit, Przychód, Podatek, Ustawienia—have visible icons and labels above the Android system navigation region. Confirm the bar background reaches the bottom cleanly.
-4. Visit all four tabs once. Confirm no blank screen, crash, clipped title, or unusable touch target; save a screenshot of each tab.
-5. On Pulpit, inspect empty/zero attention state: success copy has no dead “Pokaż” action; no future-rent flood appears.
+1. Launch from empty storage and capture `01-fresh-pulpit`.
+2. Verify:
+   - Pulpit renders below the status bar;
+   - all four tabs (Pulpit, Przychód, Podatek, Ustawienia) are visible above system navigation;
+   - no blank screen/crash/clipped title;
+   - empty Pulpit offers **Rozpocznij · 3 kroki** and **Zobacz demo**.
+3. Visit all four tabs once before creating data and capture one screenshot per tab.
+4. Tap **Zobacz demo**.
+5. Verify the demo banner appears and explicitly says demo changes are not persisted.
+6. In demo mode open Ustawienia → Powiadomienia.
+7. If permission is not already granted, use the in-app enable flow. Confirm the Android reminder channel exists.
+8. Verify the diagnostic card is visible in demo mode and tap **Test za 5 min**.
+9. Confirm the app reports that the test was scheduled. Record the exact tap time.
+10. While waiting, inspect notification category switches, turn one category off and back on, and verify the UI state changes without altering real stored data.
+11. Wait for the test notification without changing the clock. Confirm exactly one **Test przypomnienia** notification arrives roughly five minutes later and capture notification-shade evidence.
+12. Return to the app. The diagnostic notification has no domain navigation target, so only verify that the app remains usable.
+13. Tap **Wyjdź z demo** and verify the real document is still empty.
+14. Capture `02-demo-notification` and `03-demo-exit-empty`.
 
-### B. Apartment and current rent state
+Failure criteria: demo changes persist into real data, the test is unavailable in demo, multiple diagnostic notifications arrive from one tap, or scheduling requires changing rental facts.
 
-1. Open Ustawienia → Mieszkania and add `QA-Parkowa` with expected monthly rent `3000 zł` and payment day `10`. Choose a taxable-rent treatment so receipt confirmation can be saved. Leave optional tenant and account fields blank. If the form prepopulates an end date, focus the date field by tapping at the end of the displayed ISO date, then press Backspace once per character (10 times for `YYYY-MM-DD`) and verify the field is empty after dismissing the keyboard. Save. Avoid relying on cursor-end key events; they did not reliably move the caret on the API 35 AVD.
-2. Verify the apartment appears in settings and its current-month unpaid state appears on Pulpit. Confirm current month / due date is plausible for the emulator's real date.
-3. Capture property and dashboard evidence.
+### B. Guided onboarding — all wizard controls
 
-### C. Exact, partial, and multiple receipt reconciliation
+1. On empty Pulpit tap **Rozpocznij · 3 kroki**.
+2. Step 1:
+   - tap **Dalej** with an empty address and verify inline validation;
+   - enter address `QA-Parkowa`;
+   - enter tenant name `Jan Testowy`;
+   - tap **Pomiń na razie** once, confirm the wizard closes, and verify no apartment was created.
+3. Reopen **Rozpocznij · 3 kroki** and re-enter the Step 1 values.
+4. Tap **Dalej**.
+5. Step 2:
+   - enter owner rent `3000`;
+   - enter media `500`;
+   - switch **Media płaci najemca** on;
+   - enter payment day `10`;
+   - enter an invalid day such as `32`, tap **Dalej**, and verify validation;
+   - restore `10`.
+6. Tap **Wstecz** and verify Step 1 values are retained, then **Dalej** again and verify Step 2 values are retained.
+7. Step 3:
+   - verify both tax-treatment radio choices render;
+   - select **Czynsz i opłaty dodatkowe**, then switch to **Tylko czynsz dla właściciela** to exercise both;
+   - verify the summary shows address, tenant, 3000 rent, 500 media and day 10.
+8. Tap **Zapisz mieszkanie**.
+9. Verify Pulpit now shows the apartment and no receipt/tax payment was manufactured automatically.
+10. Capture `04-onboarding-step1`, `05-onboarding-step2`, `06-onboarding-summary`, `07-onboarding-saved`.
 
-1. Compare today's actual date with QA-Parkowa's current-month payment due date. The bulk `Potwierdź otrzymane czynsze` flow intentionally lists only rents whose due date has arrived; the dashboard summary can still show the remaining expected amount before then. Do not treat an empty bulk list before the due date as a receipt-data failure.
-   - **Before the due date:** Do not use the dashboard's bulk-confirmation summary. On Pulpit, tap the QA-Parkowa apartment card to open its individual `Potwierdź wpłatę` quick-add form. Add a `3000 zł` receipt dated today and assigned to the current rent month, then confirm. The Przychód tab shows current-month rent status/history; it does not itself expose a new-receipt button in the default view.
-   - **On or after the due date:** Either use the Pulpit apartment-card quick-add flow or tap the dashboard's bulk-confirmation summary and select QA-Parkowa in `Potwierdź otrzymane czynsze`. Add/confirm a `3000 zł` receipt dated today for the current rent month. In the bulk sheet, verify the apartment row and amount are present before confirming. Never move the emulator date forward to reach this branch.
-2. Verify the property is fully paid, remaining is `0 zł`, the current rent task is no longer active, and confirmed income history contains one receipt.
-3. Edit that receipt to `1500 zł`. Verify the current expectation becomes partially paid, remaining is `1500 zł`, and the action/task remains available.
-4. Add another receipt for the same property and rent month for `2000 zł`, dated today. Use the Pulpit QA-Parkowa apartment card to open individual quick-add; this path is available whether or not the due date has arrived. Verify total received is `3500 zł`, expected rent is satisfied, remaining is `0 zł`, and any `500 zł` excess is shown as excess/unallocated rather than silently lost or assigned to another month.
-5. Verify Pulpit and Przychód agree on totals and status. The pending-confirmation section must not list the fully paid apartment; confirmed history should show both receipts.
-6. Capture evidence after exact, partial, and combined-payment states.
+### C. Normal apartment editor and advanced fields
 
-### D. Tax calculation and manual payment
+Use the regular Ustawienia → Mieszkania editor after onboarding; this verifies the wizard and normal form stay aligned.
 
-1. Open Podatek for the same current tax year/month and verify the taxable revenue, obligation, due date, and payment state against the receipts' saved taxable amounts. Do not assume taxable revenue equals gross receipts: under `OWNER_RENT`, the default taxable amount across partial receipts is capped at the scheduled owner's rent. In the C fixture (3,000 zł owner rent; 1,500 zł first receipt after editing; 2,000 zł second receipt), the second receipt defaults to 1,500 zł taxable, so total taxable revenue is 3,000 zł and the obligation is `255 zł` (8.5%, rounded to whole PLN). The separate 500 zł rent overpayment remains unallocated.
-   - If specifically exercising a 3,500 zł tax base and `298 zł` obligation, explicitly set the second receipt's taxable amount to `2,000 zł` with the taxable-amount override before confirming it. This verifies the tax calculator with that saved taxable amount; it is a separate scenario from the `OWNER_RENT` default and should only be used when the selected synthetic contractual treatment calls for the full amount to be taxable.
-2. Confirm the displayed obligation for the chosen taxable-base scenario (255 zł for the default C fixture, or 298 zł for the explicitly overridden 3,500 zł scenario).
-3. Verify remaining tax is `0 zł`, the state shows the period is paid, and the primary payment CTA is hidden/disabled. Verify the taxable revenue still matches the selected scenario (3,000 zł by default or 3,500 zł with the explicit override).
-4. Confirm the December/Q4 annual-date behavior in domain tests; do not change emulator date to try to reach December.
-5. Capture before/after tax evidence.
+1. Open `QA-Parkowa`.
+2. Verify owner rent = 3000, media = 500, media-paid-by-tenant = on, payment day = 10, taxable treatment = owner rent only.
+3. Exercise and save these additional fields:
+   - tenant phone `500600700`;
+   - tenant email `jan.testowy@example.invalid`;
+   - rental start date = a valid date not later than today;
+   - lease end date = a valid future date;
+   - administration name = `QA Administracja`;
+   - administration URL = `https://example.invalid/admin`;
+   - electricity provider = any available preset/manual value;
+   - electricity URL = `https://example.invalid/power`;
+   - notes = `QA emulator regression`.
+4. If an advanced/disclosure control is collapsed, expand and collapse it once before saving.
+5. Exercise one validation path:
+   - enter an invalid non-HTTPS URL or malformed date;
+   - verify save is blocked/feedback appears;
+   - restore the valid value.
+6. Save and reopen the apartment; verify all values persist.
+7. If archive/pause lifecycle controls are present, inspect them but do not archive the sole QA apartment before completing income/tax cases.
+8. Capture `08-apartment-advanced`.
 
-### E. Settings and task discoverability
+### D. Rent confirmation, edit, partial payment, excess and deletion
 
-1. Open Ustawienia landing page and verify category rows remain concise: Mieszkania, Podatek i rozliczenia, Dane do przelewu, Powiadomienia, Pozostałe rachunki, and Dane i kopia zapasowa (or the current equivalent labels).
-2. Open tax settings and verify the spouse-threshold condition is explained; do not enable the 200k option for this rent fixture.
-3. Open notification settings and verify native switches are displayed. Do not change permission or category settings during the default regression.
-4. Return to Pulpit and verify there is no active rent-check task for the satisfied expectation. Inspect upcoming items separately from current actionable work.
-5. Save one `QA` one-time personal reminder with a future date if that flow is present in the build; verify it appears in the upcoming/history area and does not become an immediate rent task. Skip recurrence delivery tests; no clock changes.
+Use the current rental month. Do not move the emulator date.
 
-### F. Persistence across process restart
+1. From Pulpit tap the `QA-Parkowa` apartment card to open the individual quick-add flow.
+2. Confirm a first receipt:
+   - amount `3000`;
+   - received date = today;
+   - rental month = current month;
+   - taxable amount should default according to `OWNER_RENT`.
+3. Verify:
+   - Pulpit shows the rent satisfied;
+   - Przychód contains one confirmed receipt;
+   - remaining expected owner rent is 0.
+4. Open the saved receipt and edit it to `1500`.
+5. Verify the apartment becomes partial and `1500` remains to confirm.
+6. Add a second receipt for `2000` for the same property/month.
+7. Verify total gross receipts = 3500, contractual owner rent is satisfied, and the extra 500 is shown as excess/unallocated rather than silently moved.
+8. Verify under `OWNER_RENT` the default taxable total remains capped at 3000.
+9. Exercise receipt correction controls:
+   - open the second receipt;
+   - change a harmless editable field and save;
+   - use **Usuń** and cancel once;
+   - invoke **Usuń** again and confirm deletion;
+   - verify the apartment returns to partial;
+   - add the 2000 receipt again so later tax steps use the intended fixture.
+10. If the current date is on/after the payment due date and bulk confirmation is offered, open the bulk sheet, inspect selection/date controls and close without creating a duplicate receipt. Before due date, record the bulk flow as legitimately unavailable.
+11. Capture `09-rent-full`, `10-rent-partial`, `11-rent-excess`.
 
-1. Force-stop the app with `adb -s <serial> shell am force-stop pl.ryczalt.rental`; relaunch with `adb -s <serial> shell am start -W -n pl.ryczalt.rental/.MainActivity`.
-2. Revisit Pulpit, Przychód, Podatek, and Mieszkania. Verify apartment, both receipts, paid tax, and resulting statuses persist and still reconcile.
-3. Save final screenshots/XML and write case results. Leave only the QA fixture in the disposable emulator; the next run resets it with `pm clear`.
+### E. Tax calculation and tax-payment form cycle
+
+1. Open Podatek for the current period.
+2. Verify the saved taxable revenue is 3000 zł under the default `OWNER_RENT` fixture despite 3500 zł gross receipts.
+3. Verify the obligation is 255 zł (8.5% of 3000, rounded according to the domain rules).
+4. Expand and collapse **Jak liczymy podatek?**.
+5. Open **Dane do przelewu**; exercise copy actions for any populated transfer details and close.
+6. Tap **Potwierdź wykonaną wpłatę**.
+7. If the first-payment history-review modal appears, inspect its values, close it once, reopen, then continue.
+8. Enter the actual tax payment amount/date and save.
+9. Verify status becomes paid and remaining tax is 0.
+10. Open the saved tax payment:
+    - use **Popraw**, change and save the amount once;
+    - verify recalculation;
+    - restore the intended amount;
+    - use **Usuń** and cancel once;
+    - invoke **Usuń** again and confirm;
+    - verify the tax becomes outstanding again;
+    - re-add the intended payment so persistence checks finish in a paid state.
+11. If overpayment can be entered in the current form, record one amount above the obligation, verify the displayed overpayment/carry-forward state, then restore the intended fixture or clearly record the resulting state used for F–H.
+12. Capture `12-tax-before-payment`, `13-tax-payment-form`, `14-tax-paid`.
+
+### F. Settings coverage
+
+Exercise every current Settings section at least once. The expected POC sections are the current equivalents of:
+
+- Mieszkania;
+- Podatek i rozliczenia;
+- Dane do przelewu;
+- Powiadomienia;
+- Dane i kopia zapasowa.
+
+Removed bills/custom-reminder sections must **not** reappear.
+
+1. Tax settings:
+   - open spouse-threshold explanation;
+   - leave the 200k option disabled for the fixture;
+   - inspect tax year/settlement controls;
+   - enter opening balances only if doing so will not invalidate the current fixture; otherwise verify controls and document why they are not modified.
+2. Transfer settings:
+   - enter an invalid micro-account and verify validation;
+   - leave the field empty afterward unless a synthetic valid fixture is deliberately supplied.
+3. Notifications:
+   - verify permission state;
+   - exercise rent-delay choices and return to the intended value;
+   - toggle each rent/agreement/tax category off and back on;
+   - verify upcoming reminder list remains coherent;
+   - if the build is dev/demo-enabled at this point, the **Test za 5 min** control may be smoke-tested again, but do not require a second five-minute wait.
+4. Data:
+   - open backup/recovery information;
+   - verify plaintext-backup/privacy wording is visible;
+   - do not reset data before the backup case.
+5. Return to Pulpit and verify no removed personal-reminder/bill UI is present.
+6. Capture `15-settings-tax`, `16-settings-notifications`, `17-settings-data`.
+
+### G. JSON backup → clear data → restore round trip
+
+This case is destructive but safe on the verified disposable emulator and runs only after A–F evidence is complete.
+
+1. Ustawienia → Dane i kopia zapasowa → **Utwórz kopię danych**.
+2. Complete the Android document/folder picker using a synthetic QA location accessible to the emulator. Record the resulting filename/path if visible.
+3. Verify the backup operation reports success.
+4. Close/force-stop the app.
+5. Clear only `pl.ryczalt.rental` app data.
+6. Relaunch; verify the app is empty and onboarding is offered again.
+7. Ustawienia → Dane i kopia zapasowa → **Przywróć z kopii**.
+8. Select the just-created QA backup and confirm the destructive restore prompt.
+9. Verify all important facts return:
+   - apartment/address;
+   - tenant name/phone/email;
+   - owner rent/media/media responsibility/payment day;
+   - advanced apartment fields;
+   - both rent receipts;
+   - tax payment;
+   - reminder settings;
+   - calculated current tax/rent status.
+10. If the platform file picker cannot be driven reliably in the emulator environment, mark **G SKIPPED — picker automation unavailable** with evidence. Do not silently count this as pass.
+11. Capture `18-backup-created`, `19-after-clear`, `20-restored`.
+
+### H. Restart persistence and final cross-screen consistency
+
+1. Force-stop the app and relaunch explicitly.
+2. Revisit Pulpit, Przychód, Podatek, Ustawienia → Mieszkania.
+3. Verify the restored/current dataset remains consistent:
+   - QA-Parkowa exists;
+   - tenant/contact and terms persist;
+   - receipt total/status matches the final D fixture;
+   - tax paid/outstanding state matches the final E fixture;
+   - no duplicate reminders/tasks appear;
+   - no removed bills/custom reminders reappear.
+4. Exercise month/period previous/next buttons where enabled and verify they do not jump outside the valid range.
+5. Capture `21-final-pulpit`, `22-final-income`, `23-final-tax`, `24-final-property`.
+
+## Interaction coverage record
+
+In `results.md`, include a checklist showing whether each user-facing action was exercised. At minimum:
+
+- Fresh Pulpit: Rozpocznij · 3 kroki, Zobacz demo.
+- Demo banner: Wyjdź z demo.
+- Wizard: Dalej, Wstecz, Pomiń na razie, Zamknij if encountered, both tax radio choices, media switch, Zapisz mieszkanie.
+- Pulpit: apartment quick-add, tax summary navigation, applicable period controls, any available bulk confirmation open/close.
+- Przychód: add, edit/save, delete-cancel, delete-confirm.
+- Podatek: info disclosure, transfer details, payment create, edit, delete-cancel, delete-confirm, history-review close/continue when applicable.
+- Settings: each current section, disclosures, relevant toggles/radio controls, notification category switches, rent-delay choices, backup/create/restore when G is runnable.
+- Diagnostic notification: Test za 5 min.
+- App lifecycle: force-stop/relaunch.
+
+If a control is conditional and cannot appear with the fixed current-date fixture, record **N/A + reason** rather than manufacturing state by changing the device clock.
 
 ## Pass criteria and reporting
 
-Pass only when A–F all pass. File bugs with the failing case, expected/actual state, commit, APK hash, screenshot/XML path, emulator/API, and reproducible steps. Do not “fix” a failure by editing fixture data except through the described UI steps.
+A–F and H must pass. G must pass unless blocked specifically by system-picker automation; that exception must be explicit. The diagnostic notification in A must schedule and deliver once on the emulator, but this is only an emulator smoke check.
 
-Report explicitly that this covers Android API 35 emulator behavior only. It does not establish physical-device safe-area behavior, notification delivery/tap reliability, Play signing, production readiness, or tax/legal correctness beyond the separately run automated/domain tests.
+`results.md` must include:
 
-## Optional tests (only when specifically requested)
+- commit SHA and branch;
+- APK path + SHA-256;
+- emulator serial/model/API/size/density;
+- date/timezone;
+- A–H pass/fail/skip;
+- interaction coverage checklist;
+- notification scheduled time and observed delivery time;
+- evidence filenames;
+- any divergence from the fixed fixture.
 
-- Notification delivery/taps: use a separate disposable emulator snapshot/profile. Do not advance or alter the default AVD's clock; clock manipulation affects scheduled state and makes runs non-repeatable.
-- Android gesture navigation: test on a dedicated AVD/configuration, record the mode and dimensions, and restore that AVD profile after the run.
-- Corrupt-data recovery: inject data only on the disposable emulator after capturing a clean snapshot; preserve raw data and evidence, and never include real user data.
+Do not edit source code during the run unless the user separately asked to fix failures. Preserve failure evidence first.
+
+This plan establishes Android API 35 emulator behavior only. It does **not** replace physical-device notification delivery/tap/reboot/revoke-regrant validation, store signing checks, or legal/tax verification beyond automated domain tests.
+
+## Optional follow-ups
+
+Only when specifically requested:
+
+- physical-device notification matrix;
+- gesture-navigation AVD;
+- alternate small/large display profile;
+- iOS Simulator regression;
+- corrupt-storage injection/recovery;
+- legacy-schema import;
+- future-year provisional tax UI.

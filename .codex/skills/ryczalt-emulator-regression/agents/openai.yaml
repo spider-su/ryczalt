@@ -1,4 +1,4 @@
 interface:
   display_name: "Ryczałt Android Regression"
-  short_description: "Run the repeatable Android emulator regression plan"
-  default_prompt: "Run the Ryczałt emulator regression plan and save evidence for this checkout."
+  short_description: "Run the full Android onboarding and rental lifecycle regression"
+  default_prompt: "Run the full Ryczałt Android emulator regression from fresh install through demo notification smoke test, onboarding, rent, tax, settings, backup/restore and restart; save evidence for this checkout."

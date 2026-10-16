@@ -14,6 +14,8 @@ The app reconciles desired local notifications against OS-scheduled stable keys 
 
 Android ensures its reminder channel at startup independently of notification permission. Denied permission leaves in-app tasks available. Permission can be granted through the in-app flow or Android settings. Delivery, tap routing, snooze, restart/reboot and revoke/regrant behavior require physical Android verification for each release candidate; see [the Android checklist](PRIVATE_BETA_ANDROID_CHECKLIST.md). OS delivery is not guaranteed by unit tests.
 
+In development builds and demo mode, Settings exposes an explicit **Test za 5 min** action. It schedules one isolated local notification without modifying rental data or the normal derived reminder plan. The test notification is intentionally not owned by reconciliation, so it is suitable for verifying OS delivery on a device.
+
 ## Boundaries
 
 Rent due days clamp to shorter months; reminders use 09:00 device-local time and reconcile after timezone changes/resume. Timezone/DST behavior is not exhaustively certified for the POC. Expo Web does not schedule native OS notifications. Tax amounts remain informational and should be checked before payment, especially when the tax screen marks a future year provisional. No backend or remote notification service is used.

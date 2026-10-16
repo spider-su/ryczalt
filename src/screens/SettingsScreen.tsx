@@ -69,7 +69,7 @@ const newPropertyDraft = (): PropertyDraft => ({
 
 export function SettingsScreen() {
   const { document, error, update, resetLocalData, isDemoMode } = useRentalData();
-  const { permission, requestPermission } = useReminders();
+  const { permission, requestPermission, scheduleTestNotification } = useReminders();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const propertyEditorScrollRef = useRef<ScrollView>(null);
@@ -88,11 +88,13 @@ export function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [clearingLocalData, setClearingLocalData] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [testNotificationBusy, setTestNotificationBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [taxAccount, setTaxAccount] = useState("");
   const [openingRevenueDraft, setOpeningRevenueDraft] = useState("");
   const [openingTaxPaidDraft, setOpeningTaxPaidDraft] = useState("");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
+  const showNotificationTest = isDemoMode || __DEV__;
   const hasAnyTaxSnapshots = Boolean(document?.taxSettlementSnapshots?.length);
 
   useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
@@ -553,6 +555,29 @@ export function SettingsScreen() {
           ? <View accessibilityRole="summary" style={neutralBanner}><Text style={muted}>Powiadomienia lokalne są dostępne w aplikacji mobilnej.</Text></View>
           : <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>}
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
+        {showNotificationTest ? <View style={[ui.card, { marginTop: 12, gap: 8 }]}>
+          <Text style={sectionTitle}>Test powiadomień</Text>
+          <Text style={helperText}>Tylko tryb demo/deweloperski. Zaplanuj jedno lokalne powiadomienie za 5 minut, bez zmiany danych najmu ani normalnego harmonogramu.</Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={testNotificationBusy || permission === "unavailable"}
+            onPress={() => {
+              if (testNotificationBusy) return;
+              setTestNotificationBusy(true);
+              void scheduleTestNotification(5)
+                .then((result) => {
+                  if (result === "scheduled") Alert.alert("Test zaplanowany", "Powiadomienie pojawi się za około 5 minut.");
+                  else if (result === "denied") Alert.alert("Brak zgody", "Włącz powiadomienia systemowe dla aplikacji i spróbuj ponownie.");
+                  else if (result === "unavailable") Alert.alert("Niedostępne", "Test lokalnych powiadomień nie jest dostępny na tej platformie.");
+                  else Alert.alert("Nie udało się zaplanować testu", "Spróbuj ponownie.");
+                })
+                .finally(() => setTestNotificationBusy(false));
+            }}
+            style={[secondaryButton, (testNotificationBusy || permission === "unavailable") && disabledControl]}
+          >
+            <Text style={modeText}>{testNotificationBusy ? "Planowanie…" : "Test za 5 min"}</Text>
+          </Pressable>
+        </View> : null}
         <Text style={sectionTitle}>Kiedy przypominać</Text>
         <Text style={fieldLabel}>Przypomnij o nieopłaconym czynszu</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days, disabled: settingsNotificationsUnavailable(permission) }} disabled={settingsNotificationsUnavailable(permission)} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
