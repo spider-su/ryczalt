@@ -32,6 +32,7 @@ import { settingsSections } from "../domain/rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
 import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
+import { FirstApartmentWizard } from "../components/onboarding/FirstApartmentWizard";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
@@ -82,6 +83,7 @@ export function SettingsScreen() {
   const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
   const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [wizardMode, setWizardMode] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
   const [saving, setSaving] = useState(false);
   const [clearingLocalData, setClearingLocalData] = useState(false);
@@ -100,12 +102,12 @@ export function SettingsScreen() {
     setTaxAccount((document.settings.taxMicroAccount ?? "").replace(/^PL/i, "").replace(/\D/g, ""));
     setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
     setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
-    const params = route.params as { propertyId?: string; setupAction?: SetupAction; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
+    const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.settingsSection) setActiveSection(params.settingsSection);
-    if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction); }
+    if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction, params.onboarding === true && document.properties.length === 0); }
     else if (property) { setActiveSection("properties"); openProperty(property, params?.setupAction); }
-    if (params?.propertyId || params?.setupAction || params?.settingsSection) navigation.setParams({ propertyId: undefined, setupAction: undefined, settingsSection: undefined });
+    if (params?.propertyId || params?.setupAction || params?.settingsSection) navigation.setParams({ propertyId: undefined, setupAction: undefined, onboarding: undefined, settingsSection: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, route.params]);
@@ -171,8 +173,9 @@ export function SettingsScreen() {
     }
   };
 
-  const openProperty = (property?: Property, focus?: SetupAction) => {
+  const openProperty = (property?: Property, focus?: SetupAction, onboarding = false) => {
     setEditing(property ?? null);
+    setWizardMode(onboarding && !property);
     setSetupFocus(focus ?? null);
     setShowAdvancedProperty(false);
     setModalOpen(true);
@@ -203,6 +206,7 @@ export function SettingsScreen() {
   };
   const openNewApartmentFromArchived = (property: Property) => {
     setEditing(null);
+    setWizardMode(false);
     setSetupFocus(null);
     setShowAdvancedProperty(false);
     setModalOpen(true);
@@ -349,6 +353,7 @@ export function SettingsScreen() {
       }
       setEditing(null);
       setSetupFocus(null);
+      setWizardMode(false);
       setModalOpen(false);
     } catch {
       /* The provider reports the save failure. */
@@ -629,6 +634,7 @@ export function SettingsScreen() {
         onRequestClose={() => {
           setModalOpen(false);
           setEditing(null);
+          setWizardMode(false);
         }}
       >
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -649,13 +655,14 @@ export function SettingsScreen() {
                 fontWeight: "700",
               }}
             >
-              {editing ? "Edytuj mieszkanie" : "Nowe mieszkanie"}
+              {editing ? "Edytuj mieszkanie" : wizardMode ? "Pierwsze mieszkanie" : "Nowe mieszkanie"}
             </Text>
             <Text
               onPress={() => {
                 setModalOpen(false);
                 setEditing(null);
                 setSetupFocus(null);
+                setWizardMode(false);
               }}
               accessibilityRole="button"
               style={action}
@@ -663,7 +670,15 @@ export function SettingsScreen() {
               Zamknij
             </Text>
           </View>
-          <ScrollView
+          {wizardMode && !editing ? (
+            <FirstApartmentWizard
+              draft={draft}
+              onChange={(changes) => setDraft((current) => ({ ...current, ...changes }))}
+              onSave={() => void save()}
+              onCancel={() => { setModalOpen(false); setEditing(null); setSetupFocus(null); setWizardMode(false); }}
+              saving={saving}
+            />
+          ) : <ScrollView
             ref={propertyEditorScrollRef}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: 20 }}
@@ -728,7 +743,7 @@ export function SettingsScreen() {
                 {saving ? "Zapisywanie…" : "Zapisz mieszkanie"}
               </Text>
             </Pressable>
-          </ScrollView>
+          </ScrollView>}
         </SafeAreaView>
       </Modal>
       <Modal visible={Boolean(bootstrapProperty && bootstrapRange)} animationType="slide" onRequestClose={() => { setBootstrapProperty(null); setBootstrapRange(null); }}>
