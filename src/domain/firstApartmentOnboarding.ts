@@ -6,7 +6,7 @@ export type FirstApartmentDraft = {
   tenantName: string;
   ownerRent: string;
   mediaAmount: string;
-  mediaPaidByTenant: boolean;
+  mediaPaidByTenant?: boolean;
   paymentDay: string;
   taxableTreatment?: Property["taxableTreatment"];
 };
