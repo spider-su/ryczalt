@@ -101,8 +101,8 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
               <Text style={{ color: theme.colors.textPrimary, flex: 1 }}>Media płaci najemca</Text>
               <Switch
                 accessibilityLabel="Media płaci najemca"
-                accessibilityState={{ checked: draft.mediaPaidByTenant }}
-                value={draft.mediaPaidByTenant}
+                accessibilityState={{ checked: Boolean(draft.mediaPaidByTenant) }}
+                value={Boolean(draft.mediaPaidByTenant)}
                 onValueChange={(mediaPaidByTenant) => setField({ mediaPaidByTenant })}
               />
             </View>
