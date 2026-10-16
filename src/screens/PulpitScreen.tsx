@@ -165,9 +165,11 @@ export function PulpitScreen() {
   if (activeProperties.length === 0) return <View style={ui.page}>
     <ScrollView contentContainerStyle={ui.content}>
       <View accessibilityLabel="Skonfiguruj pierwszy najem" style={setupCard}>
-        <Text style={setupTitle}>Skonfiguruj pierwszy najem</Text>
-        <Text style={muted}>Dodaj mieszkanie, aby zapisać oczekiwany czynsz i terminy. Wpłaty ani płatności nie zostaną utworzone automatycznie.</Text>
-        <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })} style={primaryButton}><Text style={primaryText}>Otwórz ustawienia mieszkań</Text></Pressable>
+        <Text style={setupTitle}>{document.properties.length === 0 ? "Zacznij od pierwszego mieszkania" : "Dodaj aktywne mieszkanie"}</Text>
+        <Text style={muted}>{document.properties.length === 0
+          ? "W 3 krótkich krokach ustawisz adres, czynsz z osobnymi opłatami i sposób opodatkowania. Bez rejestracji — dane pozostają lokalnie. Wpłaty potwierdzisz dopiero po ich otrzymaniu."
+          : "Nie masz teraz aktywnego najmu. Dodaj nowe mieszkanie lub wróć do istniejących ustawień."}</Text>
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment", onboarding: document.properties.length === 0 })} style={primaryButton}><Text style={primaryText}>{document.properties.length === 0 ? "Rozpocznij · 3 kroki" : "Dodaj mieszkanie"}</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={enterDemoMode} style={demoButton}><Text style={action}>Zobacz demo</Text></Pressable>
       </View>
       {permission === "denied" ? <Text style={muted}>Powiadomienia systemowe są wyłączone — zadania nadal będą widoczne tutaj.</Text> : null}
