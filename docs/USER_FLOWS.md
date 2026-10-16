@@ -2,7 +2,15 @@
 
 ## Guided setup
 
-No apartments → Pulpit offers “Dodaj mieszkanie” → Settings collects address, owner rent, media amount/responsibility, tenant/contact, lease end, expected rent day and rent-reminder settings. The landlord chooses taxable treatment according to the rental agreement. Setup writes no income or tax payments and invents no contractual dates.
+No apartments → Pulpit offers **“Rozpocznij · 3 kroki”** or **“Zobacz demo”**. The first action opens the same Settings apartment editor in a focused onboarding mode:
+
+1. **Mieszkanie:** address (required) and tenant name (optional).
+2. **Płatności:** owner rent, separate media amount, tenant-paid media switch, and payment day.
+3. **Podatek i gotowe:** explicitly choose the taxable treatment according to the agreement, review the summary, and save.
+
+The existing apartment save function is authoritative: it applies all normal validations, duplicate-address checks and rent schedules and persists exactly once. The wizard itself writes nothing between steps. Cancelling does not write partial data. When the apartment is saved, the modal closes and Pulpit uses the real document. No income, tax payment, invented date or confirmed transfer is created automatically. The landlord confirms actual receipts later. A high-amount warning is retained.
+
+Existing installations with apartments do not enter the wizard. Manual apartment creation/editing and advanced tenant/contact, agreement-end, administrator/utility links and historical-income bootstrap remain accessible in Settings. Demo stays isolated from real stored data.
 
 ## Confirm rent
 
