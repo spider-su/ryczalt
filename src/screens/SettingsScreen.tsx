@@ -204,6 +204,14 @@ export function SettingsScreen() {
         : newPropertyDraft(),
     );
   };
+  const closePropertyEditor = () => {
+    const returnToPulpit = wizardMode;
+    setModalOpen(false);
+    setEditing(null);
+    setSetupFocus(null);
+    setWizardMode(false);
+    if (returnToPulpit) navigation.navigate("Pulpit");
+  };
   const openNewApartmentFromArchived = (property: Property) => {
     setEditing(null);
     setWizardMode(false);
@@ -351,10 +359,12 @@ export function SettingsScreen() {
           setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth });
         }
       }
+      const returnToPulpit = wizardMode && !editing;
       setEditing(null);
       setSetupFocus(null);
       setWizardMode(false);
       setModalOpen(false);
+      if (returnToPulpit) navigation.navigate("Pulpit");
     } catch {
       /* The provider reports the save failure. */
     } finally {
@@ -631,11 +641,7 @@ export function SettingsScreen() {
       <Modal
         visible={modalOpen}
         animationType="slide"
-        onRequestClose={() => {
-          setModalOpen(false);
-          setEditing(null);
-          setWizardMode(false);
-        }}
+        onRequestClose={closePropertyEditor}
       >
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
@@ -658,12 +664,7 @@ export function SettingsScreen() {
               {editing ? "Edytuj mieszkanie" : wizardMode ? "Pierwsze mieszkanie" : "Nowe mieszkanie"}
             </Text>
             <Text
-              onPress={() => {
-                setModalOpen(false);
-                setEditing(null);
-                setSetupFocus(null);
-                setWizardMode(false);
-              }}
+              onPress={closePropertyEditor}
               accessibilityRole="button"
               style={action}
             >
@@ -675,7 +676,7 @@ export function SettingsScreen() {
               draft={draft}
               onChange={(changes) => setDraft((current) => ({ ...current, ...changes }))}
               onSave={() => void save()}
-              onCancel={() => { setModalOpen(false); setEditing(null); setSetupFocus(null); setWizardMode(false); }}
+              onCancel={closePropertyEditor}
               saving={saving}
             />
           ) : <ScrollView
