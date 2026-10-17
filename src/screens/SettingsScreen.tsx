@@ -34,13 +34,13 @@ import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
 import { FirstApartmentWizard } from "../components/onboarding/FirstApartmentWizard";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
-import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
+import { bootstrapHistoricalRentPayments, bootstrapInitialPaidRentHistory, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
 import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
 
-type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
-  address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
+type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "rentalStartDate" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
+  address: string; rentalStartDate: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
   electricityProvider: string; electricityUrl: string; tenantName: string; tenantPhone: string; tenantEmail: string; notes: string;
   ownerRent: string;
   mediaAmount: string;
@@ -48,12 +48,13 @@ type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymen
   termsEffectiveFrom: string;
 };
 type PropertyDraftTextKey = "address" | "ownerRent" | "mediaAmount" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalStartDate" | "leaseEndDate" | "paymentDay" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "notes";
-const newPropertyDraft = (): PropertyDraft => ({
+const newPropertyDraft = (onboarding = false): PropertyDraft => ({
   ...newApartmentDefaults(),
   address: "",
+  rentalStartDate: onboarding ? `${todayIsoDate().slice(0, 4)}-01-01` : "",
   ownerRent: "",
   mediaAmount: "",
-  mediaPaidByTenant: false,
+  mediaPaidByTenant: onboarding,
   tenantName: "",
   tenantPhone: "",
   tenantEmail: "",
@@ -203,7 +204,7 @@ export function SettingsScreen() {
             electricityUrl: property.electricityUrl ?? "",
             notes: property.notes ?? "",
           }
-        : newPropertyDraft(),
+        : newPropertyDraft(onboarding),
     );
   };
   const closePropertyEditor = () => {
