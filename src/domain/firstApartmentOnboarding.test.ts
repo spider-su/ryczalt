@@ -8,6 +8,7 @@ import {
 const base = (): FirstApartmentDraft => ({
   address: "ul. Parkowa 12/4",
   tenantName: "",
+  rentalStartDate: "2026-01-01",
   ownerRent: "2500",
   mediaAmount: "350",
   mediaPaidByTenant: true,
@@ -19,6 +20,7 @@ describe("first-apartment onboarding", () => {
   it("requires an address but leaves tenant information optional", () => {
     expect(firstApartmentStepError({ ...base(), address: "  " }, 0)).toMatch(/adres/i);
     expect(firstApartmentStepError(base(), 0)).toBeNull();
+    expect(firstApartmentStepError({ ...base(), rentalStartDate: "2026-02-30" }, 0)).toMatch(/datę rozpoczęcia/i);
     expect(canCompleteFirstApartment(base())).toBe(true);
   });
 
@@ -49,6 +51,7 @@ describe("first-apartment onboarding", () => {
 
   it("does not allow finishing until every step is valid", () => {
     expect(canCompleteFirstApartment({ ...base(), address: "" })).toBe(false);
+    expect(canCompleteFirstApartment({ ...base(), rentalStartDate: "" })).toBe(false);
     expect(canCompleteFirstApartment({ ...base(), ownerRent: "" })).toBe(false);
     expect(canCompleteFirstApartment({ ...base(), paymentDay: "45" })).toBe(false);
     expect(canCompleteFirstApartment(base())).toBe(true);
