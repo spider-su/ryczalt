@@ -9,7 +9,7 @@ import { apartmentTermsForMonth } from "./apartmentTerms";
 export type HistoricalBootstrapResult = { document: RentalDocument; created: IncomeEntry[]; skippedMonths: string[] };
 
 /** Builds estimated historical tax payments only after an explicit caller opt-in.
- * Normal onboarding never calls this helper; kept for controlled migration/tests only.
+ * Guided first-apartment onboarding uses this for completed pre-tracking months only.
  */
 export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[], markPaid = false): TaxPayment[] {
   if (!markPaid || document.settings.settlementMode !== "monthly") return [];
@@ -30,6 +30,25 @@ export function historicalTaxPaymentsForImportedRent(document: RentalDocument, c
     if (!settlement || settlement.obligationGrosz <= 0) return [];
     return [{ id: existing[0]?.id ?? `initial-tax-${period}`, period, paidAt: existing[0]?.paidAt ?? settlement.dueDate, amount: decimalFromGrosz(settlement.obligationGrosz), source: "INITIAL_IMPORT" as const }];
   });
+}
+
+
+export function bootstrapInitialPaidRentHistory(args: {
+  document: RentalDocument;
+  property: Property;
+  startMonth: string;
+  endMonth: string;
+  today: string;
+}): HistoricalBootstrapResult & { createdTaxPayments: TaxPayment[] } {
+  const result = bootstrapHistoricalRentPayments(args);
+  const createdTaxPayments = historicalTaxPaymentsForImportedRent(result.document, result.created, true);
+  if (!createdTaxPayments.length) return { ...result, createdTaxPayments };
+  const replacedPeriods = new Set(createdTaxPayments.map((payment) => payment.period));
+  const taxPayments = [
+    ...result.document.taxPayments.filter((payment) => !(payment.source === "INITIAL_IMPORT" && replacedPeriods.has(payment.period))),
+    ...createdTaxPayments,
+  ];
+  return { ...result, document: { ...result.document, taxPayments }, createdTaxPayments };
 }
 
 export function historicalBootstrapDefaultRange(today: string, rentalStartDate?: string) {
