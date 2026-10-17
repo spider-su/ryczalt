@@ -20,7 +20,7 @@ type Props = {
 
 const stepTitles = ["Mieszkanie", "Płatności", "Podatek i gotowe"] as const;
 const stepDescriptions = [
-  "Zacznij od adresu. Dane najemcy możesz dodać teraz albo później.",
+  "Zacznij od adresu i daty rozpoczęcia najmu. Dane najemcy możesz dodać teraz albo później.",
   "Oddziel czynsz właściciela od opłat i określ termin wpłaty.",
   "Sprawdź dane i wybierz, co zgodnie z umową wlicza się do przychodu.",
 ] as const;
@@ -70,6 +70,16 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
               onChangeText={(address) => setField({ address })}
               placeholder="np. ul. Parkowa 12/4"
             />
+            <FormField
+              label="Najem od *"
+              value={draft.rentalStartDate}
+              onChangeText={(rentalStartDate) => setField({ rentalStartDate })}
+              keyboardType="number-pad"
+              placeholder="RRRR-MM-DD"
+            />
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: -8 }}>
+              Domyślnie 1 stycznia bieżącego roku. Możesz zmienić datę zgodnie z rzeczywistym początkiem najmu.
+            </Text>
             <FormField
               label="Najemca (opcjonalnie)"
               value={draft.tenantName}
@@ -152,6 +162,7 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
             <Text style={{ color: theme.colors.textPrimary, fontWeight: "700", marginBottom: 6 }}>Podsumowanie</Text>
             <Text style={{ color: theme.colors.textSecondary, lineHeight: 22 }}>
               {draft.address.trim()}{draft.tenantName.trim() ? ` · ${draft.tenantName.trim()}` : ""}
+              {"\n"}Najem od: {draft.rentalStartDate.trim()}
               {"\n"}Czynsz: {draft.ownerRent.trim()} zł · Media: {draft.mediaAmount.trim() || "0"} zł
               {"\n"}Dzień płatności: {draft.paymentDay.trim()}
             </Text>
@@ -160,7 +171,7 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
       ) : null}
 
       <Text style={{ fontSize: 13, lineHeight: 19, color: theme.colors.textSecondary }}>
-        Samo dodanie mieszkania nie oznacza otrzymania czynszu ani zapłaty podatku. Wpłaty potwierdzisz później ręcznie.
+        Zakończone miesiące od daty rozpoczęcia najmu do poprzedniego miesiąca zostaną dodane jako potwierdzone wpłaty początkowe, a wyliczony za nie podatek jako zapłacony. Bieżący miesiąc potwierdzasz ręcznie.
       </Text>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text> : null}
       <FormButton label={step === 2 ? "Zapisz mieszkanie" : "Dalej"} onPress={advance} busy={saving} disabled={saving} />
