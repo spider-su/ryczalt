@@ -42,7 +42,7 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 
 ## POC happy-path checklist
 
-On a clean candidate install, record apartment/address, owner income, media amount and paid-by-tenant flag, tenant/contact, lease end, rent day and reminder settings. Confirm full and partial rent, dashboard totals, selected tax period, tax payment, overpayment carry-forward, restart persistence, apartment/payment edits and deletion/correction with recalculated tax. Then complete the JSON backup round-trip above and compare restored derived tax/reminder results. No result is claimed until recorded against a build SHA.
+On a clean candidate install, use the first-apartment wizard. Verify rental start is prefilled to 1 January of the current year and editable, and that tenant-paid media starts ON. Save an apartment with owner income, media amount, tenant/contact, lease end, rent day and reminder settings. Verify every completed month before the current month is imported as confirmed initial rent and its calculated monthly tax as paid, while the current month remains manual. Then confirm full and partial current rent, dashboard totals, selected tax period, current tax payment, overpayment carry-forward, restart persistence, apartment/payment edits and deletion/correction with recalculated tax. Complete the JSON backup round-trip and compare restored derived tax/reminder results. No result is claimed until recorded against a build SHA.
 
 ## Manual procedure
 
