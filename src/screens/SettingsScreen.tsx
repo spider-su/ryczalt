@@ -343,18 +343,25 @@ export function SettingsScreen() {
     };
     setSaving(true);
     try {
-      await update((current) => ({
-        ...current,
-        administrationSuggestions: administrationName
-          ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
-          : current.administrationSuggestions,
-        properties: editing
-          ? current.properties.map((item) =>
-              item.id === editing.id ? property : item,
-            )
-          : [...current.properties, property],
-      }));
-      if (!editing) {
+      await update((current) => {
+        const next: RentalDocument = {
+          ...current,
+          administrationSuggestions: administrationName
+            ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
+            : current.administrationSuggestions,
+          properties: editing
+            ? current.properties.map((item) =>
+                item.id === editing.id ? property : item,
+              )
+            : [...current.properties, property],
+        };
+        if (!(wizardMode && !editing && ownerRent)) return next;
+        const today = todayIsoDate();
+        const range = historicalBootstrapDefaultRange(today, property.rentalStartDate);
+        if (!range.endMonth || range.startMonth > range.endMonth) return next;
+        return bootstrapInitialPaidRentHistory({ document: next, property, ...range, today }).document;
+      });
+      if (!editing && !wizardMode) {
         const today = todayIsoDate();
         const range = historicalBootstrapDefaultRange(today, draft.rentalStartDate || undefined);
         if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
