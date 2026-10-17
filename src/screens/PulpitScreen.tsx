@@ -16,7 +16,7 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
-import { dashboardAttentionTasks, dashboardProgress, daysOverdue, rentCheckAgeLabel, rentDisplayState, rentStatusLabel, unallocatedRentWarning } from "../domain/rentalPresentation";
+import { dashboardAttentionTasks, dashboardProgress, daysOverdue, rentCheckAgeLabel, rentDisplayState, rentStatusLabel, showAggregateExpectedRent, unallocatedRentWarning } from "../domain/rentalPresentation";
 import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEntries, toggleBulkSelection } from "../domain/bulkRentConfirmation";
 import { formatPolishCount, formatPolishDate, formatPolishMonth, formatPlnSummary } from "../domain/presentationFormat";
 import { ProgressBar } from "../components/ProgressBar";
@@ -183,29 +183,31 @@ export function PulpitScreen() {
         onPrevious={() => setSelectedMonth((month) => shiftDashboardMonth(month, -1, now, earliestMonth))}
         onNext={() => setSelectedMonth((month) => shiftDashboardMonth(month, 1, now, earliestMonth))} />
       <View style={[ui.card, summaryCard]}>
-        {!rentExpectationKnown ? <>
-          <Text style={summaryMainLine}>Czynsz: <Text style={summaryMainValue}>—</Text></Text>
-          <Text style={muted}>Uzupełnij oczekiwany czynsz</Text>
-        </> : <>
-          <Text style={summaryEyebrow}>CZYNSZ</Text>
-          <Text style={summaryHeroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{compactPln(receivedRent)}</Text>
-          <Text style={summaryHeroCaption}>otrzymano</Text>
-          {expectedRent > 0 && receivedRent < expectedRent
-            ? <Pressable accessibilityRole="button" accessibilityLabel={`${formatPln(remainingRent)} do potwierdzenia. Potwierdź wpłaty`} onPress={openBulkConfirmation}><Text style={summaryPendingValue}>{compactPln(remainingRent)} do potwierdzenia</Text></Pressable>
-            : <Text style={summaryHeroCaption}>{expectedRent === 0 ? "Brak oczekiwanego czynszu" : "Wpłaty potwierdzone"}</Text>}
-          <ProgressBar fraction={rentProgress.fraction} accessibilityLabel="Postęp opłaconych czynszów" />
-          <Text style={summaryExpected}>z oczekiwanych {compactPln(expectedRent)}</Text>
-        </>}
+        {ownerCashflow?.chargesKnown ? <View style={ownerNetBlock}>
+          <Text style={summaryEyebrow}>ZYSK</Text>
+          <Text style={ownerNetValue}>{compactPln(ownerCashflow.ownerNetGrosz)}</Text>
+          <Text style={ownerNetDetail}>z wpłat otrzymanych w tym miesiącu · opłaty {compactPln(ownerCashflow.chargesGrosz)} · podatek {compactPln(ownerCashflow.taxGrosz)}</Text>
+        </View> : ownerCashflow ? <Text style={ownerNetDetail}>Zysk niedostępny — brakuje warunków najmu dla części wpłat.</Text> : null}
+        <View style={ownerCashflow ? summaryRentSection : undefined}>
+          {!rentExpectationKnown ? <>
+            <Text style={summaryMainLine}>Czynsz: <Text style={summaryMainValue}>—</Text></Text>
+            <Text style={muted}>Uzupełnij oczekiwany czynsz</Text>
+          </> : <>
+            <Text style={summaryEyebrow}>CZYNSZ</Text>
+            <Text style={summaryHeroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{compactPln(receivedRent)}</Text>
+            <Text style={summaryHeroCaption}>otrzymano</Text>
+            {expectedRent > 0 && receivedRent < expectedRent
+              ? <Pressable accessibilityRole="button" accessibilityLabel={`${formatPln(remainingRent)} do potwierdzenia. Potwierdź wpłaty`} onPress={openBulkConfirmation}><Text style={summaryPendingValue}>{compactPln(remainingRent)} do potwierdzenia</Text></Pressable>
+              : <Text style={summaryHeroCaption}>{expectedRent === 0 ? "Brak oczekiwanego czynszu" : "Wpłaty potwierdzone"}</Text>}
+            <ProgressBar fraction={rentProgress.fraction} accessibilityLabel="Postęp opłaconych czynszów" />
+            {showAggregateExpectedRent(activeProperties.length) ? <Text style={summaryExpected}>z oczekiwanych {compactPln(expectedRent)}</Text> : null}
+          </>}
+        </View>
         <Pressable accessibilityRole="button" accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${currentPeriod.status === "paid" ? "Opłacone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} onPress={() => navigateToTaxDetails(navigation)} style={summaryTax}>
           <Text style={summaryEyebrow}>PODATEK</Text>
           <View style={summaryTaxHeadline}><Text style={summaryTaxValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text>{currentPeriod?.status === "paid" ? <Text style={summaryPaid}>✓ Opłacone</Text> : null}</View>
           <Text style={summaryTaxDetail}>{currentPeriod?.status === "no-tax" ? "Brak podatku do zapłaty" : currentPeriod?.status === "paid" ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "overdue" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin minął ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod?.status === "partial" ? `Pozostało ${compactPln(currentPeriod.outstandingGrosz)} · Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin płatności: ${formatPolishDate(currentPeriod.dueDate)}` : hasTaxRulesForYear(selectedYear) ? "—" : `Brak zweryfikowanych reguł podatkowych dla ${selectedYear}`}</Text>
         </Pressable>
-        {ownerCashflow?.chargesKnown ? <View style={ownerNetBlock}>
-          <Text style={summaryEyebrow}>ZOSTAJE WŁAŚCICIELOWI</Text>
-          <Text style={ownerNetValue}>{compactPln(ownerCashflow.ownerNetGrosz)}</Text>
-          <Text style={ownerNetDetail}>z wpłat otrzymanych w tym miesiącu · opłaty {compactPln(ownerCashflow.chargesGrosz)} · podatek {compactPln(ownerCashflow.taxGrosz)}</Text>
-        </View> : ownerCashflow ? <Text style={ownerNetDetail}>Kwota dla właściciela niedostępna — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View>
 
       <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text></View>
@@ -334,8 +336,9 @@ const summaryTaxHeadline = { flexDirection: "row" as const, alignItems: "baselin
 const summaryTaxValue = { color: theme.colors.textPrimary, fontSize: 22, fontWeight: "800" as const };
 const summaryPaid = { color: theme.colors.success, fontSize: 14, fontWeight: "700" as const };
 const summaryTaxDetail = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "500" as const, marginTop: 2 };
-const ownerNetBlock = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 12, paddingTop: 12, width: "100%" as const };
-const ownerNetValue = { color: theme.colors.textPrimary, fontSize: 24, fontWeight: "800" as const, marginTop: 3 };
+const ownerNetBlock = { width: "100%" as const };
+const ownerNetValue = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, marginTop: 3 };
+const summaryRentSection = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 14, paddingTop: 12, width: "100%" as const };
 const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
 const propertyRow = { paddingVertical: 13, paddingHorizontal: 15, marginTop: 7, minHeight: 76 };
 const compactPropertyHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };

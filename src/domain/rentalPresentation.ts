@@ -53,6 +53,10 @@ export function rentCheckAgeLabel(days: number): string | null {
   return `Termin sprawdzenia minął ${days} ${unit} temu`;
 }
 
+export function showAggregateExpectedRent(activeApartmentCount: number) {
+  return activeApartmentCount > 1;
+}
+
 export function dashboardProgress(value: number, total: number) {
   const safeTotal = Math.max(0, total);
   const safeValue = Math.max(0, value);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, showAggregateExpectedRent, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "./presentationFormat";
 import { formatPln } from "./ryczaltTax";
 
@@ -66,6 +66,13 @@ describe("rental presentation helpers", () => {
     expect(rentDisplayState(270_000, 100_000, 170_000)).toEqual({ kind: "partial", confirmedGrosz: 100_000, expectedGrosz: 270_000, remainingGrosz: 170_000 });
     expect(rentStatusLabel(rentDisplayState(270_000, 100_000, 170_000))).toBe("Częściowo otrzymano");
     expect(rentStatusLabel(rentDisplayState(270_000, 270_000, 0))).toBe("Potwierdzone");
+  });
+
+  it("shows aggregate expected rent only when more than one apartment is active", () => {
+    expect(showAggregateExpectedRent(0)).toBe(false);
+    expect(showAggregateExpectedRent(1)).toBe(false);
+    expect(showAggregateExpectedRent(2)).toBe(true);
+    expect(showAggregateExpectedRent(5)).toBe(true);
   });
 
   it("keeps the rent summary amounts distinct for partial and fully confirmed rent, including large values", () => {
