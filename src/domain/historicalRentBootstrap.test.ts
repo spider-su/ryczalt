@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RentalDocument } from "../model/rental";
-import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange, historicalTaxPaymentsForImportedRent } from "./historicalRentBootstrap";
+import { bootstrapHistoricalRentPayments, bootstrapInitialPaidRentHistory, historicalBootstrapDefaultRange, historicalTaxPaymentsForImportedRent } from "./historicalRentBootstrap";
 import { calculateSettlements } from "./ryczaltTax";
 import { rentMonthAmounts } from "./tasks";
 
@@ -31,6 +31,43 @@ describe("historical rent bootstrap", () => {
     expect(settlements.find(({ period }) => period === "2026-03")?.revenueGrosz).toBe(250_000);
     expect(settlements.find(({ period }) => period === "2026-02")?.revenueGrosz).toBe(0);
     expect(settlements.find(({ period }) => period === "2026-03")?.dueDate).toBe("2026-04-20");
+  });
+
+  it("bootstraps completed onboarding months as confirmed rent with tax already paid", () => {
+    const initial = doc();
+    const januaryProperty = {
+      ...property,
+      rentalStartDate: "2026-01-01",
+      rentSchedule: [{ ...property.rentSchedule[0]!, effectiveFrom: "2026-01" }],
+    };
+    initial.properties = [januaryProperty];
+    const result = bootstrapInitialPaidRentHistory({
+      document: initial,
+      property: januaryProperty,
+      startMonth: "2026-01",
+      endMonth: "2026-08",
+      today: "2026-09-28",
+    });
+    expect(result.created).toHaveLength(8);
+    expect(result.created.map((entry) => entry.rentalMonth)).toEqual([
+      "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08",
+    ]);
+    expect(result.createdTaxPayments).toHaveLength(8);
+    expect(result.createdTaxPayments[0]).toMatchObject({
+      period: "2026-01",
+      paidAt: "2026-02-20",
+      amount: "213.00",
+      source: "INITIAL_IMPORT",
+    });
+    expect(result.document.taxPayments).toEqual(result.createdTaxPayments);
+    const august = calculateSettlements({
+      entries: result.document.incomeEntries,
+      payments: result.document.taxPayments,
+      taxYear: 2026,
+      mode: "monthly",
+      today: "2026-09-28",
+    }).find(({ period }) => period === "2026-08");
+    expect(august?.outstandingGrosz).toBe(0);
   });
 
   it("does not assign the current tenant to imported historical receipts", () => {
