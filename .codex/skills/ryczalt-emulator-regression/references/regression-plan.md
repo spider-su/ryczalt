@@ -7,7 +7,8 @@
 - Primary synthetic apartment: `QA-Parkowa`.
 - Synthetic tenant: `Jan Testowy`, phone `500600700`, email `jan.testowy@example.invalid`.
 - Owner rent: PLN 3,000/month.
-- Media/charges: PLN 500/month, initially marked as paid by tenant.
+- Media/charges: PLN 500/month; the wizard must start with **Media płaci najemca** ON.
+- Rental start: wizard default = 1 January of the current year; exercise editing it, then restore the default for the primary fixture.
 - Payment day: 10.
 - Taxable treatment: `OWNER_RENT` unless a case explicitly says otherwise.
 - Use the app's current month and the emulator's real date. Never change the emulator clock to force a due date.
@@ -62,16 +63,20 @@ Failure criteria: demo changes persist into real data, the test is unavailable i
 
 1. On empty Pulpit tap **Rozpocznij · 3 kroki**.
 2. Step 1:
+   - verify **Najem od** is prefilled to `<current-year>-01-01`;
+   - change it to another valid date and back to `<current-year>-01-01` to prove it is editable;
+   - enter an invalid calendar date and verify **Dalej** is blocked, then restore the default;
    - tap **Dalej** with an empty address and verify inline validation;
    - enter address `QA-Parkowa`;
    - enter tenant name `Jan Testowy`;
    - tap **Pomiń na razie** once, confirm the wizard closes, and verify no apartment was created.
-3. Reopen **Rozpocznij · 3 kroki** and re-enter the Step 1 values.
+3. Reopen **Rozpocznij · 3 kroki**. Verify the start-date default is restored, then re-enter the Step 1 values.
 4. Tap **Dalej**.
 5. Step 2:
    - enter owner rent `3000`;
    - enter media `500`;
-   - switch **Media płaci najemca** on;
+   - verify **Media płaci najemca** starts ON;
+   - switch it OFF and ON again;
    - enter payment day `10`;
    - enter an invalid day such as `32`, tap **Dalej**, and verify validation;
    - restore `10`.
@@ -81,15 +86,18 @@ Failure criteria: demo changes persist into real data, the test is unavailable i
    - select **Czynsz i opłaty dodatkowe**, then switch to **Tylko czynsz dla właściciela** to exercise both;
    - verify the summary shows address, tenant, 3000 rent, 500 media and day 10.
 8. Tap **Zapisz mieszkanie**.
-9. Verify Pulpit now shows the apartment and no receipt/tax payment was manufactured automatically.
-10. Capture `04-onboarding-step1`, `05-onboarding-step2`, `06-onboarding-summary`, `07-onboarding-saved`.
+9. Verify Pulpit now shows the apartment.
+10. Verify onboarding automatically created one `INITIAL_IMPORT` rent receipt for every completed month from January through the month before the current month, using the configured rent/media/tax treatment.
+11. Verify the corresponding completed historical monthly tax obligations are represented as `INITIAL_IMPORT` paid tax records and those historical periods do not appear as unpaid tax.
+12. Verify the **current month is not auto-confirmed**: its rent still requires normal manual confirmation and its tax follows only from confirmed current-month receipts.
+13. Capture `04-onboarding-step1`, `05-onboarding-step2`, `06-onboarding-summary`, `07-onboarding-saved`, plus evidence of imported historical rent/tax state.
 
 ### C. Normal apartment editor and advanced fields
 
 Use the regular Ustawienia → Mieszkania editor after onboarding; this verifies the wizard and normal form stay aligned.
 
 1. Open `QA-Parkowa`.
-2. Verify owner rent = 3000, media = 500, media-paid-by-tenant = on, payment day = 10, taxable treatment = owner rent only.
+2. Verify rental start = 1 January of the current year, owner rent = 3000, media = 500, media-paid-by-tenant = on, payment day = 10, taxable treatment = owner rent only.
 3. Exercise and save these additional fields:
    - tenant phone `500600700`;
    - tenant email `jan.testowy@example.invalid`;
@@ -146,7 +154,7 @@ Use the current rental month. Do not move the emulator date.
 4. Expand and collapse **Jak liczymy podatek?**.
 5. Open **Dane do przelewu**; exercise copy actions for any populated transfer details and close.
 6. Tap **Potwierdź wykonaną wpłatę**.
-7. If the first-payment history-review modal appears, inspect its values, close it once, reopen, then continue.
+7. Because onboarding already imported historical rent and marked its calculated tax as paid, the first-payment history-review modal should normally be unnecessary for the current period. If it appears, verify that the imported historical payments are represented correctly before continuing.
 8. Enter the actual tax payment amount/date and save.
 9. Verify status becomes paid and remaining tax is 0.
 10. Open the saved tax payment:
@@ -237,7 +245,7 @@ In `results.md`, include a checklist showing whether each user-facing action was
 
 - Fresh Pulpit: Rozpocznij · 3 kroki, Zobacz demo.
 - Demo banner: Wyjdź z demo.
-- Wizard: Dalej, Wstecz, Pomiń na razie, Zamknij if encountered, both tax radio choices, media switch, Zapisz mieszkanie.
+- Wizard: prefilled/editable rental start date, Dalej, Wstecz, Pomiń na razie, Zamknij if encountered, both tax radio choices, default-ON media switch toggled OFF/ON, Zapisz mieszkanie, imported historical rent/tax verification.
 - Pulpit: apartment quick-add, tax summary navigation, applicable period controls, any available bulk confirmation open/close.
 - Przychód: add, edit/save, delete-cancel, delete-confirm.
 - Podatek: info disclosure, transfer details, payment create, edit, delete-cancel, delete-confirm, history-review close/continue when applicable.
