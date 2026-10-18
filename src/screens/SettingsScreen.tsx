@@ -692,18 +692,16 @@ export function SettingsScreen() {
               onCancel={closePropertyEditor}
               saving={saving}
             />
-          ) : <ScrollView
+          ) : <>
+          <ScrollView
             ref={propertyEditorScrollRef}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ padding: 20 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: 110 }}
           >
             <Text style={sectionTitle}>Mieszkanie</Text>
             {field("Adres *", "address", { placeholder: "np. ul. Parkowa 12/4" })}
             {field("Najemca", "tenantName", { placeholder: "Imię i nazwisko" })}
             <Text style={sectionTitle}>Płatności</Text>
-            <Text style={fieldLabel}>Warunki obowiązują od miesiąca</Text>
-            <TextInput accessibilityLabel="Warunki obowiązują od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder="2026-10" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-            <Text style={{ ...muted, marginBottom: 8 }}>Zmiany czynszu, mediów, podstawy podatku i terminu dotyczą tego miesiąca i kolejnych. Zamknięte miesiące pozostają bez zmian.</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "np. 2500" })}</View>
               <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "np. 0" })}</View>
@@ -724,6 +722,10 @@ export function SettingsScreen() {
             </View>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={advancedDisclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><MaterialIcons name={showAdvancedProperty ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></Pressable>
             {showAdvancedProperty ? <>
+            <Text style={sectionTitle}>Zmiany warunków</Text>
+            <Text style={fieldLabel}>Zastosuj zmiany od miesiąca</Text>
+            <TextInput accessibilityLabel="Zastosuj zmiany od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder={todayIsoDate().slice(0, 7)} placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+            <Text style={{ ...muted, marginBottom: 8 }}>Domyślnie zmiany obowiązują od bieżącego miesiąca. Ustaw późniejszy miesiąc tylko wtedy, gdy nowe warunki mają wejść w życie w przyszłości.</Text>
             <Text style={sectionTitle}>Daty najmu</Text>
             {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
             {field("Umowa wygasa", "leaseEndDate", { placeholder: "2027-09-28" })}
@@ -747,17 +749,18 @@ export function SettingsScreen() {
                 {effectiveLifecycle(editing) !== "ARCHIVED" ? <Pressable accessibilityRole="button" onPress={() => changeLifecycle(editing, "ARCHIVED")} style={secondaryButton}><Text style={modeText}>Archiwizuj</Text></Pressable> : null}
               </View>
             </View> : null}
+          </ScrollView>
+          <View style={editorFooter}>
             <Pressable
               accessibilityRole="button"
               disabled={saving}
               onPress={() => void save()}
-              style={[primaryButton, saving && { opacity: 0.6 }]}
+              style={[primaryButton, editorSaveButton, saving && { opacity: 0.6 }]}
             >
-              <Text style={primaryText}>
-                {saving ? "Zapisywanie…" : "Zapisz mieszkanie"}
-              </Text>
+              <Text style={primaryText}>{saving ? "Zapisywanie…" : "Zapisz mieszkanie"}</Text>
             </Pressable>
-          </ScrollView>}
+          </View>
+          </>}
         </SafeAreaView>
       </Modal>
       <Modal visible={Boolean(bootstrapProperty && bootstrapRange)} animationType="slide" onRequestClose={() => { setBootstrapProperty(null); setBootstrapRange(null); }}>
@@ -880,6 +883,8 @@ const legalText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight:
 const trustCard = { padding: 16 };
 const clearDataButton = { minHeight: 46, justifyContent: "center" as const, alignItems: "center" as const, marginTop: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 12 };
 const clearDataText = { color: theme.colors.danger, fontSize: 14, fontWeight: "700" as const };
+const editorFooter = { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10, borderTopWidth: 1, borderTopColor: theme.colors.divider, backgroundColor: theme.colors.surface };
+const editorSaveButton = { marginVertical: 0 };
 const modalHeader = ui.modalHeader;
 const modalTitle = ui.modalTitle;
 const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
