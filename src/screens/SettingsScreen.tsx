@@ -50,6 +50,12 @@ type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymen
   termsEffectiveFrom: string;
 };
 type PropertyDraftTextKey = "address" | "ownerRent" | "mediaAmount" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalStartDate" | "leaseEndDate" | "paymentDay" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "notes";
+const moneyDraft = (value?: string) => {
+  const normalized = (value ?? "").trim().replace(",", ".");
+  if (!normalized) return "";
+  return normalized.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+};
+
 const newPropertyDraft = (): PropertyDraft => ({
   ...newApartmentDefaults(),
   address: "",
@@ -80,6 +86,8 @@ export function SettingsScreen() {
   const [showAdvancedProperty, setShowAdvancedProperty] = useState(false);
   const [showArchivedProperties, setShowArchivedProperties] = useState(false);
   const [taxEligibilityOpen, setTaxEligibilityOpen] = useState(SETTINGS_TAX_LEGAL_DEFAULT_OPEN);
+  const [taxAdvancedOpen, setTaxAdvancedOpen] = useState(false);
+  const [dataInfoOpen, setDataInfoOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
   const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
   const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
@@ -189,8 +197,8 @@ export function SettingsScreen() {
       property
         ? {
             address: property.address,
-            ownerRent: currentTerms ? decimalFromGrosz(currentTerms.ownerRentGrosz) : property.ownerRent ?? "",
-            mediaAmount: currentTerms ? decimalFromGrosz(currentTerms.mediaAmountGrosz) : property.mediaAmount ?? "0",
+            ownerRent: moneyDraft(currentTerms ? decimalFromGrosz(currentTerms.ownerRentGrosz) : property.ownerRent),
+            mediaAmount: moneyDraft(currentTerms ? decimalFromGrosz(currentTerms.mediaAmountGrosz) : property.mediaAmount ?? "0"),
             mediaPaidByTenant: currentTerms?.mediaPaidByTenant ?? property.mediaPaidByTenant ?? false,
             taxableTreatment: currentTerms?.taxableTreatment ?? property.taxableTreatment,
             tenantName: property.tenantName ?? "",
@@ -226,9 +234,9 @@ export function SettingsScreen() {
     setDraft({
       ...newPropertyDraft(),
       address: property.address,
-      ownerRent: property.ownerRent ?? "",
+      ownerRent: moneyDraft(property.ownerRent),
       rentSchedule: undefined,
-      mediaAmount: property.mediaAmount ?? "0",
+      mediaAmount: moneyDraft(property.mediaAmount ?? "0"),
       mediaPaidByTenant: property.mediaPaidByTenant ?? false,
       taxableTreatment: property.taxableTreatment,
       tenantName: "", tenantPhone: "", tenantEmail: "",
