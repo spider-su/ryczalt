@@ -314,7 +314,7 @@ export function PulpitScreen() {
         </View> : ownerCashflow ? <Text style={ownerNetDetail}>Zysk niedostępny — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View> : null}
 
-      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text></View>
+      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Przychód")} style={sectionHeaderAction}><Text style={action}>Historia wpłat ›</Text></Pressable></View>
       {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
         <Pressable accessibilityRole={rentFullyConfirmed ? "button" : undefined}
           accessibilityLabel={rentFullyConfirmed ? `Czynsz ${compactPln(receivedRent)}. Potwierdzone. ${rentDetailsExpanded ? "Ukryj mieszkania" : "Pokaż mieszkania"}` : undefined}
@@ -520,7 +520,8 @@ const smallLabel = { color: theme.colors.textSecondary, fontSize: 13, fontWeight
 const fieldLabel = { ...ui.fieldLabel, marginTop: 8 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 };
 const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 13 };
-const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 6 };
+const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, marginTop: 6 };
+const sectionHeaderAction = { minHeight: 40, justifyContent: "center" as const, paddingLeft: 8 };
 const dashboardSectionTitle = { ...ui.sectionTitle, marginTop: 12, marginBottom: 8 };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
 const summaryCard = { paddingHorizontal: 16, paddingVertical: 14, marginVertical: 4 };
@@ -561,7 +562,7 @@ const paymentActionRow = { flexDirection: "row" as const, gap: 10, marginTop: 8 
 const paymentActionRowStacked = { flexDirection: "column" as const };
 const paymentActionCard = { flex: 1, minWidth: 0, padding: 12, marginVertical: 4, minHeight: 104 };
 const paymentActionHeading = { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 };
-const paymentActionAmount = { color: theme.colors.textPrimary, fontSize: 20, lineHeight: 25, fontWeight: "800" as const, marginTop: 7, fontVariant: ["tabular-nums"] as const };
+const paymentActionAmount = { color: theme.colors.textPrimary, fontSize: 20, lineHeight: 25, fontWeight: "800" as const, marginTop: 7 };
 const paymentActionStatus = { color: theme.colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 4 };
 const paymentActionStatusPaid = { color: theme.colors.success, fontWeight: "700" as const };
 const paymentActionStatusOverdue = { color: theme.colors.danger, fontWeight: "700" as const };

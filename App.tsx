@@ -77,7 +77,7 @@ function RentalApp() {
       tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>
       <Tabs.Screen name="Pulpit" component={PulpitScreen} />
-      <Tabs.Screen name="Przychód" component={IncomeScreen} />
+      <Tabs.Screen name="Przychód" component={IncomeScreen} options={{ tabBarButton: () => null, tabBarItemStyle: { display: "none" } }} />
       <Tabs.Screen name="Podatek" component={TaxScreen} />
       <Tabs.Screen name="Ustawienia" component={SettingsScreen} />
     </Tabs.Navigator>
