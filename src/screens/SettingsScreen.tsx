@@ -833,15 +833,7 @@ function optional(
   return trimmed ? { [key]: trimmed } : {};
 }
 
-const primaryButton = {
-  backgroundColor: theme.colors.primary,
-  minHeight: 48,
-  borderRadius: 8,
-  justifyContent: "center" as const,
-  alignItems: "center" as const,
-  paddingHorizontal: 16,
-  marginVertical: 8,
-};
+const primaryButton = ui.primaryButton;
 const primaryText = {
   color: theme.colors.onAccent,
   fontWeight: "700" as const,
@@ -866,7 +858,7 @@ const apartmentMeta = { color: theme.colors.textSecondary, fontSize: 14, marginT
 const settingsBack = { minHeight: 44, justifyContent: "center" as const, marginBottom: 6 };
 const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const secondaryButton = { ...ui.secondaryButton, marginVertical: 8 };
-const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
+const fieldLabel = { ...ui.fieldLabel, marginTop: 12 };
 const inputStyle = { ...ui.input, paddingVertical: 10 };
 const staticPaymentValue = { color: theme.colors.textPrimary, fontSize: 16, minHeight: 38, paddingVertical: 7 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 };
@@ -882,7 +874,7 @@ const clearDataButton = { minHeight: 46, justifyContent: "center" as const, alig
 const clearDataText = { color: theme.colors.danger, fontSize: 14, fontWeight: "700" as const };
 const modalHeader = ui.modalHeader;
 const modalTitle = ui.modalTitle;
-const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
+const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
 const taxableOptionSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
 const taxableOptionLabel = { color: theme.colors.textPrimary, flex: 1, fontSize: 14 };
 const taxableOptionLabelSelected = { fontWeight: "600" as const };

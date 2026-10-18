@@ -251,11 +251,11 @@ export function TaxScreen() {
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
         </View> : null}
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 15 }}>Przychód opodatkowany w {taxYear}</Text>
+        <Text style={ui.sectionTitle}>Przychód opodatkowany w {taxYear}</Text>
         <Text style={taxContext}>{formatPln(annualIncome)} / próg stawki 12,5% {annualThreshold > 0 ? formatPln(annualThreshold) : "niedostępny"}</Text>
         {annualThreshold > 0 ? <Text style={thresholdRemaining}>Do progu stawki 12,5%: {formatPln(remainingThreshold)}</Text> : null}
         {annualThreshold > 0 ? <View style={{ marginTop: 8 }}><ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Wykorzystanie progu stawki 12,5%" /></View> : null}
-        {payments.length ? <><Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text></> : null}
+        {payments.length ? <><Text style={ui.sectionTitle}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text></> : null}
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
           {payment.source === "INITIAL_IMPORT" ? <Text style={taxContext}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
@@ -335,5 +335,5 @@ const taxDetails = { marginTop: 14, padding: 11, borderRadius: 12, backgroundCol
 const rentWarning = { marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.warning, backgroundColor: theme.colors.surface };
 const rentWarningTitle = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const };
 const rentWarningText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 6 };
-const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 };
-const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
+const fieldLabel = { ...ui.fieldLabel, marginTop: 12 };
+const inputStyle = { ...ui.input, paddingVertical: 10 };
