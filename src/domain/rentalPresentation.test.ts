@@ -68,12 +68,12 @@ describe("rental presentation helpers", () => {
   });
 
   it("shows YTD profit only when the selected dashboard is fully approved", () => {
-    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxStatus: "paid", chargesKnown: true })).toBe(true);
-    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxStatus: "no-tax", chargesKnown: true })).toBe(true);
-    expect(showDashboardYtdProfit({ rentFullyConfirmed: false, pendingBillCount: 0, taxStatus: "paid", chargesKnown: true })).toBe(false);
-    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 1, taxStatus: "paid", chargesKnown: true })).toBe(false);
-    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxStatus: "due", chargesKnown: true })).toBe(false);
-    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxStatus: "paid", chargesKnown: false })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(true);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(true);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: false, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 1, taxApproved: true, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: false, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: false })).toBe(false);
   });
 
   it("shows aggregate expected rent only when more than one apartment is active", () => {
