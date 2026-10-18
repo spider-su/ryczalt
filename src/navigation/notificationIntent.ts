@@ -1,7 +1,7 @@
 import { isRentalMonth } from "../domain/rentalValidation";
 
 export type NotificationIntent =
-  | { screen: "Przychód"; params: { quickAdd: true; propertyId: string; rentalMonth: string; expectedAmount?: string } }
+  | { screen: "Pulpit"; params: { screen: "Wpłaty"; params: { quickAdd: true; returnTo: "Przegląd"; propertyId: string; rentalMonth: string; expectedAmount?: string } } }
   | { screen: "Podatek"; params: { period: string } }
   | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string; period?: string } }
   | { screen: "Pulpit"; params: { taskId?: string; billId?: string; period?: string } };
@@ -13,10 +13,10 @@ const taxPeriod = (value: unknown): value is string => nonEmptyString(value) && 
 export function notificationDataToIntent(data: Record<string, unknown>): NotificationIntent | null {
   if (data.category === "rent" && nonEmptyString(data.propertyId) && rentalMonth(data.period)) {
     const expectedAmount = typeof data.expectedAmount === "string" && /^\d+(\.\d{1,2})?$/.test(data.expectedAmount) ? data.expectedAmount : undefined;
-    return { screen: "Przychód", params: {
-      quickAdd: true, propertyId: data.propertyId, rentalMonth: data.period,
+    return { screen: "Pulpit", params: { screen: "Wpłaty", params: {
+      quickAdd: true, returnTo: "Przegląd", propertyId: data.propertyId, rentalMonth: data.period,
       ...(expectedAmount ? { expectedAmount } : {}),
-    } };
+    } } };
   }
   if (data.category === "tax" && taxPeriod(data.period))
     return { screen: "Podatek", params: { period: data.period } };
