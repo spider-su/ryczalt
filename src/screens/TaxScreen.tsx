@@ -216,7 +216,7 @@ export function TaxScreen() {
   };
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 36 }}>
+    <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
       <PeriodSelector value={taxPeriodLabel(selectedPeriod, document.settings.settlementMode)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
         previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode)}
         onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, document.settings.settlementMode, now, earliestPeriod))}
@@ -268,7 +268,7 @@ export function TaxScreen() {
     </ScrollView>
     <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700", flex: 1 }}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
+        <View style={ui.modalHeader}><Text style={ui.modalTitle}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w zakładce Przychód przed kontynuacją.</Text>
           <View style={[ui.card, { marginTop: 16, padding: 16, gap: 8 }]}>
@@ -286,7 +286,7 @@ export function TaxScreen() {
     </Modal>
     <Modal visible={modalOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
+        <View style={ui.modalHeader}><Text style={ui.modalTitle}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
           <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ?? ""}</Text>
           <Text style={fieldLabel}>Pełna pozostała kwota podatku (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
