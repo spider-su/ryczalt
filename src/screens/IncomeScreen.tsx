@@ -48,17 +48,13 @@ type PaymentDraft = {
   propertyId: string;
   amount: string;
   taxableAmount: string;
-  receivedAt: string;
   rentalMonth: string;
-  description: string;
 };
 const blankDraft = (): PaymentDraft => ({
   propertyId: "",
   amount: "",
   taxableAmount: "",
-  receivedAt: todayIsoDate(),
   rentalMonth: "",
-  description: "",
 });
 
 export function IncomeScreen() {
@@ -78,7 +74,7 @@ export function IncomeScreen() {
   const currentMonth = todayIsoDate().slice(0, 7);
   const confirmationRentalMonth = isRentalMonth(draft.rentalMonth)
     ? draft.rentalMonth
-    : isValidCalendarDate(draft.receivedAt) ? draft.receivedAt.slice(0, 7) : currentMonth;
+    : currentMonth;
   const confirmationProperties = useMemo(() => properties.filter((property) =>
     rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).confirmedGrosz === 0,
   ), [properties, document?.incomeEntries, confirmationRentalMonth]);
@@ -182,7 +178,7 @@ export function IncomeScreen() {
     const property = properties.find((item) => item.id === propertyId);
     if (!property || rentMonthAmounts(property, document.incomeEntries, confirmationRentalMonth).confirmedGrosz > 0) return;
     setDraft((current) => {
-      const rentalMonth = current.rentalMonth || current.receivedAt.slice(0, 7);
+      const rentalMonth = current.rentalMonth || currentMonth;
       const amount = decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).expectedGrosz ?? 0);
       const terms = apartmentTermsForMonth(property, rentalMonth);
       const taxableAmount = (terms?.taxableTreatment ?? property.taxableTreatment) && amount
@@ -205,11 +201,11 @@ export function IncomeScreen() {
       );
       return;
     }
-    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || draft.receivedAt.slice(0, 7))?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment)) {
+    if (!(apartmentTermsForMonth(properties.find((property) => property.id === draft.propertyId)!, draft.rentalMonth || currentMonth)?.taxableTreatment ?? properties.find((property) => property.id === draft.propertyId)?.taxableTreatment)) {
       Alert.alert("Ustaw sposób opodatkowania", "Wybierz go w Ustawieniach mieszkania zgodnie z warunkami umowy najmu.");
       return;
     }
-    const rentalPeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
+    const rentalPeriod = draft.rentalMonth || currentMonth;
     const property = properties.find((item) => item.id === draft.propertyId)!;
     const rentStatus = rentMonthAmounts(property, document.incomeEntries, rentalPeriod);
     const expected = rentStatus.expectedGrosz;
@@ -237,13 +233,6 @@ export function IncomeScreen() {
       );
       return;
     }
-    if (!isValidCalendarDate(draft.receivedAt)) {
-      Alert.alert(
-        "Nieprawidłowa data",
-        "Wpisz rzeczywistą datę otrzymania w formacie RRRR-MM-DD.",
-      );
-      return;
-    }
     if (draft.rentalMonth && !isRentalMonth(draft.rentalMonth)) {
       Alert.alert(
         "Nieprawidłowy miesiąc",
@@ -251,8 +240,8 @@ export function IncomeScreen() {
       );
       return;
     }
-    const candidatePeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
-    if ((document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === draft.propertyId && snapshot.month === candidatePeriod) || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === draft.receivedAt.slice(0, 7))) {
+    const candidatePeriod = draft.rentalMonth || currentMonth;
+    if ((document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === draft.propertyId && snapshot.month === candidatePeriod) || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === currentMonth)) {
       Alert.alert("Okres jest zamknięty", "Nie można zmieniać wpłat w zamkniętym okresie. Audytowane korekty historyczne będą dostępne w przyszłości.");
       return;
     }
@@ -264,11 +253,10 @@ export function IncomeScreen() {
       entry = createIncomeEntry(
             {
               propertyId: draft.propertyId,
-              receivedAt: draft.receivedAt,
+              receivedAt: todayIsoDate(),
               amount,
               taxableAmount,
               rentalMonth: draft.rentalMonth,
-              description: draft.description,
             },
             selected,
             createId("income"),
@@ -301,12 +289,6 @@ export function IncomeScreen() {
     if (compareDecimalStrings(amount, "100000") > 0) {
       warnings.push(
         `Kwota ${formatPlnAmount(amount)} jest bardzo wysoka. Sprawdź, czy nie ma pomyłki.`,
-      );
-    }
-    const today = todayIsoDate();
-    if (draft.receivedAt > today) {
-      warnings.push(
-        `Data otrzymania ${draft.receivedAt} przypada w przyszłości. Sprawdź, czy wpłata została już otrzymana.`,
       );
     }
     if (warnings.length) {
@@ -350,7 +332,7 @@ export function IncomeScreen() {
   const field = (
     label: string,
     key:
-      "amount" | "taxableAmount" | "receivedAt" | "rentalMonth" | "description",
+      "amount" | "taxableAmount" | "rentalMonth",
     options: {
       keyboardType?: "default" | "decimal-pad";
       placeholder?: string;
@@ -362,10 +344,10 @@ export function IncomeScreen() {
         accessibilityLabel={label}
         value={draft[key]}
         onChangeText={(value) => setDraft((current) => {
-          if (key === "receivedAt" || key === "rentalMonth") {
+          if (key === "rentalMonth") {
             const nextDraft = { ...current, [key]: value };
             const property = properties.find((item) => item.id === current.propertyId);
-            const rentalMonth = nextDraft.rentalMonth || nextDraft.receivedAt.slice(0, 7);
+            const rentalMonth = nextDraft.rentalMonth || currentMonth;
             return property && isRentalMonth(rentalMonth)
               ? { ...nextDraft, amount: decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).expectedGrosz ?? 0) }
               : nextDraft;
@@ -450,52 +432,25 @@ export function IncomeScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ padding: 20 }}
           >
-            <Text
-              style={{ color: theme.colors.textSecondary, marginBottom: 8 }}
-            >
-              Mieszkanie
-            </Text>
-            {confirmationProperties.map((property) => (
+            <Text style={{ color: theme.colors.textSecondary, marginBottom: 8 }}>Mieszkanie</Text>
+            {confirmationProperties.length === 1 ? <View style={selectedApartmentSummary}>
+              <MaterialIcons name="home" size={20} color={theme.colors.textSecondary} />
+              <Text style={selectedApartmentText}>{confirmationProperties[0]!.address}</Text>
+            </View> : confirmationProperties.map((property) => (
               <Pressable
                 key={property.id}
                 accessibilityRole="radio"
-                accessibilityState={{
-                  checked: draft.propertyId === property.id,
-                }}
+                accessibilityState={{ checked: draft.propertyId === property.id }}
                 onPress={() => chooseProperty(property.id)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 12,
-                  borderWidth: 1,
-                  borderColor:
-                    draft.propertyId === property.id
-                      ? theme.colors.selectedBorder
-                      : theme.colors.inputBorder,
-                  borderRadius: 8,
-                  marginBottom: 7,
-                  backgroundColor:
-                    draft.propertyId === property.id
-                      ? theme.colors.selectedSurface
-                      : theme.colors.surface,
-                }}
+                style={[apartmentChoice, draft.propertyId === property.id && apartmentChoiceSelected]}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <MaterialIcons name={draft.propertyId === property.id ? "radio-button-checked" : "radio-button-unchecked"} size={22} color={draft.propertyId === property.id ? theme.colors.success : theme.colors.textMuted} />
-                  <Text
-                    style={{
-                      flex: 1,
-                      color: theme.colors.textPrimary,
-                      fontWeight: draft.propertyId === property.id ? "600" : "400",
-                    }}
-                  >
-                    {property.address}
-                  </Text>
-                </View>
+                <MaterialIcons name={draft.propertyId === property.id ? "radio-button-checked" : "radio-button-unchecked"} size={22} color={draft.propertyId === property.id ? theme.colors.success : theme.colors.textMuted} />
+                <Text style={[apartmentChoiceText, draft.propertyId === property.id && apartmentChoiceTextSelected]}>{property.address}</Text>
               </Pressable>
             ))}
             {confirmationProperties.length === 0 ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 12 }}>Wszystkie mieszkania mają już potwierdzony czynsz za ten miesiąc.</Text> : null}
             {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>{property.taxableTreatment ? `Podstawa wg ustawienia mieszkania: ${property.taxableTreatment === "OWNER_RENT" ? "czynsz dla właściciela" : "czynsz i opłaty dodatkowe"}.` : "Ustaw sposób wliczania opłat do przychodu w edycji mieszkania przed potwierdzeniem wpłaty."}</Text> : null; })()}
-            <View style={{ marginBottom: 14 }}><Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6 }}>Pełna pozostała kwota do potwierdzenia (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota do potwierdzenia" style={{ color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 13 }}>{isNonnegativeMoney(draft.amount) ? formatPlnAmount(draft.amount) : "—"}</Text></View>
+            <View style={{ marginBottom: 14 }}><Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6 }}>Kwota do potwierdzenia</Text><Text accessibilityLabel="Kwota do potwierdzenia" style={{ color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 12, minHeight: 48, paddingHorizontal: 12, paddingVertical: 13 }}>{isNonnegativeMoney(draft.amount) ? formatPlnAmount(draft.amount) : "—"}</Text></View>
             <Pressable
               accessibilityRole="button"
               onPress={() => setTaxableExpanded((value) => !value)}
@@ -516,14 +471,8 @@ export function IncomeScreen() {
                   placeholder: "Domyślnie kwota otrzymana",
                 })
               : null}
-            {field("Data otrzymania *", "receivedAt", {
-              placeholder: "RRRR-MM-DD",
-            })}
             {field("Miesiąc najmu", "rentalMonth", {
-              placeholder: "RRRR-MM",
-            })}
-            {field("Opis", "description", {
-              placeholder: "opcjonalna notatka",
+              placeholder: currentMonth,
             })}
             <Pressable
               accessibilityRole="button"
@@ -561,6 +510,12 @@ const action = {
   paddingVertical: 5,
 };
 const secondaryDisclosureText = { color: theme.colors.textPrimary, fontWeight: "600" as const, paddingVertical: 5 };
+const selectedApartmentSummary = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, gap: 10, paddingHorizontal: 12, marginBottom: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, backgroundColor: theme.colors.surfaceMuted };
+const selectedApartmentText = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, flex: 1 };
+const apartmentChoice = { minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, gap: 10, paddingHorizontal: 12, marginBottom: 7, borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 12, backgroundColor: theme.colors.surface };
+const apartmentChoiceSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
+const apartmentChoiceText = { flex: 1, color: theme.colors.textPrimary, fontWeight: "400" as const };
+const apartmentChoiceTextSelected = { fontWeight: "600" as const };
 const filterControl = { marginTop: 8, minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8, paddingHorizontal: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12 };
 const filterSelected = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, flex: 1 };
 const historyTitle = { ...ui.sectionTitle, marginTop: 16, marginBottom: 4 };
@@ -578,3 +533,4 @@ const sheetHeader = { flexDirection: "row" as const, alignItems: "center" as con
 const sheetTitle = { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" as const };
 const filterOption = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderTopWidth: 1, borderColor: theme.colors.divider };
 const optionMark = { width: 20, color: theme.colors.primary, fontSize: 16, fontWeight: "700" as const };
+
