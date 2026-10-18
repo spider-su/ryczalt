@@ -387,15 +387,7 @@ export function IncomeScreen() {
     } = {},
   ) => (
     <View style={{ marginBottom: 14 }} key={key}>
-      <Text
-        style={{
-          color: theme.colors.textSecondary,
-          fontSize: 13,
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </Text>
+      <Text style={ui.fieldLabel}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         value={draft[key]}
@@ -414,16 +406,7 @@ export function IncomeScreen() {
         editable={key !== "amount"}
         placeholder={options.placeholder}
         placeholderTextColor={theme.colors.textMuted}
-        style={{
-          color: theme.colors.textPrimary,
-          backgroundColor: theme.colors.inputBackground,
-          borderColor: theme.colors.inputBorder,
-          borderWidth: 1,
-          borderRadius: 8,
-          minHeight: 46,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-        }}
+        style={[ui.input, { paddingVertical: 10 }]}
       />
     </View>
   );
@@ -530,32 +513,9 @@ export function IncomeScreen() {
         onRequestClose={closeEntryModal}
       >
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-          <View
-            style={{
-              padding: 18,
-              borderBottomWidth: 1,
-              borderBottomColor: theme.colors.divider,
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: theme.colors.textPrimary,
-                fontSize: 19,
-                fontWeight: "700",
-              }}
-            >
-              Potwierdź wpłatę
-            </Text>
-            <Text
-              onPress={closeEntryModal}
-              accessibilityRole="button"
-              style={action}
-            >
-              Zamknij
-            </Text>
+          <View style={ui.modalHeader}>
+            <Text style={ui.modalTitle}>Potwierdź wpłatę</Text>
+            <Text onPress={closeEntryModal} accessibilityRole="button" style={action}>Zamknij</Text>
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
