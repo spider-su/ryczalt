@@ -149,7 +149,7 @@ export function PulpitScreen() {
     void update((current) => ({ ...current, taskStates: setTaskState(current.taskStates, taskId, change) })).catch(() => undefined);
   };
   const openTask = (task: AssistantTask) => {
-    if (task.type === "TENANT_PAYMENT_CHECK") navigation.navigate("Przychód", {
+    if (task.type === "TENANT_PAYMENT_CHECK") navigation.navigate("Wpłaty", {
       quickAdd: true, propertyId: task.propertyId, rentalMonth: task.period,
       expectedAmount: task.remainingGrosz ? (task.remainingGrosz / 100).toFixed(2) : undefined,
     });
@@ -164,7 +164,7 @@ export function PulpitScreen() {
     }
     else navigation.navigate("Ustawienia", { propertyId: task.propertyId });
   };
-  const addIncome = (propertyId?: string, rentalMonth?: string) => navigation.navigate("Przychód", { quickAdd: true, returnTo: "Pulpit", ...(propertyId ? { propertyId } : {}), ...(rentalMonth ? { rentalMonth } : {}) });
+  const addIncome = (propertyId?: string, rentalMonth?: string) => navigation.navigate("Wpłaty", { quickAdd: true, returnTo: "Przegląd", ...(propertyId ? { propertyId } : {}), ...(rentalMonth ? { rentalMonth } : {}) });
   const openAdministration = (property?: Property) => {
     const linked = document.properties.filter((item) => item.administrationUrl);
     if (property) {
@@ -311,7 +311,7 @@ export function PulpitScreen() {
         </View> : ownerCashflow ? <Text style={ownerNetDetail}>Zysk niedostępny — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View> : null}
 
-      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Przychód")} style={sectionHeaderAction}><Text style={[action, { color: theme.colors.selectedNavigation }]}>Historia wpłat ›</Text></Pressable></View>
+      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Wpłaty")} style={sectionHeaderAction}><Text style={[action, { color: theme.colors.selectedNavigation }]}>Historia wpłat</Text><MaterialIcons name="chevron-right" size={18} color={theme.colors.selectedNavigation} /></Pressable></View>
       {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
         <Pressable accessibilityRole={rentFullyConfirmed ? "button" : undefined}
           accessibilityLabel={rentFullyConfirmed ? `Czynsz ${compactPln(receivedRent)}. Potwierdzone. ${rentDetailsExpanded ? "Ukryj mieszkania" : "Pokaż mieszkania"}` : undefined}
@@ -512,7 +512,7 @@ const fieldLabel = { ...ui.fieldLabel, marginTop: 8 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 };
 const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 13 };
 const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, marginTop: 6 };
-const sectionHeaderAction = { minHeight: 40, justifyContent: "center" as const, paddingLeft: 8 };
+const sectionHeaderAction = { minHeight: 40, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, paddingLeft: 8 };
 const dashboardSectionTitle = { ...ui.sectionTitle, marginTop: 12, marginBottom: 8 };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
 const summaryCard = { paddingHorizontal: 16, paddingVertical: 14, marginVertical: 4 };
