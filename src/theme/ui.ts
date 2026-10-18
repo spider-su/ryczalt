@@ -20,6 +20,7 @@ export const ui = {
   },
   pageTitle: { color: theme.colors.textPrimary, fontSize: 26, fontWeight: '700' as const, marginBottom: 12 },
   sectionTitle: { color: theme.colors.textPrimary, fontSize: 18, fontWeight: '700' as const, marginTop: 22, marginBottom: 8 },
+  cardTitle: { color: theme.colors.textPrimary, fontSize: 16, fontWeight: '700' as const, marginBottom: 6 },
   compactCard: {
     backgroundColor: theme.colors.surface,
     borderRadius: 14,
@@ -74,7 +75,7 @@ export const ui = {
   primaryButton: {
     backgroundColor: theme.colors.primary,
     minHeight: 48,
-    borderRadius: 13,
+    borderRadius: 12,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 16,
