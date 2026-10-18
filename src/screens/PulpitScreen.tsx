@@ -17,7 +17,7 @@ import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { TaskRow } from "../components/pulpit/TaskRow";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
-import { dashboardAttentionTasks, dashboardProgress, daysOverdue, rentCheckAgeLabel, rentDisplayState, rentStatusLabel, showAggregateExpectedRent, unallocatedRentWarning } from "../domain/rentalPresentation";
+import { dashboardAttentionTasks, dashboardProgress, daysOverdue, rentCheckAgeLabel, rentDisplayState, rentStatusLabel, showAggregateExpectedRent, showDashboardYtdProfit, unallocatedRentWarning } from "../domain/rentalPresentation";
 import { bulkRentItems, bulkSelectionTotal, defaultBulkSelection, makeBulkRentEntries, toggleBulkSelection } from "../domain/bulkRentConfirmation";
 import { formatPolishCount, formatPolishDate, formatPolishMonth, formatPlnSummary } from "../domain/presentationFormat";
 import { ProgressBar } from "../components/ProgressBar";
@@ -117,6 +117,16 @@ export function PulpitScreen() {
     properties: document.properties,
     taxGrosz: currentPeriod.obligationGrosz,
   }) : null;
+  const ytdEntries = document.incomeEntries.filter((entry) => entry.receivedAt.startsWith(`${selectedYear}-`) && entry.receivedAt.slice(0, 7) <= selectedMonth);
+  const ytdTaxGrosz = settlements
+    .filter((settlement) => settlement.period.startsWith(`${selectedYear}-`) && settlement.period <= selectedMonth)
+    .reduce((total, settlement) => total + settlement.obligationGrosz, 0);
+  const ytdCashflow = ytdEntries.length > 0 ? ownerCashflowSummary({
+    entries: document.incomeEntries,
+    selectedEntries: ytdEntries,
+    properties: document.properties,
+    taxGrosz: ytdTaxGrosz,
+  }) : null;
   const pendingRents = bulkRentItems(activeProperties, document.incomeEntries, selectedMonth, now);
   const selectedRentTotal = bulkSelectionTotal(pendingRents, bulkSelectedIds);
   const apartmentChargeTerms = activeProperties.map((property) => apartmentTermsForMonth(property, selectedMonth));
@@ -128,6 +138,12 @@ export function PulpitScreen() {
   const billAmountsComplete = dashboardBills.every((bill) => Boolean(bill.expectedAmount));
   const nextPendingBill = pendingBills.filter((bill) => bill.dueDay).sort((left, right) => left.dueDay! - right.dueDay!)[0];
   const nextPendingDue = nextPendingBill?.dueDay ? rentDueIso(selectedMonth, nextPendingBill.dueDay) : null;
+  const dashboardFullyApproved = showDashboardYtdProfit({
+    rentFullyConfirmed,
+    pendingBillCount: pendingBills.length,
+    taxApproved: Boolean(currentPeriod && currentPeriod.outstandingGrosz === 0 && taxSummary.previousOutstanding.count === 0),
+    chargesKnown: Boolean(ytdCashflow?.chargesKnown),
+  });
   const billToConfirm = document.recurringBills.find((bill) => bill.id === billToConfirmId);
 
   const setState = (taskId: string, change: { snoozedUntil?: string; dismissedAt?: string; completedAt?: string }) => {
@@ -293,6 +309,7 @@ export function PulpitScreen() {
         {ownerCashflow.chargesKnown ? <View style={ownerNetBlock}>
           <Text style={summaryEyebrow}>ZYSK</Text>
           <Text style={ownerNetValue}>{compactPln(ownerCashflow.ownerNetGrosz)}</Text>
+          {dashboardFullyApproved && ytdCashflow ? <Text style={ownerYtdValue}>{compactPln(ytdCashflow.ownerNetGrosz)} od początku roku</Text> : null}
           <Text style={ownerNetDetail}>po opłatach i podatku</Text>
         </View> : ownerCashflow ? <Text style={ownerNetDetail}>Zysk niedostępny — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View> : null}
@@ -514,6 +531,7 @@ const summaryExpected = { color: theme.colors.textSecondary, fontSize: 14, margi
 const summaryPaid = { color: theme.colors.success, fontSize: 14, fontWeight: "700" as const };
 const ownerNetBlock = { width: "100%" as const };
 const ownerNetValue = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, marginTop: 3 };
+const ownerYtdValue = { color: theme.colors.textSecondary, fontSize: 14, fontWeight: "700" as const, marginTop: 2 };
 const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
 const apartmentListCard = { padding: 14, marginTop: 4 };
 const apartmentRentSummary = { gap: 4, paddingBottom: 14, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
