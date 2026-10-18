@@ -434,7 +434,7 @@ export function IncomeScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 32, flexGrow: 1 }}
+        contentContainerStyle={{ ...ui.content, flexGrow: 1 }}
         ListHeaderComponent={<View style={{ paddingBottom: 8 }}>
           <PeriodSelector value={String(taxYear)} valueLabel={`Rok ${taxYear}`} previousLabel="Poprzedni rok" nextLabel="Następny rok"
             previousDisabled={taxYearIndex <= 0} nextDisabled={taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear}
@@ -445,14 +445,14 @@ export function IncomeScreen() {
             <Text style={summaryAmount}>{formatPlnSummary(summary.totalGrosz)}</Text>
             <Text style={muted}>{summary.count ? `Na podstawie ${formatPolishCount(summary.count, ["potwierdzonego wpływu", "potwierdzonych wpływów", "potwierdzonych wpływów"])} · ${formatPolishCount(summary.propertyCount, ["mieszkanie", "mieszkania", "mieszkań"])}` : `Brak potwierdzonych wpływów w ${taxYear}.`}</Text>
             {ownerCashflow && ownerCashflow.chargesKnown && summary.count > 0 ? <View style={ownerNetBlock}>
-              <Text style={ownerNetLabel}>ZOSTAJE WŁAŚCICIELOWI</Text>
+              <Text style={ownerNetLabel}>ZYSK</Text>
               <Text style={ownerNetAmount}>{formatPlnSummary(ownerCashflow.ownerNetGrosz)}</Text>
               <Text style={ownerNetDetail}>Wpłaty {formatPlnSummary(ownerCashflow.receivedGrosz)} · opłaty {formatPlnSummary(ownerCashflow.chargesGrosz)} · podatek {formatPlnSummary(ownerCashflow.taxGrosz)}</Text>
-            </View> : ownerCashflow && !ownerCashflow.chargesKnown && summary.count > 0 ? <Text style={muted}>Kwota dla właściciela niedostępna — brakuje historycznych warunków najmu dla części wpłat.</Text> : null}
+            </View> : ownerCashflow && !ownerCashflow.chargesKnown && summary.count > 0 ? <Text style={muted}>Zysk niedostępny — brakuje historycznych warunków najmu dla części wpłat.</Text> : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} accessibilityHint="Otwiera wybór mieszkania" onPress={() => setFilterOpen(true)} style={filterControl}>
+          {availableProperties.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} accessibilityHint="Otwiera wybór mieszkania" onPress={() => setFilterOpen(true)} style={filterControl}>
             <Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text><MaterialIcons name="expand-more" size={24} color={theme.colors.textSecondary} />
-          </Pressable>
+          </Pressable> : null}
           {taxYear === Number(currentMonth.slice(0, 4)) && rentRows.length > 0 ? <View style={[ui.card, rentStatusCard]}>
             <Text style={rentStatusHeading}>Czynsz za {formatPolishMonth(currentMonth)}</Text>
             {rentRows.map((row) => {
@@ -676,7 +676,7 @@ const summaryCard = { marginTop: 4, padding: 16 };
 const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
 const summaryAmount = { color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" as const, marginTop: 2 };
 const ownerNetBlock = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 12, paddingTop: 10 };
-const ownerNetLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.4 };
+const ownerNetLabel = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5 };
 const ownerNetAmount = { color: theme.colors.textPrimary, fontSize: 24, fontWeight: "800" as const, marginTop: 2 };
 const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
 const rentStatusCard = { marginTop: 8, padding: 14 };
