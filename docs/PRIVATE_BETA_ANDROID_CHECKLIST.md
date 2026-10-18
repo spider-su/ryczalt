@@ -31,7 +31,7 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | Change timezone; verify recalculation | Not run |
 | DST boundary | Not run |
 | Reboot device | Not run |
-| Legacy document with bill/custom-reminder fields loads without crash/data loss | Automated compatibility test; candidate device upgrade not run |
+| Legacy document with bill/custom-reminder fields loads without crash/data loss | Automated compatibility test; recurring bills now surface in the app; candidate device upgrade not run |
 | Fresh install/restart with current local schema | Historical emulator evidence only; rerun against RC candidate |
 | Recover a damaged/missing primary from last-good local snapshot and show recovery notice | Automated storage tests; device recovery flow not yet run |
 | Both primary and backup damaged: retain recovery screen and offer explicit raw-data handling/reset | Automated storage tests cover preserving corruption error; device flow not yet run |
@@ -42,17 +42,17 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 
 ## POC happy-path checklist
 
-On a clean candidate install, record apartment/address, owner income, media amount and paid-by-tenant flag, tenant/contact, lease end, rent day and reminder settings. Confirm full and partial rent, dashboard totals, selected tax period, tax payment, overpayment carry-forward, restart persistence, apartment/payment edits and deletion/correction with recalculated tax. Then complete the JSON backup round-trip above and compare restored derived tax/reminder results. No result is claimed until recorded against a build SHA.
+On a clean candidate install, record apartment/address, owner income, media amount and paid-by-tenant flag, tenant/contact, lease end, rent day and reminder settings. Confirm full rent, verify the form rejects any amount other than the full balance, check dashboard totals, selected tax period, full tax payment, overpayment carry-forward, restart persistence, apartment/payment edits and deletion/correction with recalculated tax. Then complete the JSON backup round-trip above and compare restored derived tax/reminder results. No result is claimed until recorded against a build SHA.
 
 ## Manual procedure
 
 1. Install the candidate APK on a clean device and record its build/version.
 2. Repeat once with notification permission denied and once granted; confirm in-app tasks remain visible in both cases.
 3. Use test-only records with due times near the current time to verify each category, then tap notifications and inspect navigation context.
-4. Toggle rent, tax and agreement reminder settings. Rent reminders derive from payment days and group apartments sharing a due date. Restart between runs and check for stale or duplicate OS schedules.
+4. Toggle rent, bill, tax and agreement reminder settings. Rent reminders derive from payment days and group apartments sharing a due date. Bill reminders follow each saved due day and stop after a payment is confirmed. Restart between runs and check for stale or duplicate OS schedules.
 5. Snooze a supported task, confirm a payment, edit/delete a receipt and change/remove an agreement end date. Confirm only explicit recorded source data resolves financial tasks.
 6. Force-stop/reopen, change device timezone, and reboot. Check schedule reconciliation and document Android version/OEM-specific differences.
-7. Import a legacy local document containing removed bill/custom-reminder fields and verify apartment, income and tax data remains usable; verify the legacy fields do not reappear in UI/tasks.
+7. Import a legacy local document containing bill/custom-reminder fields and verify apartment, income and tax data remains usable; verify saved bills and payments remain available and custom reminders stay hidden.
 8. Repeat the notification run on at least one physical Android device: test a fresh permission request and permission pre-granted in system settings, timed delivery, tap navigation, snooze, force-close/restart, duplicate prevention, and the expected local timezone/date. Record device, OS, timezone, build, and observed delivery timestamps.
 
 ## Duplicate-notification regression procedure

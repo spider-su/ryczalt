@@ -118,15 +118,18 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
   }
   if (raw === null) {
     const backupRaw = await getProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
-    if (backupRaw !== null) return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
+    if (backupRaw !== null) {
+      const document = parseRentalDocument(backupRaw);
+      return { document, recoveredFromBackup: true };
+    }
 
-    // One-time namespace migration. Only a legacy document that validates against the
-    // current schema is copied; incompatible historical v1 bytes are left untouched.
+    // One-time namespace migration.
     const legacyRaw = await AsyncStorage.getItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
     if (legacyRaw !== null) {
       try {
         const legacyDocument = parseRentalDocument(legacyRaw);
         await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(legacyDocument));
+        await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(legacyDocument));
         return { document: legacyDocument, recoveredFromBackup: false };
       } catch {
         // Never classify an older namespace as corrupted current data and never delete it.
@@ -209,7 +212,8 @@ async function recoverFromBackup(primaryError: unknown): Promise<RentalDocumentL
   }
   if (backupRaw === null) throw primaryError;
   try {
-    return { document: parseRentalDocument(backupRaw), recoveredFromBackup: true };
+    const document = parseRentalDocument(backupRaw);
+    return { document, recoveredFromBackup: true };
   } catch (backupError) {
     if (backupError instanceof RentalStoreError && backupError.code === "UNSUPPORTED_VERSION") throw backupError;
     throw primaryError;
@@ -219,13 +223,14 @@ async function recoverFromBackup(primaryError: unknown): Promise<RentalDocumentL
 function validateRentalDocument(data: unknown): RentalDocument {
   if (!isRecord(data))
     throw corrupted("Local rental document must be a JSON object.");
-  if (data.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
+  const normalizedData = data as Record<string, unknown>;
+  if (normalizedData.schemaVersion !== RENTAL_DOCUMENT_SCHEMA_VERSION) {
     throw new RentalStoreError(
       "UNSUPPORTED_VERSION",
       "Local rental document schema version is not supported.",
     );
   }
-  const settings = data.settings;
+  const settings = normalizedData.settings;
   if (
     !isRecord(settings) ||
     typeof settings.taxYear !== "number" ||
@@ -247,24 +252,24 @@ function validateRentalDocument(data: unknown): RentalDocument {
     if (settings[field] !== undefined && !optionalDecimal(settings[field], field)) throw corrupted("Opening tax balance is invalid.");
   }
 
-  const properties = validateArray(data.properties, validateProperty, "properties");
+  const properties = validateArray(normalizedData.properties, validateProperty, "properties");
   const incomeEntries = validateArray(
-    data.incomeEntries,
+    normalizedData.incomeEntries,
     validateIncomeEntry,
     "incomeEntries",
   );
   const taxPayments = validateArray(
-    data.taxPayments,
+    normalizedData.taxPayments,
     validateTaxPayment,
     "taxPayments",
   );
-  const recurringBills = validateArray(data.recurringBills, validateRecurringBill, "recurringBills");
-  const billPayments = validateArray(data.billPayments, validateBillPayment, "billPayments");
-  const administrationSuggestions = validateArray(data.administrationSuggestions, validateAdministrationSuggestion, "administrationSuggestions");
-  const customReminders = validateArray(data.customReminders, validateCustomReminder, "customReminders");
-  const taskStates = validateArray(data.taskStates, validateTaskState, "taskStates");
-  const apartmentPeriods = validateArray(data.apartmentPeriods, validateApartmentPeriod, "apartmentPeriods");
-  const taxSettlementSnapshots = validateArray(data.taxSettlementSnapshots, validateTaxSettlementSnapshot, "taxSettlementSnapshots");
+  const recurringBills = validateArray(normalizedData.recurringBills, validateRecurringBill, "recurringBills");
+  const billPayments = validateArray(normalizedData.billPayments, validateBillPayment, "billPayments");
+  const administrationSuggestions = validateArray(normalizedData.administrationSuggestions, validateAdministrationSuggestion, "administrationSuggestions");
+  const customReminders = validateArray(normalizedData.customReminders, validateCustomReminder, "customReminders");
+  const taskStates = validateArray(normalizedData.taskStates, validateTaskState, "taskStates");
+  const apartmentPeriods = validateArray(normalizedData.apartmentPeriods, validateApartmentPeriod, "apartmentPeriods");
+  const taxSettlementSnapshots = validateArray(normalizedData.taxSettlementSnapshots, validateTaxSettlementSnapshot, "taxSettlementSnapshots");
 
   try {
     return validateRentalDocumentShape({

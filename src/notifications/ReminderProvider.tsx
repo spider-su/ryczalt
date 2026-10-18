@@ -79,7 +79,6 @@ export function ReminderProvider({ children }: PropsWithChildren) {
   }
 
   const requestPermission = useCallback(async () => {
-    if (isDemoMode) return permission;
     if (!supportsLocalNotifications(Platform.OS)) {
       setPermission("unavailable");
       return "unavailable";
@@ -100,7 +99,7 @@ export function ReminderProvider({ children }: PropsWithChildren) {
       setPermission("unavailable");
       return "unavailable";
     }
-  }, [isDemoMode, permission]);
+  }, []);
 
   const scheduleTestNotification = useCallback(async (minutes = 5): Promise<TestNotificationResult> => {
     if (!supportsLocalNotifications(Platform.OS)) return "unavailable";

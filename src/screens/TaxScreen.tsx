@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth, taxRulesAreProvisional, taxRulesYearFor } from "../domain/ryczaltTax";
-import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
+import { isFullPaymentAmount, isNonnegativeMoney, isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { removeTaxPayment, upsertTaxPayment } from "../domain/taxPayment";
@@ -29,14 +29,23 @@ export function TaxScreen() {
   const { document, error, update } = useRentalData();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const [returnToTab, setReturnToTab] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(() => `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
   const [paymentDraft, setPaymentDraft] = useState({ amount: "", paidAt: todayIsoDate() });
-  const [editing, setEditing] = useState<TaxPayment | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
+  const closeConfirmationFlow = () => {
+    setModalOpen(false);
+    setHistoryReviewOpen(false);
+    if (returnToTab) {
+      const tab = returnToTab;
+      setReturnToTab(null);
+      navigation.navigate(tab);
+    }
+  };
   const settlementMode = document?.settings.settlementMode ?? "monthly";
   const now = new Date();
   const currentYearStart = `${now.getFullYear()}-01`;
@@ -55,17 +64,63 @@ export function TaxScreen() {
   }) : undefined, [document, taxYear]);
   const settlements = calculation?.settlements ?? [];
   useEffect(() => {
-    const period = (route.params as { period?: string } | undefined)?.period;
-    if (!document || !period) return;
-    const year = Number(period.slice(0, 4));
-    const part = period.slice(5);
+    const params = route.params as { period?: string; openPaymentConfirmation?: boolean; returnTo?: string } | undefined;
+    const period = params?.period;
+    if (!document || (!period && !params?.openPaymentConfirmation)) return;
+    const year = period ? Number(period.slice(0, 4)) : Number(selectedPeriod.slice(0, 4));
+    const part = period?.slice(5) ?? selectedPeriod.slice(5);
     const requested = part.startsWith("Q") ? `${year}-${part}` : settlementPeriodForMonth(`${year}-${part.padStart(2, "0")}`, document.settings.settlementMode) ?? selectedPeriod;
     const latest = currentTaxPeriod(now, document.settings.settlementMode);
-    setSelectedPeriod(requested > latest ? latest : requested < earliestPeriod ? earliestPeriod : requested);
-    navigation.setParams({ period: undefined });
+    const targetPeriod = requested > latest ? latest : requested < earliestPeriod ? earliestPeriod : requested;
+    setSelectedPeriod(targetPeriod);
+    if (params?.openPaymentConfirmation) {
+      setReturnToTab(params.returnTo ?? null);
+      const targetYear = Number(targetPeriod.slice(0, 4));
+      const snapshot = document.taxSettlementSnapshots?.find((item) => item.period === targetPeriod);
+      const targetCalculation = hasTaxRulesForYear(targetYear) ? calculateTaxYear({
+        entries: document.incomeEntries, payments: document.taxPayments, taxYear: targetYear,
+        mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
+        openingTaxableRevenueGrosz: document.settings.taxYear === targetYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
+        openingTaxPaidGrosz: document.settings.taxYear === targetYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
+      }) : undefined;
+      const targetSettlement = snapshot ? taxSettlementFromSnapshot(snapshot, todayIsoDate()) : targetCalculation?.settlements.find((item) => item.period === targetPeriod);
+      const returnTo = params.returnTo;
+      if (!targetSettlement || targetSettlement.outstandingGrosz <= 0) {
+        setReturnToTab(null);
+        if (returnTo) navigation.navigate(returnTo);
+      } else {
+        const openConfirmation = () => {
+          const priorPeriodsForTarget = targetCalculation?.settlements.filter((item) => item.period < targetPeriod) ?? [];
+          const priorRevenue = (targetCalculation?.openingBalance.taxableRevenueGrosz ?? 0) + priorPeriodsForTarget.reduce((sum, item) => sum + item.revenueGrosz, 0);
+          const hasPriorRent = document.properties.some((property) => {
+            const hasRent = Boolean(property.ownerRent || property.rentSchedule?.length);
+            const startMonth = property.rentalStartDate?.slice(0, 7) ?? property.rentSchedule?.[0]?.effectiveFrom ?? `${targetYear}-01`;
+            return hasRent && startMonth < targetPeriod;
+          });
+          const hasPaymentThisYear = document.taxPayments.some((item) => item.period.startsWith(`${targetYear}-`)) || (targetCalculation?.openingBalance.paidTaxGrosz ?? 0) > 0;
+          setPaymentDraft({ amount: decimalFromGrosz(targetSettlement.outstandingGrosz), paidAt: todayIsoDate() });
+          if (!hasPaymentThisYear && (priorRevenue > 0 || hasPriorRent)) setHistoryReviewOpen(true);
+          else setModalOpen(true);
+        };
+        const unconfirmedRentCount = document.settings.settlementMode === "monthly"
+          ? rentMonthStatusRows(document.properties, document.incomeEntries, targetPeriod).filter((row) => row.status === "unpaid").length
+          : 0;
+        if (unconfirmedRentCount > 0) {
+          Alert.alert(
+            "Nie wszystkie wpłaty są potwierdzone",
+            `${formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek jest wyliczony tylko z potwierdzonych wpłat. Jeśli czynsz został otrzymany, należny podatek może się zwiększyć.`,
+            [
+              { text: "Sprawdź wpłaty", style: "cancel", onPress: () => { setReturnToTab(null); navigation.navigate("Przychód"); } },
+              { text: "Kontynuuj mimo to", onPress: openConfirmation },
+            ],
+          );
+        } else openConfirmation();
+      }
+    }
+    navigation.setParams({ period: undefined, openPaymentConfirmation: undefined, returnTo: undefined });
   // Notification reminders pass a settlement period to open directly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [document, earliestPeriod, navigation]);
+  }, [document, earliestPeriod, navigation, route.params]);
   if (!document) return error
     ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text></View>
     : <ActivityIndicator style={{ flex: 1 }} />;
@@ -74,18 +129,11 @@ export function TaxScreen() {
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
   const unconfirmedRentRows = settlementMode === "monthly"
-    ? rentMonthStatusRows(document.properties, document.incomeEntries, selectedPeriod).filter((row) => row.status === "unpaid" || row.status === "partial")
+    ? rentMonthStatusRows(document.properties, document.incomeEntries, selectedPeriod).filter((row) => row.status === "unpaid")
     : [];
   const unconfirmedRentCount = unconfirmedRentRows.length;
-  const openPayment = (payment?: TaxPayment) => {
-    if (payment && document.taxSettlementSnapshots?.some((snapshot) => snapshot.period === payment.period)) {
-      Alert.alert("Okres podatkowy jest zamknięty", "Nie można edytować ani usuwać zapisanej wpłaty z zamkniętego okresu. Korekty historyczne są zaplanowane na później.");
-      return;
-    }
-    setEditing(payment ?? null);
-    setPaymentDraft(payment
-      ? { amount: payment.amount, paidAt: payment.paidAt }
-      : { amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
+  const openPayment = () => {
+    setPaymentDraft({ amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
     setModalOpen(true);
   };
   const priorPeriods = settlements.filter((item) => item.period < selectedPeriod);
@@ -134,12 +182,15 @@ export function TaxScreen() {
       return;
     }
     if (!settlement) return;
-    const next: TaxPayment = { id: editing?.id ?? createId("tax"), period: settlement.period, paidAt: paymentDraft.paidAt, amount };
+    if (!isFullPaymentAmount(amount, settlement.outstandingGrosz)) {
+      Alert.alert("Potwierdź pełną wpłatę", "Można potwierdzić tylko całą pozostałą kwotę podatku.");
+      return;
+    }
+    const next: TaxPayment = { id: createId("tax"), period: settlement.period, paidAt: paymentDraft.paidAt, amount };
     setSaving(true);
     try {
       await update((current) => refreshSavedTaxSettlementsAfterPayment(upsertTaxPayment(current, next), settlement.period));
-      setModalOpen(false);
-      setEditing(null);
+      closeConfirmationFlow();
     } catch { /* The provider reports persistence failure. */ }
     finally { setSaving(false); }
   };
@@ -208,16 +259,16 @@ export function TaxScreen() {
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
           {payment.source === "INITIAL_IMPORT" ? <Text style={taxContext}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
-          {persistedTaxSnapshot ? <Text style={taxHint}>Okres zamknięty · korekta wpłaty niedostępna</Text> : <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}><Pressable accessibilityRole="button" onPress={() => openPayment(payment)} style={secondaryPaymentAction}><Text style={secondaryPaymentActionText}>Popraw</Text></Pressable><Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable></View>}
+          {persistedTaxSnapshot ? <Text style={taxHint}>Okres zamknięty · usunięcie wpłaty niedostępne</Text> : <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}><Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable></View>}
         </View>)}
       </>}
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
       <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek?</Text><MaterialIcons name={infoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></View></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
-    <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={() => setHistoryReviewOpen(false)}>
+    <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700", flex: 1 }}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={() => setHistoryReviewOpen(false)} style={action}>Zamknij</Text></View>
+        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700", flex: 1 }}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w zakładce Przychód przed kontynuacją.</Text>
           <View style={[ui.card, { marginTop: 16, padding: 16, gap: 8 }]}>
@@ -228,19 +279,19 @@ export function TaxScreen() {
             <Text style={{ color: priorOutstandingGrosz > 0 ? theme.colors.warning : theme.colors.success, fontWeight: "700" }}>Pozostało według zapisanych danych: {formatPln(priorOutstandingGrosz)}</Text>
           </View>
           <Pressable accessibilityRole="button" onPress={() => { setHistoryReviewOpen(false); navigation.navigate("Przychód"); }} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 16, marginTop: 12 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600", textAlign: "center" }}>Sprawdź lub popraw wpływy</Text></Pressable>
-          <Text style={[taxHint, { marginTop: 16 }]}>Aplikacja nie zakłada, że wcześniejszy podatek został zapłacony. Jeśli chcesz uzupełnić historyczną wpłatę podatku, wybierz odpowiedni okres i potwierdź faktyczną kwotę oraz datę.</Text>
+          <Text style={[taxHint, { marginTop: 16 }]}>Aplikacja nie zakłada, że wcześniejszy podatek został zapłacony. Jeśli chcesz uzupełnić historyczną wpłatę podatku, wybierz odpowiedni okres i potwierdź pełną pozostałą kwotę oraz rzeczywistą datę zapłaty.</Text>
           <Pressable accessibilityRole="button" disabled={saving} onPress={continueAfterHistoryReview} style={[primaryButton, { marginTop: 16 }, saving && { opacity: 0.5 }]}><Text style={primaryText}>Dalej do potwierdzenia bieżącej wpłaty</Text></Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>
-    <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
+    <Modal visible={modalOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>{editing ? "Popraw potwierdzenie" : "Potwierdź wykonaną wpłatę"}</Text><Text accessibilityRole="button" onPress={() => setModalOpen(false)} style={action}>Zamknij</Text></View>
+        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
           <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ?? ""}</Text>
-          <Text style={fieldLabel}>Kwota faktycznie zapłacona (zł)</Text><TextInput accessibilityLabel="Kwota faktycznie zapłacona" keyboardType="decimal-pad" value={paymentDraft.amount} onChangeText={(amount) => setPaymentDraft((current) => ({ ...current, amount }))} placeholder="np. 212,50" style={inputStyle} />
+          <Text style={fieldLabel}>Pełna pozostała kwota podatku (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
           <Text style={fieldLabel}>Data wpłaty (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data wpłaty" value={paymentDraft.paidAt} onChangeText={(paidAt) => setPaymentDraft((current) => ({ ...current, paidAt }))} placeholder="2026-10-20" style={inputStyle} />
-          <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : editing ? "Zapisz poprawki" : "Potwierdź wykonaną wpłatę"}</Text></Pressable>
+          <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź wykonaną wpłatę"}</Text></Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>

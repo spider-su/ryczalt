@@ -1,6 +1,6 @@
 # Rental, tax and lease reminders
 
-**POC scope:** local reminders for expected rent, outstanding ryczałt payments and lease expiry. Bills and user-created personal reminders are not available. Old reminder/bill fields can remain in stored documents for compatibility but are ignored by task and notification generation.
+**POC scope:** local reminders for expected rent, recurring bill due dates, outstanding ryczałt payments and lease expiry. Bill reminders fire on the due date and once the next day if still unpaid; they open the bill's payment confirmation. A saved full payment cancels that period's reminders. User-created personal reminders are not available. Notifications are local and best-effort; permission, OS scheduling and delivery still require candidate-device verification.
 
 ## Categories and behavior
 

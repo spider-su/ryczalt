@@ -1,9 +1,10 @@
 import type { Property } from "../model/rental";
-import { isNonnegativeMoney, isPositiveMoney } from "./rentalValidation";
+import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate } from "./rentalValidation";
 
 export type FirstApartmentDraft = {
   address: string;
   tenantName: string;
+  rentalStartDate?: string;
   ownerRent: string;
   mediaAmount: string;
   mediaPaidByTenant?: boolean;
@@ -13,12 +14,18 @@ export type FirstApartmentDraft = {
 
 export type FirstApartmentStep = 0 | 1 | 2;
 
+export function defaultFirstApartmentDraftValues(today: string) {
+  return { rentalStartDate: `${today.slice(0, 4)}-01-01`, mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const };
+}
+
 const normalizeAmount = (value: string) => value.trim().replace(",", ".");
 
 /** Presentation-only validation. The existing apartment editor remains the authority on saving. */
 export function firstApartmentStepError(draft: FirstApartmentDraft, step: FirstApartmentStep): string | null {
   if (step === 0) {
-    return draft.address.trim() ? null : "Podaj adres mieszkania.";
+    if (!draft.address.trim()) return "Podaj adres mieszkania.";
+    if (!isValidCalendarDate(draft.rentalStartDate ?? "")) return "Podaj prawidłową datę rozpoczęcia najmu.";
+    return null;
   }
   if (step === 1) {
     if (!isPositiveMoney(normalizeAmount(draft.ownerRent))) {

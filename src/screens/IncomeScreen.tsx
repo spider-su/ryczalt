@@ -23,9 +23,9 @@ import {
 import type { IncomeEntry, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
-import { createIncomeEntry, editIncomeEntry } from "../domain/rentalOperations";
+import { createIncomeEntry } from "../domain/rentalOperations";
 import { calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz } from "../domain/ryczaltTax";
-import { decimalFromGrosz, defaultTaxableAmountGrosz, tenantMonthlyTotalForMonthGrosz, tenantMonthlyTotalGrosz } from "../domain/apartmentPayments";
+import { decimalFromGrosz, defaultTaxableAmountGrosz } from "../domain/apartmentPayments";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { IncomeHistoryChart } from "../components/income/IncomeHistoryChart";
 import { PeriodSelector } from "../components/PeriodSelector";
@@ -36,10 +36,12 @@ import { toggleIncomeMonth } from "../domain/incomeHistory";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
 import { availableIncomeYears } from "../domain/dashboardPeriods";
 import { ownerCashflowSummary } from "../domain/ownerCashflow";
+import { rentMonthAmounts } from "../domain/rentAllocation";
 import {
   compareDecimalStrings,
   isNonnegativeMoney,
   isPositiveMoney,
+  isFullPaymentAmount,
   isRentalMonth,
   isValidCalendarDate,
   RentalValidationError,
@@ -67,7 +69,7 @@ export function IncomeScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<IncomeEntry | null>(null);
+  const [returnToTab, setReturnToTab] = useState<string | null>(null);
   const [draft, setDraft] = useState<PaymentDraft>(blankDraft());
   const [taxableExpanded, setTaxableExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +79,12 @@ export function IncomeScreen() {
   const properties = document?.properties ?? [];
   const [selectedTaxYear, setSelectedTaxYear] = useState<number | null>(null);
   const currentMonth = todayIsoDate().slice(0, 7);
+  const confirmationRentalMonth = isRentalMonth(draft.rentalMonth)
+    ? draft.rentalMonth
+    : isValidCalendarDate(draft.receivedAt) ? draft.receivedAt.slice(0, 7) : currentMonth;
+  const confirmationProperties = useMemo(() => properties.filter((property) =>
+    rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).confirmedGrosz === 0,
+  ), [properties, document?.incomeEntries, confirmationRentalMonth]);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [historicalRangeExpanded, setHistoricalRangeExpanded] = useState(false);
   const [expandedCurrentMonthReceipts, setExpandedCurrentMonthReceipts] = useState<string[]>([]);
@@ -131,33 +139,58 @@ export function IncomeScreen() {
   const availableProperties = propertiesWithIncomeInYear(properties, document?.incomeEntries ?? [], taxYear);
   const propertyNames = new Map(properties.map((property) => [property.id, property.address]));
   const selectedPropertyName = selectedPropertyId ? propertyNames.get(selectedPropertyId) ?? "Usunięte mieszkanie" : null;
+  const closeEntryModal = () => {
+    setModalOpen(false);
+    if (returnToTab) {
+      const tab = returnToTab;
+      setReturnToTab(null);
+      navigation.navigate(tab);
+    }
+  };
   useEffect(() => {
-    const params = route.params as { propertyId?: string; rentalMonth?: string; quickAdd?: boolean; expectedAmount?: string } | undefined;
+    const params = route.params as { propertyId?: string; rentalMonth?: string; quickAdd?: boolean; expectedAmount?: string; returnTo?: string } | undefined;
     const property = params?.propertyId ? properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.quickAdd) {
+      setReturnToTab(params.returnTo ?? null);
       const period = params.rentalMonth ?? todayIsoDate().slice(0, 7);
-      const amount = params.expectedAmount ?? (property ? decimalFromGrosz(tenantMonthlyTotalForMonthGrosz(property, period) ?? tenantMonthlyTotalGrosz(property)) : "");
-      setEditing(null);
+      const eligibleProperties = properties.filter((item) => rentMonthAmounts(item, document?.incomeEntries ?? [], period).confirmedGrosz === 0);
+      const selected = property && eligibleProperties.some((item) => item.id === property.id) ? property : eligibleProperties[0];
+      const amount = selected ? decimalFromGrosz(rentMonthAmounts(selected, document?.incomeEntries ?? [], period).expectedGrosz ?? 0) : "";
       setTaxableExpanded(false);
-      const selected = property ?? properties[0];
       const taxable = selected && (apartmentTermsForMonth(selected, period)?.taxableTreatment ?? selected.taxableTreatment) && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : "";
-      setDraft({ ...blankDraft(), propertyId: property?.id ?? selected?.id ?? "", amount,
+      setDraft({ ...blankDraft(), propertyId: selected?.id ?? "", amount,
         taxableAmount: taxable, rentalMonth: params.rentalMonth ?? "" });
       setModalOpen(true);
-      navigation.setParams({ quickAdd: undefined, expectedAmount: undefined, propertyId: undefined, rentalMonth: undefined });
+      navigation.setParams({ quickAdd: undefined, expectedAmount: undefined, propertyId: undefined, rentalMonth: undefined, returnTo: undefined });
       return;
     }
     if (!property || !params?.rentalMonth) return;
-    setEditing(null);
+    const eligibleProperty = rentMonthAmounts(property, document?.incomeEntries ?? [], params.rentalMonth).confirmedGrosz === 0 ? property : undefined;
+    const selected = eligibleProperty ?? properties.find((item) => rentMonthAmounts(item, document?.incomeEntries ?? [], params.rentalMonth!).confirmedGrosz === 0);
+    if (!selected) return;
     setTaxableExpanded(false);
-    const amount = decimalFromGrosz(tenantMonthlyTotalForMonthGrosz(property, params.rentalMonth) ?? tenantMonthlyTotalGrosz(property));
-    const terms = apartmentTermsForMonth(property, params.rentalMonth);
-    setDraft({ ...blankDraft(), propertyId: property.id, amount, taxableAmount: terms ? decimalFromGrosz(terms.ownerRentGrosz) : property.ownerRent ?? "", rentalMonth: params.rentalMonth });
+    const amount = decimalFromGrosz(rentMonthAmounts(selected, document?.incomeEntries ?? [], params.rentalMonth).expectedGrosz ?? 0);
+    const terms = apartmentTermsForMonth(selected, params.rentalMonth);
+    setDraft({ ...blankDraft(), propertyId: selected.id, amount, taxableAmount: terms ? decimalFromGrosz(terms.ownerRentGrosz) : selected.ownerRent ?? "", rentalMonth: params.rentalMonth });
     setModalOpen(true);
     navigation.setParams({ propertyId: undefined, rentalMonth: undefined });
   // Notification actions are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, route.params]);
+  useEffect(() => {
+    if (!modalOpen || confirmationProperties.some((property) => property.id === draft.propertyId)) return;
+    const property = confirmationProperties[0];
+    if (!property) {
+      if (draft.propertyId || draft.amount || draft.taxableAmount) setDraft((current) => ({ ...current, propertyId: "", amount: "", taxableAmount: "" }));
+      return;
+    }
+    const amount = decimalFromGrosz(rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).expectedGrosz ?? 0);
+    const terms = apartmentTermsForMonth(property, confirmationRentalMonth);
+    const taxableAmount = (terms?.taxableTreatment ?? property.taxableTreatment) && amount
+      ? decimalFromGrosz(defaultTaxableAmountGrosz({ property, amountGrosz: moneyToGrosz(amount), rentalMonth: confirmationRentalMonth, priorEntries: document?.incomeEntries ?? [] }))
+      : "";
+    setDraft((current) => ({ ...current, propertyId: property.id, amount, taxableAmount }));
+  }, [modalOpen, confirmationProperties, confirmationRentalMonth, draft.propertyId]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>
@@ -171,37 +204,23 @@ export function IncomeScreen() {
 
   const openEntryMenu = (entry: IncomeEntry) => Alert.alert("Wpłata", undefined, [
     ...(incomeEntryPeriodClosed(entry, document) ? [{ text: "Okres jest zamknięty", onPress: () => Alert.alert("Okres jest zamknięty", "Korekty zamkniętych okresów będą dostępne w osobnym, audytowanym przepływie.") }] : [
-      { text: "Edytuj", onPress: () => openEdit(entry) },
       { text: "Usuń wpłatę", style: "destructive" as const, onPress: () => remove(entry) },
     ]),
     { text: "Anuluj", style: "cancel" },
   ]);
-  const openEdit = (entry: IncomeEntry) => {
-    setEditing(entry);
-    setTaxableExpanded(entry.taxableAmount !== entry.amount);
-    setDraft({
-      propertyId: entry.propertyId,
-      amount: entry.amount,
-      taxableAmount: entry.taxableAmount,
-      receivedAt: entry.receivedAt,
-      rentalMonth: entry.rentalMonth ?? "",
-      description: entry.description ?? "",
-    });
-    setModalOpen(true);
-  };
   const chooseProperty = (propertyId: string) => {
     const property = properties.find((item) => item.id === propertyId);
-    if (!property) return;
+    if (!property || rentMonthAmounts(property, document.incomeEntries, confirmationRentalMonth).confirmedGrosz > 0) return;
     setDraft((current) => {
       const rentalMonth = current.rentalMonth || current.receivedAt.slice(0, 7);
-      const amount = decimalFromGrosz(tenantMonthlyTotalForMonthGrosz(property, rentalMonth) ?? tenantMonthlyTotalGrosz(property));
+      const amount = decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).expectedGrosz ?? 0);
       const terms = apartmentTermsForMonth(property, rentalMonth);
       const taxableAmount = (terms?.taxableTreatment ?? property.taxableTreatment) && amount
         ? decimalFromGrosz(defaultTaxableAmountGrosz({
             property,
             amountGrosz: moneyToGrosz(amount),
             rentalMonth,
-            priorEntries: document.incomeEntries.filter((entry) => entry.id !== editing?.id),
+            priorEntries: document.incomeEntries,
           }))
         : "";
       return { ...current, propertyId, amount, taxableAmount };
@@ -221,11 +240,18 @@ export function IncomeScreen() {
       return;
     }
     const rentalPeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
+    const property = properties.find((item) => item.id === draft.propertyId)!;
+    const rentStatus = rentMonthAmounts(property, document.incomeEntries, rentalPeriod);
+    const expected = rentStatus.expectedGrosz;
+    if (rentStatus.confirmedGrosz > 0 || expected === null || !isFullPaymentAmount(amount, expected)) {
+      Alert.alert("Potwierdź pełną wpłatę", "Można potwierdzić tylko całą pozostałą kwotę czynszu.");
+      return;
+    }
     const taxableAmount = taxableExpanded ? draft.taxableAmount.trim().replace(",", ".") : decimalFromGrosz(defaultTaxableAmountGrosz({
       property: properties.find((property) => property.id === draft.propertyId)!,
       amountGrosz: moneyToGrosz(amount),
       rentalMonth: rentalPeriod,
-      priorEntries: document.incomeEntries.filter((entry) => entry.id !== editing?.id),
+      priorEntries: document.incomeEntries,
     }));
     if (!isPositiveMoney(amount)) {
       Alert.alert(
@@ -256,7 +282,7 @@ export function IncomeScreen() {
       return;
     }
     const candidatePeriod = draft.rentalMonth || draft.receivedAt.slice(0, 7);
-    if ((editing && incomeEntryPeriodClosed(editing, document)) || (!editing && ((document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === draft.propertyId && snapshot.month === candidatePeriod) || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === draft.receivedAt.slice(0, 7))))) {
+    if ((document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === draft.propertyId && snapshot.month === candidatePeriod) || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === draft.receivedAt.slice(0, 7))) {
       Alert.alert("Okres jest zamknięty", "Nie można zmieniać wpłat w zamkniętym okresie. Audytowane korekty historyczne będą dostępne w przyszłości.");
       return;
     }
@@ -265,16 +291,7 @@ export function IncomeScreen() {
     )!;
     let entry: IncomeEntry;
     try {
-      entry = editing
-        ? editIncomeEntry(editing, {
-            propertyId: draft.propertyId,
-            receivedAt: draft.receivedAt,
-            amount,
-            taxableAmount,
-            rentalMonth: draft.rentalMonth,
-            description: draft.description,
-          })
-        : createIncomeEntry(
+      entry = createIncomeEntry(
             {
               propertyId: draft.propertyId,
               receivedAt: draft.receivedAt,
@@ -300,14 +317,9 @@ export function IncomeScreen() {
       try {
         await update((current) => ({
           ...current,
-          incomeEntries: editing
-            ? current.incomeEntries.map((item) =>
-                item.id === editing.id ? entry : item,
-              )
-            : [...current.incomeEntries, entry],
+          incomeEntries: [...current.incomeEntries, entry],
         }));
-        setModalOpen(false);
-        setEditing(null);
+        closeEntryModal();
       } catch {
         /* The provider reports the save failure. */
       } finally {
@@ -387,10 +399,19 @@ export function IncomeScreen() {
       <TextInput
         accessibilityLabel={label}
         value={draft[key]}
-        onChangeText={(value) =>
-          setDraft((current) => ({ ...current, [key]: value }))
-        }
+        onChangeText={(value) => setDraft((current) => {
+          if (key === "receivedAt" || key === "rentalMonth") {
+            const nextDraft = { ...current, [key]: value };
+            const property = properties.find((item) => item.id === current.propertyId);
+            const rentalMonth = nextDraft.rentalMonth || nextDraft.receivedAt.slice(0, 7);
+            return property && isRentalMonth(rentalMonth)
+              ? { ...nextDraft, amount: decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).expectedGrosz ?? 0) }
+              : nextDraft;
+          }
+          return { ...current, [key]: value };
+        })}
         keyboardType={options.keyboardType}
+        editable={key !== "amount"}
         placeholder={options.placeholder}
         placeholderTextColor={theme.colors.textMuted}
         style={{
@@ -439,10 +460,9 @@ export function IncomeScreen() {
               const expanded = expandedCurrentMonthReceipts.includes(row.propertyId);
               return <View key={row.propertyId} style={rentStatusRow}>
                 <View style={rentStatusContent}>
-                  <View style={rentStatusTop}><Text style={rentPropertyName}>{row.address}</Text><StatusBadge label={row.status === "paid" ? "Potwierdzone" : row.status === "partial" ? "Częściowo otrzymano" : row.status === "unpaid" ? "Do potwierdzenia" : "Nieustalony"} tone={row.status === "paid" ? "positive" : row.status === "partial" || row.status === "unpaid" ? "attention" : "neutral"} /></View>
+                  <View style={rentStatusTop}><Text style={rentPropertyName}>{row.address}</Text><StatusBadge label={row.status === "paid" ? "Potwierdzone" : row.status === "unpaid" ? "Do potwierdzenia" : "Nieustalony"} tone={row.status === "paid" ? "positive" : row.status === "unpaid" ? "attention" : "neutral"} /></View>
                   {row.status === "paid" ? <Text style={rentDetailText}>{formatPln(row.confirmedGrosz)}</Text>
-                    : row.status === "partial" ? <><Text style={rentDetailText}>{formatPln(row.confirmedGrosz)} z {formatPln(row.expectedGrosz ?? 0)}</Text><Text style={rentDetailText}>Pozostało: {formatPln(row.remainingGrosz ?? 0)}</Text></>
-                      : row.status === "unpaid" ? <Text style={rentDetailText}>{formatPln(row.remainingGrosz ?? 0)}</Text>
+                      : row.status === "unpaid" ? <Text style={rentDetailText}>{formatPln(row.expectedGrosz ?? 0)}</Text>
                         : <Text style={rentDetailText}>Oczekiwany czynsz: nieustalony</Text>}
                 </View>
                 {receipts.length > 0 ? <>
@@ -507,7 +527,7 @@ export function IncomeScreen() {
       <Modal
         visible={modalOpen}
         animationType="slide"
-        onRequestClose={() => setModalOpen(false)}
+        onRequestClose={closeEntryModal}
       >
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
@@ -527,10 +547,10 @@ export function IncomeScreen() {
                 fontWeight: "700",
               }}
             >
-              {editing ? "Edytuj wpłatę" : "Potwierdź wpłatę"}
+              Potwierdź wpłatę
             </Text>
             <Text
-              onPress={() => setModalOpen(false)}
+              onPress={closeEntryModal}
               accessibilityRole="button"
               style={action}
             >
@@ -546,7 +566,7 @@ export function IncomeScreen() {
             >
               Mieszkanie
             </Text>
-            {properties.map((property) => (
+            {confirmationProperties.map((property) => (
               <Pressable
                 key={property.id}
                 accessibilityRole="radio"
@@ -584,11 +604,9 @@ export function IncomeScreen() {
                 </View>
               </Pressable>
             ))}
+            {confirmationProperties.length === 0 ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 12 }}>Wszystkie mieszkania mają już potwierdzony czynsz za ten miesiąc.</Text> : null}
             {(() => { const property = properties.find((item) => item.id === draft.propertyId); return property ? <Text style={{ color: theme.colors.textSecondary, marginBottom: 4 }}>{property.taxableTreatment ? `Podstawa wg ustawienia mieszkania: ${property.taxableTreatment === "OWNER_RENT" ? "czynsz dla właściciela" : "czynsz i opłaty dodatkowe"}.` : "Ustaw sposób wliczania opłat do przychodu w edycji mieszkania przed potwierdzeniem wpłaty."}</Text> : null; })()}
-            {field("Otrzymana kwota *", "amount", {
-              keyboardType: "decimal-pad",
-              placeholder: "Wpisz faktycznie otrzymaną kwotę",
-            })}
+            <View style={{ marginBottom: 14 }}><Text style={{ color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6 }}>Pełna pozostała kwota do potwierdzenia (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota do potwierdzenia" style={{ color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 13 }}>{isNonnegativeMoney(draft.amount) ? formatPlnAmount(draft.amount) : "—"}</Text></View>
             <Pressable
               accessibilityRole="button"
               onPress={() => setTaxableExpanded((value) => !value)}
@@ -616,20 +634,16 @@ export function IncomeScreen() {
               placeholder: "RRRR-MM",
             })}
             {field("Opis", "description", {
-              placeholder: "np. Częściowa wpłata za wrzesień",
+              placeholder: "opcjonalna notatka",
             })}
             <Pressable
               accessibilityRole="button"
-              disabled={saving}
+              disabled={saving || !draft.propertyId || confirmationProperties.length === 0}
               onPress={() => void save()}
-              style={[primaryButton, saving && { opacity: 0.6 }]}
+              style={[primaryButton, (saving || !draft.propertyId || confirmationProperties.length === 0) && { opacity: 0.6 }]}
             >
               <Text style={primaryText}>
-                {saving
-                  ? "Zapisywanie…"
-                  : editing
-                    ? "Zapisz zmiany"
-                    : "Potwierdź wpłatę"}
+                {saving ? "Zapisywanie…" : "Potwierdź wpłatę"}
               </Text>
             </Pressable>
           </ScrollView>

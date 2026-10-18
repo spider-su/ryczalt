@@ -53,10 +53,10 @@ Relevant patterns:
 - property-linked reminders;
 - recurring reminders;
 - dashboard access to reminders;
-- clear paid/partial/outstanding financial state;
+- clear paid/outstanding financial state;
 - property-level reporting.
 
-**Adopt:** one-time/monthly/yearly personal reminders, optional property association, clear partial vs confirmed state, compact trend chart. All three reminder cadences are implemented; keep them small and subordinate to rent confirmation, tax calculation and deadlines.
+**Adopt:** one-time/monthly/yearly personal reminders, optional property association, clear paid vs outstanding state, compact trend chart. All three reminder cadences are implemented; keep them small and subordinate to rent confirmation, tax calculation and deadlines.
 
 **Do not adopt:** payment processing, bank feeds, US-specific tax/accounting workflows or large reporting surface.
 
@@ -66,7 +66,7 @@ Relevant patterns:
 2. **Most tasks are derived.** Expected rent, tax, bills and agreement dates generate tasks; users should not recreate them manually every month.
 3. **Guided setup is temporary.** It configures only essential facts and disappears once required setup is complete.
 4. **Expected vs actual are separate.** Expected rent drives a check task; actual manually confirmed receipts drive income and tax.
-5. **Partial receipts are first-class.** Remaining amount changes the same task rather than creating unrelated reminders.
+5. **Confirmations are all-or-nothing.** A rent or tax confirmation records the full amount due in one action.
 6. **Rent expectations need history.** A new rent amount must not alter previous months.
 7. **Bills have two useful modes.** Fixed = known expected amount; variable = remind user to verify amount, usually via a portal.
 8. **Custom reminders stay deliberately small.** One-time, monthly and yearly reminders with optional apartment are implemented. Avoid expanding into a generic task-management feature set without explicit user demand.

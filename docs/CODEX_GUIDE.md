@@ -4,7 +4,7 @@ Use this document as the default context for implementation tasks in this reposi
 
 ## Current POC capability snapshot
 
-- **Implemented:** private-rental Pulpit and supporting tabs; validated schema-1 local persistence; confirmed rental income and tax payments; effective-month owner rent and separate media; explicit taxable treatment; apartment lifecycle/current tenant/contact; historical rent bootstrap; shared tax engine; grouped rent, tax and lease reminders; user-controlled JSON backup/restore; guided setup. Legacy bill/custom-reminder fields remain readable but are not surfaced or scheduled.
+- **Implemented:** private-rental Pulpit and supporting tabs; validated schema-1 local persistence; full-amount rent, bill and tax confirmation; effective-month owner rent and separate media; explicit taxable treatment; apartment lifecycle/current tenant/contact; historical rent bootstrap; shared tax engine; rent, bill, tax and lease reminders; user-controlled JSON backup/restore; guided setup. Legacy custom-reminder fields remain readable but are not surfaced or scheduled.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
 - **POC release readiness:** see the root [ROADMAP](../ROADMAP.md); emulator happy path, JSON restore round-trip and physical notification verification are evidence gates. Tax rules are versioned; a future unverified year uses a visible provisional fallback. Investory integration remains later/optional.
 
@@ -169,7 +169,6 @@ Do not lead with charts.
 Suggested language:
 - `Sprawdź wpłatę`
 - `Do potwierdzenia`
-- `Częściowo otrzymano`
 - `Potwierdzone`
 - `Przypomnij później`
 - `Otwórz portal`
@@ -180,7 +179,7 @@ No competitor screen should be copied. Adapt only interaction patterns documente
 
 ## 10. Scope guardrails
 
-Product priority is confirmed income → ryczałt calculation → payment deadline → annual settlement readiness. Apartment setup, expected rent, rent/tax/lease reminders, tax payment details and local backup/restore support that job. Bills and custom/personal reminders are outside the POC scope. Do not let supporting workflows displace the core.
+Product priority is confirmed rent → recurring bill payments → ryczałt calculation and tax confirmation. Apartment setup, expected rent, rent/bill/tax/lease reminders, tax payment details and local backup/restore support that job. Custom/personal reminders are outside the POC scope. Do not let supporting workflows displace the core.
 
 Do not implement upcoming features unless they are explicitly in scope for the task:
 - year-to-date/annual tax summary and PIT-28 verification readiness (upcoming 0.6/0.7; not electronic filing);
@@ -207,7 +206,7 @@ For every feature:
 1. Inspect current branch and related tests.
 2. Identify source of truth and persisted-contract impact.
 3. Add/adjust pure domain operations first.
-4. Keep schema-1 reads strict. Add a deliberate upgrade migration only when an installed release needs to preserve user data.
+4. Keep schema-1 reads strict; introduce a data migration only when installed user data requires one.
 5. Add UI.
 6. Add notification reconciliation only after domain state exists.
 7. Cover correction/deletion/failure paths, not only happy path.
@@ -220,13 +219,13 @@ Do not claim native notification, store build or tax correctness verification th
 ## 12. Expected test scenarios
 
 At minimum consider:
-- partial rent;
+- full rent confirmation and rejection of underpayment/overpayment;
 - corrected/deleted rent;
 - rent amount change across months;
 - tenant change;
 - receipt month != rental month;
 - tax threshold/period correction;
-- partial tax payment;
+- full tax confirmation and rejection of underpayment/overpayment;
 - bill fixed vs variable;
 - agreement end changed/removed;
 - snooze/dismiss/reopen;

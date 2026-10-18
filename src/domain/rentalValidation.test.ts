@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isNonnegativeMoney,
   isPositiveMoney,
+  isFullPaymentAmount,
   isRentalMonth,
   isValidCalendarDate,
   validateIncomeValues,
@@ -10,6 +11,15 @@ import {
 import { createIncomeEntry, editIncomeEntry } from "./rentalOperations";
 import { entriesForTaxYear } from "./rentalHistory";
 import type { IncomeEntry, RentalDocument } from "../model/rental";
+
+describe("full payment confirmation", () => {
+  it("accepts only the exact positive outstanding amount", () => {
+    expect(isFullPaymentAmount("3500.00", 350_000)).toBe(true);
+    expect(isFullPaymentAmount("3499.99", 350_000)).toBe(false);
+    expect(isFullPaymentAmount("3500.01", 350_000)).toBe(false);
+    expect(isFullPaymentAmount("3500.00", 0)).toBe(false);
+  });
+});
 
 const property = { id: "property-1", address: "Mieszkanie" };
 const entry = (

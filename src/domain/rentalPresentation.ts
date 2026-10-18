@@ -30,20 +30,17 @@ function shiftMonth(month: string, offset: number) { const [year, number] = mont
 export type RentDisplayState =
   | { kind: "unknown" }
   | { kind: "unpaid"; remainingGrosz: number }
-  | { kind: "partial"; confirmedGrosz: number; expectedGrosz: number; remainingGrosz: number }
   | { kind: "paid"; expectedGrosz: number };
 
-export function rentDisplayState(expectedGrosz: number | null, confirmedGrosz: number, remainingGrosz: number | null): RentDisplayState {
+export function rentDisplayState(expectedGrosz: number | null, remainingGrosz: number | null): RentDisplayState {
   if (expectedGrosz === null || remainingGrosz === null) return { kind: "unknown" };
   if (remainingGrosz === 0) return { kind: "paid", expectedGrosz };
-  if (confirmedGrosz > 0) return { kind: "partial", confirmedGrosz, expectedGrosz, remainingGrosz };
   return { kind: "unpaid", remainingGrosz };
 }
 
 export function rentStatusLabel(state: RentDisplayState): string {
   if (state.kind === "unknown") return "Nieustalony";
   if (state.kind === "paid") return "Potwierdzone";
-  if (state.kind === "partial") return "Częściowo otrzymano";
   return "Do potwierdzenia";
 }
 
@@ -140,7 +137,7 @@ export function upcomingTaskPresentation(task: AssistantTask) {
       : task.title;
   const amountGrosz = task.type === "TENANT_PAYMENT_CHECK"
     ? task.expectedGrosz
-    : task.type === "TAX_PAYMENT"
+    : task.type === "TAX_PAYMENT" || task.type === "RECURRING_BILL"
       ? task.remainingGrosz ?? task.expectedGrosz
       : undefined;
   return { title, amount: amountGrosz === undefined ? "" : formatPln(amountGrosz) };

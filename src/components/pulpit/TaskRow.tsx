@@ -8,7 +8,7 @@ import { formatPolishDate } from "../../domain/presentationFormat";
 import { StatusBadge } from "../StatusBadge";
 
 const typeLabel: Record<AssistantTask["type"], string> = {
-  TENANT_PAYMENT_CHECK: "Czynsz", TAX_PAYMENT: "Podatek", RENTAL_AGREEMENT_END: "Umowa",
+  TENANT_PAYMENT_CHECK: "Czynsz", TAX_PAYMENT: "Podatek", RECURRING_BILL: "Opłata", RENTAL_AGREEMENT_END: "Umowa",
 };
 const statusLabel: Record<TaskStatus, string> = {
   upcoming: "Nadchodzące", "needs-attention": "Do sprawdzenia", snoozed: "Uśpione", completed: "Zakończone", dismissed: "Ukryte",
@@ -31,7 +31,7 @@ export function TaskRow({ task, onOpen, onSnooze, onDismiss, onComplete, compact
     <Text style={taskMeta}>{typeLabel[task.type]} · termin {formatPolishDate(task.dueAt, "long")}</Text>
     <View style={taskActions}>
       {task.status !== "dismissed" && task.status !== "completed" ? <>
-        <Pressable accessibilityRole="button" onPress={onOpen} style={actionTarget}><Text style={action}>{task.type === "TENANT_PAYMENT_CHECK" ? "Potwierdź wpłatę" : task.type === "RENTAL_AGREEMENT_END" ? "Zmień datę zakończenia" : "Otwórz"}</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={onOpen} style={actionTarget}><Text style={action}>{task.type === "TENANT_PAYMENT_CHECK" ? "Potwierdź wpłatę" : task.type === "RECURRING_BILL" ? "Potwierdź opłatę" : task.type === "RENTAL_AGREEMENT_END" ? "Zmień datę zakończenia" : "Otwórz"}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Więcej działań" accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen((open) => !open)} style={actionTarget}><Text style={muted}>•••</Text></Pressable>
         {menuOpen ? <>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); onSnooze(); }} style={actionTarget}><Text style={action}>Przypomnij później</Text></Pressable>

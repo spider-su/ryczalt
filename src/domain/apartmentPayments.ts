@@ -24,7 +24,7 @@ export function decimalFromGrosz(grosz: number): string {
   return `${Math.floor(grosz / 100)}.${String(grosz % 100).padStart(2, "0")}`;
 }
 
-/** Applies the apartment's explicit contractual tax-base choice across partial receipts in a rental month. */
+/** Applies the apartment's explicit contractual tax-base choice across receipts in a rental month. */
 export function defaultTaxableAmountGrosz(args: {
   property: Property;
   amountGrosz: number;

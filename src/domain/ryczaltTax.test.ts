@@ -89,15 +89,12 @@ describe("Polish private-rental ryczałt", () => {
     }
   });
 
-  it("marks partial obligations overdue after the deadline and keeps paid obligations paid", () => {
+  it("marks unpaid obligations overdue after the deadline and paid obligations paid", () => {
     const income = [entry("jan", "2026-01-01", "1000.00")];
-    const payment: TaxPayment = { id: "partial", period: "2026-01", paidAt: "2026-02-10", amount: "30.00" };
     const status = (payments: TaxPayment[], today: string) => calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today })[0]!.status;
     expect(status([], "2026-02-19")).toBe("due");
-    expect(status([payment], "2026-02-19")).toBe("partial");
-    expect(status([payment], "2026-02-21")).toBe("overdue");
     expect(status([], "2026-02-21")).toBe("overdue");
-    expect(status([{ ...payment, amount: "85.00" }], "2026-02-21")).toBe("paid");
+    expect(status([{ id: "tax", period: "2026-01", paidAt: "2026-02-10", amount: "85.00" }], "2026-02-21")).toBe("paid");
   });
 
   it("keeps December and Q4 periodic payments due in January", () => {
@@ -118,6 +115,11 @@ describe("Polish private-rental ryczałt", () => {
     expect(taxRulesYearFor(2027)).toBe(2026);
     expect(taxRulesAreProvisional(2027)).toBe(true);
     expect(taxRulesAreProvisional(2026)).toBe(false);
+    expect(hasTaxRulesForYear(2040)).toBe(true);
+    expect(taxRulesYearFor(2040)).toBe(2026);
+    expect(taxRulesAreProvisional(2040)).toBe(true);
+    expect(taxNavigationYears(new Date(2040, 0, 1, 12)).at(-1)).toBe(2040);
+    expect(taxRulesYearFor(2025)).toBe(2025);
     expect(taxPeriodsForYear(2027, "monthly", jan2027)).toEqual(["2027-01"]);
     expect(taxPeriodsForYear(2027, "monthly", jan2027, "2027-01")).toEqual(["2027-01"]);
     expect(calculateSettlements({ entries: [entry("future", "2027-01-03", "2500.00")], payments: [], taxYear: 2027, mode: "monthly", today: "2027-01-01" })[0]).toMatchObject({ rulesYear: 2026, obligationGrosz: 21_300 });
@@ -133,7 +135,7 @@ describe("Polish private-rental ryczałt", () => {
     expect(taxOnRevenue(10_000, 2027)).toBe(900);
   });
 
-  it("aggregates apartments and partial receipts by actual receipt month", () => {
+  it("aggregates confirmed receipts by actual receipt month", () => {
     const settlements = calculateSettlements({ entries: [
       entry("income-1", "2026-01-12", "3000.00"),
       entry("income-2", "2026-01-30", "500.00", "property-2"),
@@ -154,20 +156,14 @@ describe("Polish private-rental ryczałt", () => {
     expect(quarterly[1]).toMatchObject({ cumulativeRevenueGrosz: 11_000_000, obligationGrosz: 550_000, cumulativeTaxGrosz: 975_000 });
   });
 
-  it("tracks missing, partial, full, multiple and excess payments without changing liability", () => {
+  it("tracks unpaid, paid, and excess payments without changing liability", () => {
     const income = [entry("income-1", "2026-01-02", "1000.00")];
-    const payments: TaxPayment[] = [
-      { id: "tax-1", period: "2026-01", paidAt: "2026-02-10", amount: "50.00" },
-      { id: "tax-2", period: "2026-01", paidAt: "2026-02-11", amount: "50.00" },
-    ];
+    const payments: TaxPayment[] = [{ id: "tax-1", period: "2026-01", paidAt: "2026-02-10", amount: "100.00" }];
     const paid = calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today: "2026-02-15" })[0]!;
     expect(paid).toMatchObject({ obligationGrosz: 8_500, allocatedPaidGrosz: 8_500, paidGrosz: 10_000, outstandingGrosz: 0, overpaidGrosz: 1_500, status: "paid" });
     const overdue = calculateSettlements({ entries: income, payments: [], taxYear: 2026, mode: "monthly", today: "2026-02-21" })[0]!;
     expect(overdue.status).toBe("overdue");
     expect(overdue.obligationGrosz).toBe(paid.obligationGrosz);
-    const partial: TaxPayment[] = [{ id: "tax-partial", period: "2026-01", paidAt: "2026-02-10", amount: "30.00" }];
-    expect(calculateSettlements({ entries: income, payments: partial, taxYear: 2026, mode: "monthly", today: "2026-02-15" })[0]).toMatchObject({ status: "partial", outstandingGrosz: 5_500 });
-    expect(calculateSettlements({ entries: income, payments: [{ ...partial[0]!, amount: "85.00" }], taxYear: 2026, mode: "monthly", today: "2026-02-15" })[0]).toMatchObject({ status: "paid", outstandingGrosz: 0 });
     expect(calculateSettlements({ entries: income, payments: [], taxYear: 2026, mode: "monthly", today: "2026-02-15" })[0]).toMatchObject({ status: "due", paidGrosz: 0 });
   });
 
@@ -184,7 +180,7 @@ describe("Polish private-rental ryczałt", () => {
     expect(exact[0]).toMatchObject({ obligationGrosz: 8_500, allocatedPaidGrosz: 8_500, paidGrosz: 8_500, outstandingGrosz: 0, overpaidGrosz: 0 });
 
     const underpaid = calculate([{ id: "jan-under", period: "2026-01", paidAt: "2026-02-10", amount: "50.00" }]);
-    expect(underpaid[0]).toMatchObject({ allocatedPaidGrosz: 5_000, outstandingGrosz: 3_500, status: "partial" });
+    expect(underpaid[0]).toMatchObject({ allocatedPaidGrosz: 5_000, outstandingGrosz: 3_500, status: "due" });
     expect(underpaid[1]).toMatchObject({ outstandingGrosz: 8_500 });
 
     const overpaid = calculate([{ id: "jan-over", period: "2026-01", paidAt: "2026-02-10", amount: "100.00" }]);

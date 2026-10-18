@@ -73,22 +73,6 @@ describe("personal assistant tasks", () => {
     expect(expectedRentForMonth({ id: "old", address: "Old", ownerRent: "1000.00" }, "2026-01", new Date(2026, 8, 26))).toBeNull();
   });
 
-  it("projects stable partial-rent tasks and resolves them only after recorded receipts cover the expectation", () => {
-    const doc = document();
-    doc.incomeEntries = [{ id: "i1", propertyId: "p1", receivedAt: "2026-09-12", rentalMonth: "2026-09", amount: "2000.00", taxableAmount: "2000.00" }];
-    const now = new Date(2026, 8, 26, 12);
-    const id = "TENANT_PAYMENT_CHECK:p1:2026-09";
-    const task = deriveTasks(doc, now).find((item) => item.id === id)!;
-    expect(task).toMatchObject({ status: "needs-attention", expectedGrosz: 300_000, confirmedGrosz: 200_000, remainingGrosz: 100_000 });
-    expect(task.title).toBe("Sprawdź czynsz — Parkowa");
-    expect(task.detail).toContain("do potwierdzenia 1 000,00 zł");
-    expect(deriveTasks(doc, now).find((item) => item.id === id)?.id).toBe(id);
-    doc.incomeEntries[0]!.amount = "3000.00";
-    expect(deriveTasks(doc, now).find((item) => item.id === id)?.status).toBe("completed");
-    doc.incomeEntries = [];
-    expect(deriveTasks(doc, now).find((item) => item.id === id)?.status).toBe("needs-attention");
-  });
-
   it("uses the target month expected rent for upcoming rent after a large September receipt", () => {
     const doc = document();
     doc.properties[0] = { ...doc.properties[0]!, address: "Reduta 26B", ownerRent: "2600.00",

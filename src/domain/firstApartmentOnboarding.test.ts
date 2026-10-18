@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canCompleteFirstApartment,
+  defaultFirstApartmentDraftValues,
   firstApartmentStepError,
   type FirstApartmentDraft,
 } from "./firstApartmentOnboarding";
@@ -8,6 +9,7 @@ import {
 const base = (): FirstApartmentDraft => ({
   address: "ul. Parkowa 12/4",
   tenantName: "",
+  rentalStartDate: "2026-01-01",
   ownerRent: "2500",
   mediaAmount: "350",
   mediaPaidByTenant: true,
@@ -16,9 +18,14 @@ const base = (): FirstApartmentDraft => ({
 });
 
 describe("first-apartment onboarding", () => {
+  it("defaults rent start to January 1 and tenant-paid media to on", () => {
+    expect(defaultFirstApartmentDraftValues("2026-10-17")).toEqual({ rentalStartDate: "2026-01-01", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" });
+  });
+
   it("requires an address but leaves tenant information optional", () => {
     expect(firstApartmentStepError({ ...base(), address: "  " }, 0)).toMatch(/adres/i);
     expect(firstApartmentStepError(base(), 0)).toBeNull();
+    expect(firstApartmentStepError({ ...base(), rentalStartDate: "2026-02-30" }, 0)).toMatch(/datę rozpoczęcia/i);
     expect(canCompleteFirstApartment(base())).toBe(true);
   });
 

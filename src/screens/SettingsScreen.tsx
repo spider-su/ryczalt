@@ -33,6 +33,7 @@ import { formatPolishCount, formatPolishDate } from "../domain/presentationForma
 import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
 import { FirstApartmentWizard } from "../components/onboarding/FirstApartmentWizard";
+import { defaultFirstApartmentDraftValues } from "../domain/firstApartmentOnboarding";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
@@ -53,7 +54,7 @@ const newPropertyDraft = (): PropertyDraft => ({
   address: "",
   ownerRent: "",
   mediaAmount: "",
-  mediaPaidByTenant: false,
+  ...defaultFirstApartmentDraftValues(todayIsoDate()),
   tenantName: "",
   tenantPhone: "",
   tenantEmail: "",
@@ -104,12 +105,13 @@ export function SettingsScreen() {
     setTaxAccount((document.settings.taxMicroAccount ?? "").replace(/^PL/i, "").replace(/\D/g, ""));
     setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
     setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
-    const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
+    const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"]; billId?: string; period?: string } | undefined;
+    if (params?.billId) navigation.navigate("Pulpit", { billId: params.billId, period: params.period });
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.settingsSection) setActiveSection(params.settingsSection);
     if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction, params.onboarding === true && document.properties.length === 0); }
     else if (property) { setActiveSection("properties"); openProperty(property, params?.setupAction); }
-    if (params?.propertyId || params?.setupAction || params?.settingsSection) navigation.setParams({ propertyId: undefined, setupAction: undefined, onboarding: undefined, settingsSection: undefined });
+    if (params?.propertyId || params?.setupAction || params?.settingsSection || params?.billId) navigation.setParams({ propertyId: undefined, setupAction: undefined, onboarding: undefined, settingsSection: undefined, billId: undefined, period: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, route.params]);
@@ -398,7 +400,7 @@ export function SettingsScreen() {
       });
       setBootstrapProperty(null);
       setBootstrapRange(null);
-      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat. Możesz je później poprawić w historii.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
+      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat czynszu oraz potwierdzenia zapłaty podatku za te okresy.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
     } catch { /* The provider reports persistence errors. */ }
     finally { setSaving(false); }
   };
@@ -513,7 +515,7 @@ export function SettingsScreen() {
           const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
             : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
-                : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
+                : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax", "bills"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax" | "bills"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
             <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={[muted, section.id === "payment" && summary === "Dane wymagają uzupełnienia" && settingsAttention]}>{summary}</Text></View><MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
@@ -583,7 +585,7 @@ export function SettingsScreen() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days, disabled: settingsNotificationsUnavailable(permission) }} disabled={settingsNotificationsUnavailable(permission)} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
         <Text style={sectionTitle}>Kategorie</Text>
         {([
-          ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"],
+          ["rent", "Wpłaty czynszu"], ["bills", "Opłaty"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"],
         ] as const).map(([category, label]) => <View key={category} style={[notificationRow, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={{ ...rowTitle, flex: 1 }}>{label}</Text><Switch disabled={settingsNotificationsUnavailable(permission)} value={settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission)} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission), disabled: settingsNotificationsUnavailable(permission) }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
         {reminderPlan.length ? settingsReminderList(reminderPlan, showAllReminders).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
@@ -720,7 +722,7 @@ export function SettingsScreen() {
               <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "np. 2500" })}</View>
               <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "np. 0" })}</View>
             </View>
-            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Najemca płaci media / opłaty</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Najemca płaci media / opłaty" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
             <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
             <Text style={muted}>Wybierz wariant zgodny z warunkami Twojej umowy najmu.</Text>
             {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => {
@@ -776,7 +778,7 @@ export function SettingsScreen() {
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>Wpłaty początkowe</Text><Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }}><Text style={action}>Pomiń</Text></Pressable></View>
           {bootstrapProperty && bootstrapRange ? <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={muted}>Wstępnie uzupełnimy czynsz za zakończone miesiące. Sprawdź okres, potwierdź otrzymane wpłaty i zdecyduj, czy wyliczony za nie podatek został już zapłacony.</Text>
+            <Text style={muted}>Wstępnie uzupełnimy czynsz za zakończone miesiące od daty rozpoczęcia najmu. Zaimportowane okresy oznaczymy jako opłacone, również wyliczony za nie podatek.</Text>
             <View style={[ui.card, { marginTop: 16 }]}>
               <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{bootstrapProperty.address}</Text>
               <Text style={muted}>{bootstrapRange.startMonth} – {bootstrapRange.endMonth}</Text>
@@ -790,9 +792,9 @@ export function SettingsScreen() {
               </View>)}
             </View> : null}
             <View style={[neutralBanner, { marginVertical: 12 }]}>
-              <Text style={muted}>Import zapisuje tylko potwierdzone wpłaty czynszu. Zapłatę podatku potwierdź osobno na ekranie Podatek — aplikacja nie zakłada, że została wykonana.</Text>
+              <Text style={muted}>Potwierdź tylko te okresy, w których czynsz wpłynął i podatek został zapłacony. Za każdy zaimportowany okres aplikacja zapisze pełną obliczoną kwotę podatku jako opłaconą.</Text>
             </View>
-            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź otrzymane wpłaty"}</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź czynsze i zapłacony podatek"}</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
           </ScrollView> : null}
         </SafeAreaView>

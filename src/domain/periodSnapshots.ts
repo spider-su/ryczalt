@@ -85,7 +85,7 @@ export function refreshSavedTaxSettlementsAfterPayment(document: RentalDocument,
 export function taxSettlementFromSnapshot(snapshot: TaxSettlementSnapshot, today: string): Settlement {
   const obligationGrosz = moneyToGrosz(snapshot.obligation);
   const outstandingGrosz = moneyToGrosz(snapshot.outstanding);
-  const status: Settlement["status"] = obligationGrosz === 0 ? "no-tax" : outstandingGrosz === 0 ? "paid" : today > snapshot.dueDate ? "overdue" : outstandingGrosz < obligationGrosz ? "partial" : "due";
+  const status: Settlement["status"] = obligationGrosz === 0 ? "no-tax" : outstandingGrosz === 0 ? "paid" : today > snapshot.dueDate ? "overdue" : "due";
   return {
     period: snapshot.period,
     rulesYear: snapshot.appliedRulesYear ?? snapshot.rulesYear,

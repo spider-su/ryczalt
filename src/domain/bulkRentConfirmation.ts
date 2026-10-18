@@ -27,8 +27,8 @@ export function bulkRentItems(properties: Property[], entries: IncomeEntry[], mo
     if ((property.lifecycle ?? "ACTIVE") !== "ACTIVE") return [];
     if (property.paymentDay && dueDateFor(month, property.paymentDay) > localDate(now)) return [];
     const amounts = rentMonthAmounts(property, entries, month, now, monthsFromCurrent(month, now));
-    if (amounts.expectedGrosz === null || amounts.remainingGrosz === null || amounts.remainingGrosz <= 0) return [];
-    return [{ propertyId: property.id, address: property.address, tenantName: property.tenantName, amountGrosz: amounts.remainingGrosz }];
+    if (amounts.expectedGrosz === null || amounts.confirmedGrosz > 0 || amounts.expectedGrosz <= 0) return [];
+    return [{ propertyId: property.id, address: property.address, tenantName: property.tenantName, amountGrosz: amounts.expectedGrosz }];
   });
 }
 
@@ -46,11 +46,11 @@ export function makeBulkRentEntries(args: {
   priorEntries: IncomeEntry[];
   selectedPropertyIds: string[];
   rentalMonth: string;
-  receivedAt: string;
   now?: Date;
   createId: () => string;
 }): IncomeEntry[] {
-  const { properties, priorEntries, selectedPropertyIds, rentalMonth, receivedAt, now = new Date(), createId } = args;
+  const { properties, priorEntries, selectedPropertyIds, rentalMonth, now = new Date(), createId } = args;
+  const receivedAt = localDate(now);
   const selected = new Set(selectedPropertyIds);
   const pending = bulkRentItems(properties, priorEntries, rentalMonth, now).filter((item) => selected.has(item.propertyId));
   return pending.map((item) => {

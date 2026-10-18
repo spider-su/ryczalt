@@ -8,11 +8,9 @@ import { apartmentTermsForMonth } from "./apartmentTerms";
 
 export type HistoricalBootstrapResult = { document: RentalDocument; created: IncomeEntry[]; skippedMonths: string[] };
 
-/** Builds estimated historical tax payments only after an explicit caller opt-in.
- * Normal onboarding never calls this helper; kept for controlled migration/tests only.
- */
-export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[], markPaid = false): TaxPayment[] {
-  if (!markPaid || document.settings.settlementMode !== "monthly") return [];
+/** Builds full tax-paid confirmations for the imported initial-rent periods. */
+export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[]): TaxPayment[] {
+  if (document.settings.settlementMode !== "monthly") return [];
   const periods = [...new Set(created.map((entry) => entry.receivedAt.slice(0, 7)))].sort();
   const byYear = new Map<number, ReturnType<typeof calculateSettlements>>();
   for (const period of periods) {
@@ -36,9 +34,7 @@ export function historicalBootstrapDefaultRange(today: string, rentalStartDate?:
   const year = Number(today.slice(0, 4));
   const currentMonth = Number(today.slice(5, 7));
   const endMonth = currentMonth <= 1 ? null : `${year}-${String(currentMonth - 1).padStart(2, "0")}`;
-  const startMonth = rentalStartDate?.slice(0, 7) && rentalStartDate.slice(0, 4) === String(year)
-    ? rentalStartDate.slice(0, 7)
-    : `${year}-01`;
+  const startMonth = rentalStartDate?.slice(0, 7) ?? `${year}-01`;
   return { startMonth, endMonth };
 }
 
@@ -113,7 +109,13 @@ export function bootstrapHistoricalRentPayments(args: {
       };
     });
   }
-  return { document: { ...document, properties, incomeEntries: [...document.incomeEntries, ...created] }, created, skippedMonths };
+  const rentDocument = { ...document, properties, incomeEntries: [...document.incomeEntries, ...created] };
+  const taxPayments = historicalTaxPaymentsForImportedRent(rentDocument, created);
+  const replacedPeriods = new Set(taxPayments.map((payment) => payment.period));
+  const nextDocument = taxPayments.length
+    ? { ...rentDocument, taxPayments: [...rentDocument.taxPayments.filter((payment) => !replacedPeriods.has(payment.period) || payment.source !== "INITIAL_IMPORT"), ...taxPayments] }
+    : rentDocument;
+  return { document: nextDocument, created, skippedMonths };
 }
 
 function shiftMonth(month: string, delta: number) {

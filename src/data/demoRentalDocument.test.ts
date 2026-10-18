@@ -37,12 +37,12 @@ describe("isolated demo rental data", () => {
     expect(settlements.find((item) => item.period === "2026-09")?.outstandingGrosz).toBeGreaterThan(0);
   });
 
-  it("shows a fully paid apartment, a partial apartment, and one grouped upcoming rent reminder", () => {
+  it("shows fully confirmed rent and one grouped upcoming rent reminder", () => {
     const document = createDemoRentalDocument(now);
     expect(document.incomeEntries.filter((entry) => entry.propertyId === "demo-piotrkowska")).toHaveLength(9);
     expect(document.incomeEntries.filter((entry) => entry.propertyId === "demo-mogilska")).toHaveLength(8);
     expect(document.incomeEntries.some((entry) => entry.propertyId === "demo-piotrkowska" && entry.rentalMonth === "2026-09")).toBe(true);
-    expect(document.incomeEntries.find((entry) => entry.propertyId === "demo-mogilska" && entry.rentalMonth === "2026-09")?.amount).toBe("1900");
+    expect(document.incomeEntries.find((entry) => entry.propertyId === "demo-mogilska" && entry.rentalMonth === "2026-09")?.amount).toBe("3850");
     const nextMonthGroupedRent = taskNotificationPlan(document, now).find((item) => item.data.taskIds?.length === 2);
     expect(nextMonthGroupedRent?.data.period).toBe("2026-10");
   });

@@ -4,7 +4,7 @@ export type NotificationIntent =
   | { screen: "Przychód"; params: { quickAdd: true; propertyId: string; rentalMonth: string; expectedAmount?: string } }
   | { screen: "Podatek"; params: { period: string } }
   | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string; period?: string } }
-  | { screen: "Pulpit"; params: { taskId: string } };
+  | { screen: "Pulpit"; params: { taskId?: string; billId?: string; period?: string } };
 
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const rentalMonth = (value: unknown): value is string => nonEmptyString(value) && isRentalMonth(value);

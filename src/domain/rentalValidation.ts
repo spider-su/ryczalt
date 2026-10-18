@@ -38,6 +38,13 @@ export function isPositiveMoney(value: string): boolean {
   return isDecimalString(value) && compareDecimalStrings(value, "0") > 0;
 }
 
+/** True only when a newly recorded confirmation covers the full outstanding amount. */
+export function isFullPaymentAmount(amount: string, outstandingGrosz: number): boolean {
+  if (outstandingGrosz <= 0 || !isPositiveMoney(amount)) return false;
+  const [whole, fraction = ""] = amount.split(".");
+  return Number(BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, "0"))) === outstandingGrosz;
+}
+
 export function isNonnegativeMoney(value: string): boolean {
   return isDecimalString(value) && compareDecimalStrings(value, "0") >= 0;
 }

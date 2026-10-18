@@ -23,15 +23,15 @@ function document(): RentalDocument {
 }
 
 describe("assistant workflows across domain modules", () => {
-  it("tracks no, partial, final, corrected, and deleted rent receipts against the historical rate", () => {
+  it("tracks full rent confirmation, correction, and deletion against the historical rate", () => {
     const doc = document();
     const taskId = "TENANT_PAYMENT_CHECK:p1:2026-09";
     expect(deriveTasks(doc, now).find((task) => task.id === taskId)).toMatchObject({ status: "needs-attention", remainingGrosz: 300_000, manuallyCompletable: false });
 
-    const first = createIncomeEntry({ propertyId: "p1", receivedAt: "2026-10-02", amount: "2000.00", taxableAmount: "1800.00", rentalMonth: "2026-09" }, doc.properties[0]!, "i1");
+    const first = createIncomeEntry({ propertyId: "p1", receivedAt: "2026-10-02", amount: "3000.00", taxableAmount: "2800.00", rentalMonth: "2026-09" }, doc.properties[0]!, "i1");
     doc.incomeEntries = [first];
     expect(first.tenantNameSnapshot).toBe("Anna");
-    expect(deriveTasks(doc, now).find((task) => task.id === taskId)).toMatchObject({ remainingGrosz: 100_000, status: "needs-attention" });
+    expect(deriveTasks(doc, now).find((task) => task.id === taskId)).toMatchObject({ remainingGrosz: 0, status: "completed" });
     expect(rentMonthAmounts(doc.properties[0]!, doc.incomeEntries, "2026-08", now).expectedGrosz).toBe(250_000);
 
     const corrected = editIncomeEntry(first, { propertyId: "p1", receivedAt: "2026-10-02", amount: "3000.00", taxableAmount: "2800.00", rentalMonth: "2026-09" });
@@ -69,12 +69,14 @@ describe("assistant workflows across domain modules", () => {
     expect(deriveTasks(doc, now).some((task) => task.id === taskId)).toBe(false);
   });
 
-  it("retains old bill records without projecting removed bill tasks", () => {
+  it("projects recurring bills as payment tasks and resolves them from saved payments", () => {
     const doc = document();
     const tasks = deriveTasks(doc, now);
-    expect(tasks.some((task) => task.id.startsWith("RECURRING_BILL:"))).toBe(false);
+    expect(tasks.find((task) => task.id === "RECURRING_BILL:fixed:2026-09")).toMatchObject({
+      type: "RECURRING_BILL", status: "needs-attention", expectedGrosz: 60_000, remainingGrosz: 60_000,
+    });
     doc.billPayments = [{ id: "bp", billId: "fixed", period: "2026-09", paidAt: "2026-09-20", amount: "600.00" }];
-    expect(deriveTasks(doc, now).some((task) => task.id.startsWith("RECURRING_BILL:"))).toBe(false);
+    expect(deriveTasks(doc, now).find((task) => task.id === "RECURRING_BILL:fixed:2026-09")?.status).toBe("completed");
   });
 
   it("replaces agreement reminder keys after date edits and removes them when the date is cleared", () => {

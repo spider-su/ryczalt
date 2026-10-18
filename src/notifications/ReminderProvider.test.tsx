@@ -196,6 +196,33 @@ describe("ReminderProvider committed-document integration", () => {
     await act(async () => restarted.unmount());
   });
 
+  it("allows the OS permission request in demo mode without changing rental data or reminders", async () => {
+    const renderer = await renderProviders();
+    expect(runtime.pending.length).toBeGreaterThan(0);
+    const realSchedules = structuredClone(runtime.pending);
+    const scheduleCallsBefore = runtime.schedule.mock.calls.length;
+
+    await act(async () => { actions!.enterDemoMode(); await flushEffects(); });
+    runtime.permission = { granted: false, canAskAgain: true };
+    runtime.requestPermissions.mockImplementation(async () => {
+      runtime.permission = { granted: true, canAskAgain: true };
+      return { ...runtime.permission };
+    });
+
+    let result = "";
+    await act(async () => {
+      result = await actions!.requestPermission();
+      await flushEffects();
+    });
+
+    expect(result).toBe("granted");
+    expect(runtime.requestPermissions).toHaveBeenCalledOnce();
+    expect(runtime.save).not.toHaveBeenCalled();
+    expect(runtime.schedule.mock.calls).toHaveLength(scheduleCallsBefore);
+    expect(runtime.pending).toEqual(realSchedules);
+    await act(async () => renderer.unmount());
+  });
+
 
   it("schedules an isolated five-minute test notification in demo mode", async () => {
     const renderer = await renderProviders();
