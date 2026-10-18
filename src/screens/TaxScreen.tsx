@@ -248,7 +248,7 @@ export function TaxScreen() {
           {calculation.openingBalance.overpaidGrosz > 0 ? <Text style={taxContext}>Nadpłata stanu początkowego: {formatPln(calculation.openingBalance.overpaidGrosz)}. Nie przypisano jej do miesięcznego okresu.</Text> : null}
         </View> : null}
         {unconfirmedRentCount > 0 ? <View style={rentWarning}>
-          <Text style={rentWarningTitle}>{formatPolishCount(unconfirmedRentCount, ["1 czynsz czeka na potwierdzenie", `${unconfirmedRentCount} czynsze czekają na potwierdzenie`, `${unconfirmedRentCount} czynszów czeka na potwierdzenie`])}</Text>
+          <Text style={rentWarningTitle}>{formatPolishCount(unconfirmedRentCount, ["czynsz czeka na potwierdzenie", "czynsze czekają na potwierdzenie", "czynszów czeka na potwierdzenie"])}</Text>
           <Text style={rentWarningText}>Podatek obejmuje tylko potwierdzone wpłaty.</Text>
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
         </View> : null}
