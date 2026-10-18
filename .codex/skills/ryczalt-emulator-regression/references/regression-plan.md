@@ -40,10 +40,10 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 1. Launch from empty storage and capture `01-fresh-pulpit`.
 2. Verify:
    - Pulpit renders below the status bar;
-   - all four tabs (Pulpit, Przychód, Podatek, Ustawienia) are visible above system navigation;
+   - the three primary tabs (Pulpit, Podatek, Ustawienia) are visible above system navigation;
    - no blank screen/crash/clipped title;
    - empty Pulpit offers **Rozpocznij · 3 kroki** and **Zobacz demo**.
-3. Visit all four tabs once before creating data and capture one screenshot per tab.
+3. Visit the three primary tabs once before creating data and capture one screenshot per tab. Confirm `Historia wpłat` is reachable from Pulpit rather than shown as a fourth tab.
 4. Tap **Zobacz demo**.
 5. Verify the demo banner appears and explicitly says demo changes are not persisted.
 6. In demo mode open Ustawienia → Powiadomienia.
@@ -116,7 +116,7 @@ Use the current rental month. Do not move the emulator date.
 1. From Pulpit tap the `QA-Parkowa` apartment card to open the individual quick-add flow.
 2. Confirm a first receipt:
    - amount `3000`;
-   - received date = today;
+   - payment date is implicit and saved as today (there is no editable payment-date field);
    - rental month = current month;
    - taxable amount should default according to `OWNER_RENT`.
 3. Verify:
