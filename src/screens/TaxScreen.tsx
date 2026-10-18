@@ -53,13 +53,16 @@ export function TaxScreen() {
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
   const openPayments = () => navigation.navigate("Pulpit", { screen: "Wpłaty" });
+  const navigateReturn = (tab: string) => tab === "Pulpit"
+    ? navigation.navigate("Pulpit", { screen: "Przegląd" })
+    : navigation.navigate(tab);
   const closeConfirmationFlow = () => {
     setModalOpen(false);
     setHistoryReviewOpen(false);
     if (returnToTab) {
       const tab = returnToTab;
       setReturnToTab(null);
-      navigation.navigate(tab);
+      navigateReturn(tab);
     }
   };
   const settlementMode = document?.settings.settlementMode ?? "monthly";
@@ -103,7 +106,7 @@ export function TaxScreen() {
       const returnTo = params.returnTo;
       if (!targetSettlement || targetSettlement.outstandingGrosz <= 0) {
         setReturnToTab(null);
-        if (returnTo) navigation.navigate(returnTo);
+        if (returnTo) navigateReturn(returnTo);
       } else {
         const openConfirmation = () => {
           const priorPeriodsForTarget = targetCalculation?.settlements.filter((item) => item.period < targetPeriod) ?? [];
