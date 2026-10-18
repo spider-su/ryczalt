@@ -57,11 +57,10 @@ export function showAggregateExpectedRent(activeApartmentCount: number) {
 export function showDashboardYtdProfit(args: {
   rentFullyConfirmed: boolean;
   pendingBillCount: number;
-  taxStatus?: "paid" | "no-tax" | "partial" | "overdue" | "due";
+  taxApproved: boolean;
   chargesKnown: boolean;
 }) {
-  const taxApproved = args.taxStatus === "paid" || args.taxStatus === "no-tax";
-  return args.rentFullyConfirmed && args.pendingBillCount === 0 && taxApproved && args.chargesKnown;
+  return args.rentFullyConfirmed && args.pendingBillCount === 0 && args.taxApproved && args.chargesKnown;
 }
 
 export function dashboardProgress(value: number, total: number) {
