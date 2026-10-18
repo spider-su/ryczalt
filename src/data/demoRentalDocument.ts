@@ -42,9 +42,8 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
   const incomeEntries: IncomeEntry[] = properties.flatMap((property) => {
     const startMonth = property.rentalStartDate!.slice(0, 7);
     return months.filter((month) => month >= startMonth).map((month) => {
-      const partialCurrentRent = property.id === "demo-mogilska" && month === currentMonth;
-      const amount = partialCurrentRent ? "1900" : property.id === "demo-piotrkowska" ? "3610" : "3850";
-      const taxableAmount = partialCurrentRent ? "1900" : property.ownerRent!;
+      const amount = property.id === "demo-piotrkowska" ? "3610" : "3850";
+      const taxableAmount = property.ownerRent!;
       return {
         id: `demo-income-${property.id.replace("demo-", "")}-${month}`,
         propertyId: property.id,
@@ -53,7 +52,6 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
         amount,
         taxableAmount,
         tenantNameSnapshot: property.tenantName,
-        ...(partialCurrentRent ? { description: "Częściowa wpłata za czynsz" } : {}),
         source: "MANUAL" as const,
       };
     });

@@ -32,6 +32,9 @@ import { settingsSections } from "../domain/rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
 import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
+import { FirstApartmentWizard } from "../components/onboarding/FirstApartmentWizard";
+import { FormField } from "../components/FormControls";
+import { defaultFirstApartmentDraftValues } from "../domain/firstApartmentOnboarding";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
@@ -47,12 +50,18 @@ type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymen
   termsEffectiveFrom: string;
 };
 type PropertyDraftTextKey = "address" | "ownerRent" | "mediaAmount" | "tenantName" | "tenantPhone" | "tenantEmail" | "rentalStartDate" | "leaseEndDate" | "paymentDay" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "notes";
+const moneyDraft = (value?: string) => {
+  const normalized = (value ?? "").trim().replace(",", ".");
+  if (!normalized) return "";
+  return normalized.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+};
+
 const newPropertyDraft = (): PropertyDraft => ({
   ...newApartmentDefaults(),
   address: "",
   ownerRent: "",
   mediaAmount: "",
-  mediaPaidByTenant: false,
+  ...defaultFirstApartmentDraftValues(todayIsoDate()),
   tenantName: "",
   tenantPhone: "",
   tenantEmail: "",
@@ -68,7 +77,7 @@ const newPropertyDraft = (): PropertyDraft => ({
 
 export function SettingsScreen() {
   const { document, error, update, resetLocalData, isDemoMode } = useRentalData();
-  const { permission, requestPermission } = useReminders();
+  const { permission, requestPermission, scheduleTestNotification } = useReminders();
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const propertyEditorScrollRef = useRef<ScrollView>(null);
@@ -77,20 +86,25 @@ export function SettingsScreen() {
   const [showAdvancedProperty, setShowAdvancedProperty] = useState(false);
   const [showArchivedProperties, setShowArchivedProperties] = useState(false);
   const [taxEligibilityOpen, setTaxEligibilityOpen] = useState(SETTINGS_TAX_LEGAL_DEFAULT_OPEN);
+  const [taxAdvancedOpen, setTaxAdvancedOpen] = useState(false);
+  const [dataInfoOpen, setDataInfoOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
   const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
   const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
   const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [wizardMode, setWizardMode] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
   const [saving, setSaving] = useState(false);
   const [clearingLocalData, setClearingLocalData] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
+  const [testNotificationBusy, setTestNotificationBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [taxAccount, setTaxAccount] = useState("");
   const [openingRevenueDraft, setOpeningRevenueDraft] = useState("");
   const [openingTaxPaidDraft, setOpeningTaxPaidDraft] = useState("");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
+  const showNotificationTest = isDemoMode || __DEV__;
   const hasAnyTaxSnapshots = Boolean(document?.taxSettlementSnapshots?.length);
 
   useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
@@ -100,12 +114,13 @@ export function SettingsScreen() {
     setTaxAccount((document.settings.taxMicroAccount ?? "").replace(/^PL/i, "").replace(/\D/g, ""));
     setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
     setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
-    const params = route.params as { propertyId?: string; setupAction?: SetupAction; settingsSection?: (typeof settingsSections)[number]["id"] } | undefined;
+    const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"]; billId?: string; period?: string } | undefined;
+    if (params?.billId) navigation.navigate("Pulpit", { screen: "Przegląd", params: { billId: params.billId, period: params.period } });
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.settingsSection) setActiveSection(params.settingsSection);
-    if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction); }
+    if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction, params.onboarding === true && document.properties.length === 0); }
     else if (property) { setActiveSection("properties"); openProperty(property, params?.setupAction); }
-    if (params?.propertyId || params?.setupAction || params?.settingsSection) navigation.setParams({ propertyId: undefined, setupAction: undefined, settingsSection: undefined });
+    if (params?.propertyId || params?.setupAction || params?.settingsSection || params?.billId) navigation.setParams({ propertyId: undefined, setupAction: undefined, onboarding: undefined, settingsSection: undefined, billId: undefined, period: undefined });
   // Route params are consumed once the document has loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document, route.params]);
@@ -171,8 +186,9 @@ export function SettingsScreen() {
     }
   };
 
-  const openProperty = (property?: Property, focus?: SetupAction) => {
+  const openProperty = (property?: Property, focus?: SetupAction, onboarding = false) => {
     setEditing(property ?? null);
+    setWizardMode(onboarding && !property);
     setSetupFocus(focus ?? null);
     setShowAdvancedProperty(false);
     setModalOpen(true);
@@ -181,8 +197,8 @@ export function SettingsScreen() {
       property
         ? {
             address: property.address,
-            ownerRent: currentTerms ? decimalFromGrosz(currentTerms.ownerRentGrosz) : property.ownerRent ?? "",
-            mediaAmount: currentTerms ? decimalFromGrosz(currentTerms.mediaAmountGrosz) : property.mediaAmount ?? "0",
+            ownerRent: moneyDraft(currentTerms ? decimalFromGrosz(currentTerms.ownerRentGrosz) : property.ownerRent),
+            mediaAmount: moneyDraft(currentTerms ? decimalFromGrosz(currentTerms.mediaAmountGrosz) : property.mediaAmount ?? "0"),
             mediaPaidByTenant: currentTerms?.mediaPaidByTenant ?? property.mediaPaidByTenant ?? false,
             taxableTreatment: currentTerms?.taxableTreatment ?? property.taxableTreatment,
             tenantName: property.tenantName ?? "",
@@ -201,17 +217,26 @@ export function SettingsScreen() {
         : newPropertyDraft(),
     );
   };
+  const closePropertyEditor = () => {
+    const returnToPulpit = wizardMode;
+    setModalOpen(false);
+    setEditing(null);
+    setSetupFocus(null);
+    setWizardMode(false);
+    if (returnToPulpit) navigation.navigate("Pulpit", { screen: "Przegląd" });
+  };
   const openNewApartmentFromArchived = (property: Property) => {
     setEditing(null);
+    setWizardMode(false);
     setSetupFocus(null);
     setShowAdvancedProperty(false);
     setModalOpen(true);
     setDraft({
       ...newPropertyDraft(),
       address: property.address,
-      ownerRent: property.ownerRent ?? "",
+      ownerRent: moneyDraft(property.ownerRent),
       rentSchedule: undefined,
-      mediaAmount: property.mediaAmount ?? "0",
+      mediaAmount: moneyDraft(property.mediaAmount ?? "0"),
       mediaPaidByTenant: property.mediaPaidByTenant ?? false,
       taxableTreatment: property.taxableTreatment,
       tenantName: "", tenantPhone: "", tenantEmail: "",
@@ -347,9 +372,12 @@ export function SettingsScreen() {
           setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth });
         }
       }
+      const returnToPulpit = wizardMode && !editing;
       setEditing(null);
       setSetupFocus(null);
+      setWizardMode(false);
       setModalOpen(false);
+      if (returnToPulpit) navigation.navigate("Pulpit", { screen: "Przegląd" });
     } catch {
       /* The provider reports the save failure. */
     } finally {
@@ -381,7 +409,7 @@ export function SettingsScreen() {
       });
       setBootstrapProperty(null);
       setBootstrapRange(null);
-      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat. Możesz je później poprawić w historii.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
+      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat czynszu oraz potwierdzenia zapłaty podatku za te okresy.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
     } catch { /* The provider reports persistence errors. */ }
     finally { setSaving(false); }
   };
@@ -395,42 +423,19 @@ export function SettingsScreen() {
       selectTextOnFocus?: boolean;
     } = {},
   ) => (
-    <View style={{ marginBottom: 14 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
+    <View style={{ marginBottom: 16 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
       propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
       setSetupFocus(null);
     } : undefined}>
-      <Text
-        style={{
-          color: theme.colors.textSecondary,
-          fontSize: 13,
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </Text>
-      <TextInput
-        accessibilityLabel={label}
+      <FormField
+        label={label}
         value={draft[key] ?? ""}
-        onChangeText={(value) =>
-          setDraft((current) => ({ ...current, [key]: value }))
-        }
+        onChangeText={(value) => setDraft((current) => ({ ...current, [key]: value }))}
         placeholder={options.placeholder}
-        placeholderTextColor={theme.colors.textMuted}
         keyboardType={options.keyboardType ?? "default"}
         autoCapitalize={key.endsWith("Url") ? "none" : undefined}
         multiline={options.multiline}
         selectTextOnFocus={options.selectTextOnFocus}
-        style={{
-          color: theme.colors.textPrimary,
-          backgroundColor: theme.colors.inputBackground,
-          borderColor: theme.colors.inputBorder,
-          borderWidth: 1,
-          borderRadius: 8,
-          minHeight: options.multiline ? 84 : 46,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          textAlignVertical: options.multiline ? "top" : "center",
-        }}
       />
     </View>
   );
@@ -491,31 +496,27 @@ export function SettingsScreen() {
       <View style={ui.page}>
       <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
         {activeSection === null ? <>
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700", marginBottom: 12 }}>Ustawienia</Text>
+        <Text style={ui.pageTitle}>Ustawienia</Text>
         {settingsSections.map((section) => {
           const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
             : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
-                : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
+                : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax", "bills"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax" | "bills"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
-          return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
+          return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={ui.settingsRow}>
             <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={[muted, section.id === "payment" && summary === "Dane wymagają uzupełnienia" && settingsAttention]}>{summary}</Text></View><MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </Pressable>;
         })}
         </> : <>
         <Pressable accessibilityRole="button" onPress={() => setActiveSection(null)} style={settingsBack}><Text style={action}>‹ Ustawienia</Text></Pressable>
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 12 }}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
+        <Text style={ui.pageTitle}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
         {activeSection === "tax" ? <>
         <PeriodSelector value={String(document.settings.taxYear)} valueLabel={`Rok podatkowy ${document.settings.taxYear}`} previousLabel="Poprzedni rok podatkowy" nextLabel="Następny rok podatkowy"
           previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= new Date().getFullYear()}
           onPrevious={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}
           onNext={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} />
         {!hasTaxRulesForYear(document.settings.taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.warning, marginTop: 8 }}>Możesz wybrać ten rok kalendarzowy, ale reguły podatkowe nie są jeszcze zweryfikowane i wyliczenie pozostanie niedostępne.</Text> : null}
-        <Text style={sectionTitle}>Rozliczenie</Text>
-        <View style={[ui.card, { padding: 14, marginVertical: 10 }]}>
-          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Rozliczenie miesięczne</Text>
-          <Text style={muted}>Nowe ustawienia konta korzystają z miesięcznych okresów podatkowych.</Text>
-        </View>
+        <Text style={sectionTitle}>Próg podatkowy</Text>
         <View style={notificationRow}><Text style={{ ...rowTitle, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch disabled={hasAnyTaxSnapshots} value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
           if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
           Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
@@ -525,25 +526,53 @@ export function SettingsScreen() {
         {hasAnyTaxSnapshots ? <Text style={muted}>Limit progu jest zablokowany po zapisaniu rozliczeń, aby nie zmienić pozostałych okresów roku.</Text> : null}
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxEligibilityOpen }} onPress={() => setTaxEligibilityOpen((open) => !open)} style={disclosureRow}><Text style={disclosureTitle}>ⓘ Kiedy mogę użyć tego limitu? {taxEligibilityOpen ? "⌃" : "›"}</Text></Pressable>
         {taxEligibilityOpen ? <Text style={legalText}>Wyższy limit 200 000 zł stosuj wyłącznie przy wspólności majątkowej i wyborze opodatkowania całości przychodów z najmu przez jednego małżonka, po złożeniu wymaganego oświadczenia w terminie.</Text> : null}
-        <Text style={[sectionTitle, { marginTop: 18 }]}>Stan początkowy {document.settings.taxYear}</Text>
-        <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w tym roku. Kwoty wpływają na roczny próg i pokazują zbiorczy stan, bez przypisywania różnicy do nieznanego miesiąca.</Text>
-        <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
-        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-        <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
-        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-        <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz stan początkowy</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxAdvancedOpen }} onPress={() => setTaxAdvancedOpen((open) => !open)} style={[disclosureRow, { marginTop: 18 }]}>
+          <View style={{ flex: 1 }}><Text style={disclosureTitle}>Dane początkowe</Text><Text style={muted}>Tylko jeśli zaczynasz śledzenie w trakcie roku.</Text></View>
+          <MaterialIcons name={taxAdvancedOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
+        </Pressable>
+        {taxAdvancedOpen ? <View style={[ui.compactCard, { marginTop: 4 }]}>
+          <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w {document.settings.taxYear}. Kwoty wpływają na roczny próg bez przypisywania różnicy do nieznanego miesiąca.</Text>
+          <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
+          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+          <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
+          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+          <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz dane początkowe</Text></Pressable>
+        </View> : null}
         </> : null}
         {activeSection === "notifications" ? <>
         {settingsNotificationsUnavailable(permission)
           ? <View accessibilityRole="summary" style={neutralBanner}><Text style={muted}>Powiadomienia lokalne są dostępne w aplikacji mobilnej.</Text></View>
           : <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>}
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
+        {showNotificationTest ? <View style={[ui.card, { marginTop: 12, gap: 8 }]}>
+          <Text style={ui.cardTitle}>Test powiadomień</Text>
+          <Text style={helperText}>Tylko tryb demo/deweloperski. Zaplanuj jedno lokalne powiadomienie za 5 minut, bez zmiany danych najmu ani normalnego harmonogramu.</Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={testNotificationBusy || permission === "unavailable"}
+            onPress={() => {
+              if (testNotificationBusy) return;
+              setTestNotificationBusy(true);
+              void scheduleTestNotification(5)
+                .then((result) => {
+                  if (result === "scheduled") Alert.alert("Test zaplanowany", "Powiadomienie pojawi się za około 5 minut.");
+                  else if (result === "denied") Alert.alert("Brak zgody", "Włącz powiadomienia systemowe dla aplikacji i spróbuj ponownie.");
+                  else if (result === "unavailable") Alert.alert("Niedostępne", "Test lokalnych powiadomień nie jest dostępny na tej platformie.");
+                  else Alert.alert("Nie udało się zaplanować testu", "Spróbuj ponownie.");
+                })
+                .finally(() => setTestNotificationBusy(false));
+            }}
+            style={[secondaryButton, (testNotificationBusy || permission === "unavailable") && disabledControl]}
+          >
+            <Text style={modeText}>{testNotificationBusy ? "Planowanie…" : "Test za 5 min"}</Text>
+          </Pressable>
+        </View> : null}
         <Text style={sectionTitle}>Kiedy przypominać</Text>
         <Text style={fieldLabel}>Przypomnij o nieopłaconym czynszu</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>{[0, 1, 3, 7].map((days) => <Pressable key={days} accessibilityRole="radio" accessibilityState={{ checked: document.settings.rentReminderDelayDays === days, disabled: settingsNotificationsUnavailable(permission) }} disabled={settingsNotificationsUnavailable(permission)} onPress={() => setRentReminderDelay(days)} style={[modeButton, document.settings.rentReminderDelayDays === days && { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface }, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={modeText}>{days === 0 ? "W terminie" : `${days} ${days === 1 ? "dzień" : "dni"} po`}</Text></Pressable>)}</View>
         <Text style={sectionTitle}>Kategorie</Text>
         {([
-          ["rent", "Wpłaty czynszu"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"],
+          ["rent", "Wpłaty czynszu"], ["bills", "Opłaty"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"],
         ] as const).map(([category, label]) => <View key={category} style={[notificationRow, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={{ ...rowTitle, flex: 1 }}>{label}</Text><Switch disabled={settingsNotificationsUnavailable(permission)} value={settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission)} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission), disabled: settingsNotificationsUnavailable(permission) }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
         {reminderPlan.length ? settingsReminderList(reminderPlan, showAllReminders).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
@@ -602,20 +631,30 @@ export function SettingsScreen() {
         {showArchivedProperties ? archivedProperties.map((property) => <View key={property.id} style={[ui.card, apartmentCard]}><Text style={apartmentTitle}>{property.address}</Text><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane · historia zachowana</Text><Pressable accessibilityRole="button" accessibilityLabel={`Utwórz nowe mieszkanie na podstawie ${property.address}`} onPress={() => openNewApartmentFromArchived(property)} style={{ paddingVertical: 10 }}><Text style={action}>Utwórz nowy wpis z tych danych</Text></Pressable></View>) : null}
         </> : null}
         {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text><Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane na urządzeniu. Aplikacja nie wysyła rejestru na serwer. Wersja przeglądarkowa nie zapewnia szyfrowania aplikacyjnego.</Text><Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text></View>
           <View style={[ui.card, trustCard]}>
-            <Text style={sectionTitle}>Kopia danych</Text>
-            <Text style={muted}>Zapisz kopię, aby móc przywrócić historię najmu i podatku na tym lub innym urządzeniu.</Text>
-            <Text style={helperText}>Plik pozostaje pod Twoją kontrolą. Aplikacja nie wysyła go do chmury.</Text>
+            <Text style={ui.cardTitle}>Kopia danych</Text>
+            <Text style={muted}>Dane są zapisane lokalnie na tym urządzeniu. Utwórz kopię, aby móc odtworzyć historię po zmianie lub utracie telefonu.</Text>
             {isDemoMode ? <Text style={helperText}>Kopie danych są wyłączone w trybie demo.</Text> : <>
               <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void exportBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>{backupBusy ? "Przetwarzanie…" : "Utwórz kopię danych"}</Text></Pressable>
               <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void restoreBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>Przywróć z kopii</Text></Pressable>
             </>}
           </View>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>Lokalny mechanizm odzyskiwania chroni przed błędem zapisu; kopia plikowa chroni także przy zmianie lub utracie urządzenia.</Text></View>
+          <View style={[ui.card, trustCard]}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: dataInfoOpen }} onPress={() => setDataInfoOpen((open) => !open)} style={disclosureRow}>
+              <Text style={ui.cardTitle}>O danych lokalnych</Text>
+              <MaterialIcons name={dataInfoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
+            </Pressable>
+            {dataInfoOpen ? <View>
+              <Text style={muted}>{settingsBackupStatus.network}</Text>
+              <Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane przez system urządzenia. Wersja przeglądarkowa nie zapewnia takiej samej ochrony.</Text>
+              <Text style={helperText}>{settingsBackupStatus.capabilities}</Text>
+              <Text style={helperText}>{settingsBackupStatus.uninstall}</Text>
+              <Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text>
+            </View> : null}
+          </View>
           {isDemoMode ? <Text style={helperText}>W trybie demo możesz wyjść z prezentacji, aby zarządzać zapisanymi danymi.</Text> : <View style={[ui.card, trustCard]}>
-            <Text style={sectionTitle}>Usuwanie danych</Text>
-            <Text style={muted}>Usuń wszystkie zapisane dane i kopię odzyskiwania z tego urządzenia.</Text>
+            <Text style={ui.cardTitle}>Usuwanie danych</Text>
+            <Text style={muted}>Usuń wszystkie zapisane dane i lokalną kopię odzyskiwania z tego urządzenia.</Text>
             <Pressable accessibilityRole="button" disabled={clearingLocalData} onPress={confirmClearLocalData} style={[clearDataButton, clearingLocalData && { opacity: 0.6 }]}>
               <Text style={clearDataText}>{clearingLocalData ? "Usuwanie danych…" : "Usuń wszystkie dane"}</Text>
             </Pressable>
@@ -626,10 +665,7 @@ export function SettingsScreen() {
       <Modal
         visible={modalOpen}
         animationType="slide"
-        onRequestClose={() => {
-          setModalOpen(false);
-          setEditing(null);
-        }}
+        onRequestClose={closePropertyEditor}
       >
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View
@@ -649,37 +685,39 @@ export function SettingsScreen() {
                 fontWeight: "700",
               }}
             >
-              {editing ? "Edytuj mieszkanie" : "Nowe mieszkanie"}
+              {editing ? "Edytuj mieszkanie" : wizardMode ? "Pierwsze mieszkanie" : "Nowe mieszkanie"}
             </Text>
             <Text
-              onPress={() => {
-                setModalOpen(false);
-                setEditing(null);
-                setSetupFocus(null);
-              }}
+              onPress={closePropertyEditor}
               accessibilityRole="button"
               style={action}
             >
               Zamknij
             </Text>
           </View>
+          {wizardMode && !editing ? (
+            <FirstApartmentWizard
+              draft={draft}
+              onChange={(changes) => setDraft((current) => ({ ...current, ...changes }))}
+              onSave={() => void save()}
+              onCancel={closePropertyEditor}
+              saving={saving}
+            />
+          ) : <>
           <ScrollView
             ref={propertyEditorScrollRef}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ padding: 20 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: 110 }}
           >
             <Text style={sectionTitle}>Mieszkanie</Text>
             {field("Adres *", "address", { placeholder: "np. ul. Parkowa 12/4" })}
             {field("Najemca", "tenantName", { placeholder: "Imię i nazwisko" })}
             <Text style={sectionTitle}>Płatności</Text>
-            <Text style={fieldLabel}>Warunki obowiązują od miesiąca</Text>
-            <TextInput accessibilityLabel="Warunki obowiązują od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder="2026-10" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-            <Text style={{ ...muted, marginBottom: 8 }}>Zmiany czynszu, mediów, podstawy podatku i terminu dotyczą tego miesiąca i kolejnych. Zamknięte miesiące pozostają bez zmian.</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <View style={{ flex: 1 }}>{field("Czynsz dla właściciela (zł)", "ownerRent", { keyboardType: "decimal-pad", placeholder: "np. 2500" })}</View>
               <View style={{ flex: 1 }}>{field("Media / opłaty (zł/mies.)", "mediaAmount", { keyboardType: "decimal-pad", placeholder: "np. 0" })}</View>
             </View>
-            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Media płaci najemca</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Media płaci najemca" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
+            <View style={notificationRow}><Text style={{ ...muted, flex: 1 }}>Najemca płaci media / opłaty</Text><Switch value={draft.mediaPaidByTenant} onValueChange={(mediaPaidByTenant) => setDraft((current) => ({ ...current, mediaPaidByTenant }))} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Najemca płaci media / opłaty" accessibilityState={{ checked: draft.mediaPaidByTenant }} /></View>
             <Text style={sectionTitle}>Co wliczać do przychodu opodatkowanego?</Text>
             <Text style={muted}>Wybierz wariant zgodny z warunkami Twojej umowy najmu.</Text>
             {([["OWNER_RENT", "Tylko czynsz dla właściciela"], ["RENT_AND_CHARGES", "Czynsz i opłaty dodatkowe"]] as const).map(([value, label]) => {
@@ -695,6 +733,10 @@ export function SettingsScreen() {
             </View>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAdvancedProperty }} onPress={() => setShowAdvancedProperty((value) => !value)} style={advancedDisclosureRow}><Text style={action}>{showAdvancedProperty ? "Mniej ustawień" : "Więcej ustawień"}</Text><MaterialIcons name={showAdvancedProperty ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></Pressable>
             {showAdvancedProperty ? <>
+            <Text style={sectionTitle}>Zmiany warunków</Text>
+            <Text style={fieldLabel}>Zastosuj zmiany od miesiąca</Text>
+            <TextInput accessibilityLabel="Zastosuj zmiany od miesiąca" keyboardType="numbers-and-punctuation" value={draft.termsEffectiveFrom} onChangeText={(value) => setDraft((current) => ({ ...current, termsEffectiveFrom: value }))} placeholder={todayIsoDate().slice(0, 7)} placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+            <Text style={{ ...muted, marginBottom: 8 }}>Domyślnie zmiany obowiązują od bieżącego miesiąca. Ustaw późniejszy miesiąc tylko wtedy, gdy nowe warunki mają wejść w życie w przyszłości.</Text>
             <Text style={sectionTitle}>Daty najmu</Text>
             {field("Najem rozpoczął się", "rentalStartDate", { placeholder: "2026-01-01" })}
             {field("Umowa wygasa", "leaseEndDate", { placeholder: "2027-09-28" })}
@@ -718,24 +760,25 @@ export function SettingsScreen() {
                 {effectiveLifecycle(editing) !== "ARCHIVED" ? <Pressable accessibilityRole="button" onPress={() => changeLifecycle(editing, "ARCHIVED")} style={secondaryButton}><Text style={modeText}>Archiwizuj</Text></Pressable> : null}
               </View>
             </View> : null}
+          </ScrollView>
+          <View style={editorFooter}>
             <Pressable
               accessibilityRole="button"
               disabled={saving}
               onPress={() => void save()}
-              style={[primaryButton, saving && { opacity: 0.6 }]}
+              style={[primaryButton, editorSaveButton, saving && { opacity: 0.6 }]}
             >
-              <Text style={primaryText}>
-                {saving ? "Zapisywanie…" : "Zapisz mieszkanie"}
-              </Text>
+              <Text style={primaryText}>{saving ? "Zapisywanie…" : "Zapisz mieszkanie"}</Text>
             </Pressable>
-          </ScrollView>
+          </View>
+          </>}
         </SafeAreaView>
       </Modal>
       <Modal visible={Boolean(bootstrapProperty && bootstrapRange)} animationType="slide" onRequestClose={() => { setBootstrapProperty(null); setBootstrapRange(null); }}>
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
           <View style={modalHeader}><Text style={modalTitle}>Wpłaty początkowe</Text><Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }}><Text style={action}>Pomiń</Text></Pressable></View>
           {bootstrapProperty && bootstrapRange ? <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={muted}>Wstępnie uzupełnimy czynsz za zakończone miesiące. Sprawdź okres, potwierdź otrzymane wpłaty i zdecyduj, czy wyliczony za nie podatek został już zapłacony.</Text>
+            <Text style={muted}>Wstępnie uzupełnimy czynsz za zakończone miesiące od daty rozpoczęcia najmu. Zaimportowane okresy oznaczymy jako opłacone, również wyliczony za nie podatek.</Text>
             <View style={[ui.card, { marginTop: 16 }]}>
               <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{bootstrapProperty.address}</Text>
               <Text style={muted}>{bootstrapRange.startMonth} – {bootstrapRange.endMonth}</Text>
@@ -749,9 +792,9 @@ export function SettingsScreen() {
               </View>)}
             </View> : null}
             <View style={[neutralBanner, { marginVertical: 12 }]}>
-              <Text style={muted}>Import zapisuje tylko potwierdzone wpłaty czynszu. Zapłatę podatku potwierdź osobno na ekranie Podatek — aplikacja nie zakłada, że została wykonana.</Text>
+              <Text style={muted}>Potwierdź tylko te okresy, w których czynsz wpłynął i podatek został zapłacony. Za każdy zaimportowany okres aplikacja zapisze pełną obliczoną kwotę podatku jako opłaconą.</Text>
             </View>
-            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź otrzymane wpłaty"}</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź czynsze i zapłacony podatek"}</Text></Pressable>
             <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
           </ScrollView> : null}
         </SafeAreaView>
@@ -812,15 +855,7 @@ function optional(
   return trimmed ? { [key]: trimmed } : {};
 }
 
-const primaryButton = {
-  backgroundColor: theme.colors.primary,
-  minHeight: 48,
-  borderRadius: 8,
-  justifyContent: "center" as const,
-  alignItems: "center" as const,
-  paddingHorizontal: 16,
-  marginVertical: 8,
-};
+const primaryButton = ui.primaryButton;
 const primaryText = {
   color: theme.colors.onAccent,
   fontWeight: "700" as const,
@@ -835,7 +870,6 @@ const action = {
 const modeButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 };
 const modeText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
 const sectionTitle = ui.sectionTitle;
-const categoryRow = { minHeight: 72, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 14, marginBottom: 9 };
 const categoryLabel = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
 const settingsAttention = { color: theme.colors.warning, fontWeight: "600" as const };
 const rowTitle = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
@@ -845,9 +879,9 @@ const apartmentTenant = { color: theme.colors.textSecondary, fontSize: 13, margi
 const apartmentMeta = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 7 };
 const settingsBack = { minHeight: 44, justifyContent: "center" as const, marginBottom: 6 };
 const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
-const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
-const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
-const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
+const secondaryButton = { ...ui.secondaryButton, marginVertical: 8 };
+const fieldLabel = { ...ui.fieldLabel, marginTop: 12 };
+const inputStyle = { ...ui.input, paddingVertical: 10 };
 const staticPaymentValue = { color: theme.colors.textPrimary, fontSize: 16, minHeight: 38, paddingVertical: 7 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 };
 const validationError = { color: theme.colors.danger, fontSize: 13, marginTop: 3 };
@@ -860,9 +894,11 @@ const legalText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight:
 const trustCard = { padding: 16 };
 const clearDataButton = { minHeight: 46, justifyContent: "center" as const, alignItems: "center" as const, marginTop: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 12 };
 const clearDataText = { color: theme.colors.danger, fontSize: 14, fontWeight: "700" as const };
-const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
-const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
-const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
+const editorFooter = { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10, borderTopWidth: 1, borderTopColor: theme.colors.divider, backgroundColor: theme.colors.surface };
+const editorSaveButton = { marginVertical: 0 };
+const modalHeader = ui.modalHeader;
+const modalTitle = ui.modalTitle;
+const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
 const taxableOptionSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
 const taxableOptionLabel = { color: theme.colors.textPrimary, flex: 1, fontSize: 14 };
 const taxableOptionLabelSelected = { fontWeight: "600" as const };

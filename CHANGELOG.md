@@ -6,6 +6,8 @@ This file records **delivered and verified changes**, not roadmap promises.
 
 ### Added
 
+- Full-amount-only rent and tax confirmation. No schema migration is needed before installation.
+- First-apartment setup defaults the editable rent start date to January 1 and tenant-paid media to on; confirming initial rent periods also records their calculated tax as paid.
 - Simplified apartment entry with progressive disclosure, lifecycle states, compact property rows, a calculated tenant-paid total and global delayed rent reminders.
 - Added schema-v6 migration defaults and an idempotent completed-month rent bootstrap with separate tenant-total and taxable-owner amounts.
 - POC tax-year fallback to latest verified rules for future years, with provisional-state calculation metadata and a visible tax-screen warning.

@@ -138,7 +138,7 @@ describe("income history view", () => {
     const rows = rentMonthStatusRows(properties, receipts, "2026-09", new Date(2026, 9, 5));
     expect(rows).toEqual([
       { propertyId: "flat-a", address: "Reduta", expectedGrosz: 301_000, confirmedGrosz: 301_000, remainingGrosz: 0, status: "paid" },
-      { propertyId: "flat-b", address: "Parkowa", expectedGrosz: 252_400, confirmedGrosz: 150_000, remainingGrosz: 102_400, status: "partial" },
+      { propertyId: "flat-b", address: "Parkowa", expectedGrosz: 252_400, confirmedGrosz: 150_000, remainingGrosz: 102_400, status: "unpaid" },
       { propertyId: "flat-c", address: "Lipowa", expectedGrosz: 170_000, confirmedGrosz: 0, remainingGrosz: 170_000, status: "unpaid" },
     ]);
     expect(receipts).toHaveLength(3);

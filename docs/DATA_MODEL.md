@@ -2,11 +2,13 @@
 
 ## POC document
 
-`RentalDocument.schemaVersion = 1`; the current storage key is `pl.ryczalt.rental.localDocument.v2` (the previous `.v1` key is checked for one-time migration). Runtime validation rejects unsupported versions and malformed dates, references and monetary values. The document holds apartments, manually confirmed income and tax payments, task state, apartment-month snapshots and tax-settlement snapshots.
+`RentalDocument.schemaVersion = 1`; the current storage key is `pl.ryczalt.rental.localDocument.v2` (the previous `.v1` key is checked for namespace migration). Runtime validation rejects unsupported versions and malformed dates, references and monetary values. The document holds apartments, manually confirmed full rent and tax confirmations, task state and period snapshots.
 
 Apartment rent terms are effective-dated by `YYYY-MM` and include owner rent, media amount/responsibility, taxable treatment and payment day. Tenant name and contact are stored on the apartment; income records keep receipt date, actual/taxable amount, optional rent month, tenant snapshot and manual/import provenance. Expected rent is never taxable income. Tax calculations use only confirmed taxable receipts and manually confirmed tax payments; excess payments carry forward.
 
-For legacy compatibility, schema-1 documents/backups may still contain recurring-bill, bill-payment and custom-reminder fields/categories. Validation preserves those values, while the current POC neither creates nor presents them and task/notification generation ignores them. Stale task states for those removed categories are harmless.
+The current Opłaty flow derives a monthly total from effective-dated apartment media terms and stores one full manual confirmation in `billPayments`, using the reserved `apartment-media` bill ID, period, amount and payment date. The persisted document shape and schema version do not change. Existing `recurringBills` records remain readable and their saved reminders/payments remain available to legacy tasks; the app no longer creates arbitrary recurring bills. Custom-reminder fields/categories may remain in old documents, but the app does not create or present custom reminders.
+
+Initial historical rent import records one full rent receipt per selected completed month. It also records the calculated full tax obligation for each imported receipt month as an `INITIAL_IMPORT` tax payment. This represents the landlord's confirmation in the initial-rent flow; ordinary rent expectations do not create income or tax-payment records.
 
 Tax snapshots retain `rulesYear` as the tax year and may also carry `appliedRulesYear` to identify the actual verified rules used for a provisional future-year calculation. Older exact-year snapshots may omit `appliedRulesYear`.
 
@@ -20,7 +22,7 @@ The app also retains a rolling last-good local snapshot for recovery from a dama
 
 ## Migration and recovery
 
-Compatible existing schema-1 documents, including legacy removed-feature fields, load without data loss or feature reappearance. An incompatible/unknown schema fails visibly; do not silently reset or normalize. Before any incompatible schema change after distribution, add an explicit versioned migration and test a real prior-version fixture. Corrupted storage is surfaced for deliberate recovery/reset. Money uses decimal strings and integer-grosz calculations; dates and IDs are validated before calculations.
+Unknown schema versions fail visibly; corrupted storage is surfaced for deliberate recovery/reset. No payment-record deletion or schema migration is needed for this pre-installation product change. Money uses decimal strings and integer-grosz calculations; dates and IDs are validated before calculations.
 
 ## Financial sources of truth
 

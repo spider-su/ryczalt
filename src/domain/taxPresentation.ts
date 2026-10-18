@@ -57,7 +57,7 @@ export function taxRateLabel(cumulativeRevenueGrosz: number, thresholdGrosz: num
 }
 
 export type TaxPaymentDisplay = {
-  kind: "no-tax" | "paid" | "due" | "partial" | "overdue";
+  kind: "no-tax" | "paid" | "due" | "overdue";
   obligationGrosz: number;
   paidGrosz: number;
   remainingGrosz: number;
@@ -74,7 +74,7 @@ export function taxPaymentDisplay(settlement: Settlement): TaxPaymentDisplay {
     viaCredit: settlement.paidGrosz < settlement.obligationGrosz || settlement.creditAppliedGrosz > 0,
   };
   return {
-    kind: settlement.status === "overdue" ? "overdue" : paidGrosz > 0 ? "partial" : "due",
+    kind: settlement.status === "overdue" ? "overdue" : "due",
     obligationGrosz: settlement.obligationGrosz, paidGrosz,
     remainingGrosz: settlement.outstandingGrosz, dueDate: settlement.dueDate,
     viaCredit: false,

@@ -1,6 +1,6 @@
 # Final POC Correctness Review
 
-> Historical review snapshot. Its migration notes describe code at the time of that review and are superseded by the current fresh-install schema-1 contract in [DATA_MODEL.md](DATA_MODEL.md). No prior schema adapter is currently shipped because the app has not been installed on user devices.
+> Historical review snapshot. Its migration notes describe code at the time of that review; see [DATA_MODEL.md](DATA_MODEL.md) for the current local data contract.
 
 ## Executive result
 
@@ -42,7 +42,7 @@ Estimated receipt dates are clamped to the rental start date and retain `INITIAL
 
 Status: **FIXED**
 
-Tax navigation derives available display years from the calendar and tracking period. 2025 and 2026 use supported rules; 2027 is navigable when it is the current year but calculations fail safely and the UI explains that rules are unavailable. Future years are not selectable. Tests cover the 2027 boundary and rule unavailability.
+Tax navigation derives available display years from the calendar and tracking period. Exact-year rules are used where configured; any future year uses the latest configured rules provisionally and displays the applied rules year. Future years become selectable as the calendar advances; there is no fixed future-year cutoff.
 
 ### December/Q4 deadline and PPE payment details
 
@@ -84,9 +84,9 @@ Imported estimated dates cannot precede `rentalStartDate`, and entries retain `I
 
 ## Tax-year handling
 
-- 2025 and 2026 have supported tax rules.
-- 2027 can be displayed/navigated when current, without applying 2026 rules.
-- Unsupported tax-rule years fail safely; future years are unavailable in navigation.
+- 2025 and 2026 have exact-year tax rules.
+- Future years use the latest configured rules provisionally unless an exact-year ruleset is added.
+- Past years before the earliest configured rules year fail safely.
 
 ## Tax sources
 

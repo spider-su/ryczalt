@@ -60,21 +60,6 @@ describe("rent receipt allocation", () => {
     expect(tax).toMatchObject({ revenueGrosz: 270_000, obligationGrosz: 23_000 });
   });
 
-  it("keeps partial rent active and shows only the remaining amount", () => {
-    const doc = document([receipt("partial", "1000.00")]);
-    const task = deriveTasks(doc, now).find((item) => item.id === "TENANT_PAYMENT_CHECK:reduta:2026-09");
-    expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-09", now)).toMatchObject({ confirmedGrosz: 100_000, remainingGrosz: 220_000 });
-    expect(task).toMatchObject({ status: "needs-attention", confirmedGrosz: 100_000, remainingGrosz: 220_000 });
-    expect(task?.title).toBe("Sprawdź czynsz — Reduta 26B/44");
-    expect(task?.detail).toContain("do potwierdzenia 2 200,00 zł");
-  });
-
-  it("combines multiple receipts against the same rent expectation", () => {
-    const doc = document([receipt("first", "1000.00", "2026-09-10"), receipt("second", "2200.00", "2026-09-27")]);
-    expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-09", now)).toMatchObject({ confirmedGrosz: 320_000, remainingGrosz: 0 });
-    expect(deriveTasks(doc, now).find((item) => item.id === "TENANT_PAYMENT_CHECK:reduta:2026-09")?.status).toBe("completed");
-  });
-
   it("keeps rent overpayment unallocated instead of prepaying future months", () => {
     const doc = document([receipt("over", "6500.00")]);
     expect(rentMonthAmounts(reduta, doc.incomeEntries, "2026-09", now).confirmedGrosz).toBe(320_000);
@@ -101,9 +86,8 @@ describe("rent receipt allocation", () => {
     expect(result.unallocatedGrosz).toBe(260_000);
   });
 
-  it("keeps exact and partial rent receipts free of unallocated excess", () => {
+  it("keeps exact rent receipts free of unallocated excess", () => {
     expect(rentMonthAmounts(reduta, [receipt("exact", "3200.00")], "2026-09", now).unallocatedGrosz).toBe(0);
-    expect(rentMonthAmounts(reduta, [receipt("partial", "1000.00")], "2026-09", now).unallocatedGrosz).toBe(0);
     expect(rentMonthAmounts(reduta, [receipt("over", "3500.00")], "2026-09", now).unallocatedGrosz).toBe(30_000);
   });
 

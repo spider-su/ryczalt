@@ -40,7 +40,7 @@ export type RentMonthStatus = {
   expectedGrosz: number | null;
   confirmedGrosz: number;
   remainingGrosz: number | null;
-  status: "unknown" | "unpaid" | "partial" | "paid";
+  status: "unknown" | "unpaid" | "paid";
 };
 
 /** Projects each apartment's rental-month status without synthesizing receipt records. */
@@ -49,8 +49,7 @@ export function rentMonthStatusRows(properties: Property[], entries: IncomeEntry
     const amounts = rentMonthAmounts(property, entries, month, now);
     const status = amounts.expectedGrosz === null || amounts.remainingGrosz === null
       ? "unknown" as const
-      : amounts.remainingGrosz === 0 ? "paid" as const
-        : amounts.confirmedGrosz > 0 ? "partial" as const : "unpaid" as const;
+      : amounts.remainingGrosz === 0 ? "paid" as const : "unpaid" as const;
     return { propertyId: property.id, address: property.address, expectedGrosz: amounts.expectedGrosz,
       confirmedGrosz: amounts.confirmedGrosz, remainingGrosz: amounts.remainingGrosz, status };
   }).filter((row) => row.expectedGrosz !== null || row.confirmedGrosz > 0);

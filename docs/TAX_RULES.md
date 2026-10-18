@@ -11,7 +11,7 @@
 
 For joint marital property where the required election to tax all rental income by one spouse applies, the higher-rate threshold is PLN 200,000. Marriage alone does not satisfy this condition. The setting is user-confirmed; the app does not determine ownership, eligibility, or whether the election was filed.
 
-2025 and 2026 are the latest verified rules years. An exact verified year always wins. For a later year without verified rules (for example 2027), the engine provisionally applies the latest verified rules, records the applied rules year in calculated/saved settlement metadata, and shows a visible warning on the tax screen: “Stawki na 2027 nie zostały jeszcze potwierdzone. Obliczenie wykorzystuje zasady z 2026. Sprawdź przed zapłatą.” This fallback is explicitly provisional, not a claim that future law is unchanged. Past years without a verified ruleset remain unavailable.
+2025 and 2026 are the currently configured exact-year rules. An exact year always wins. Every future year automatically uses the latest configured rules until an exact rule entry is added for that year; the engine records the applied rules year in calculations and saved settlement metadata and shows a visible provisional warning on the tax screen. This avoids an artificial end year while keeping the carried-forward result identifiable. Past years before the earliest configured ruleset remain unavailable.
 
 ## What controls taxable rent
 
@@ -19,7 +19,7 @@ The Ministry of Finance says private-rental income arises when money is received
 
 Each apartment therefore stores an explicit `taxableTreatment`, independent of `mediaPaidByTenant`:
 
-- `OWNER_RENT`: cap taxable receipts for the rental month at the scheduled owner's rent, carrying that cap across partial receipts.
+- `OWNER_RENT`: cap taxable receipts for the rental month at the scheduled owner's rent.
 - `RENT_AND_CHARGES`: treat the full confirmed receipt as taxable.
 
 The landlord must choose based on the actual agreement and payment arrangement. The labels are calculation choices, not statements that one option is universally correct. An apartment without a confirmed choice cannot create new receipt tax amounts until the landlord selects one. Confirmed `IncomeEntry.taxableAmount` values are saved facts and are not recalculated when rent terms change.

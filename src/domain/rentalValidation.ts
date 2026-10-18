@@ -1,4 +1,4 @@
-import type { IncomeEntry, Property, RentalDocument } from "../model/rental";
+import { APARTMENT_MEDIA_BILL_ID, type IncomeEntry, type Property, type RentalDocument } from "../model/rental";
 
 export const RENTAL_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const DECIMAL_PATTERN = /^(0|[1-9]\d*)(\.\d{1,2})?$/;
@@ -36,6 +36,13 @@ export function isDecimalString(value: string): boolean {
 
 export function isPositiveMoney(value: string): boolean {
   return isDecimalString(value) && compareDecimalStrings(value, "0") > 0;
+}
+
+/** True only when a newly recorded confirmation covers the full outstanding amount. */
+export function isFullPaymentAmount(amount: string, outstandingGrosz: number): boolean {
+  if (outstandingGrosz <= 0 || !isPositiveMoney(amount)) return false;
+  const [whole, fraction = ""] = amount.split(".");
+  return Number(BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, "0"))) === outstandingGrosz;
 }
 
 export function isNonnegativeMoney(value: string): boolean {
@@ -226,7 +233,7 @@ export function validateRentalDocumentShape(
   for (const payment of document.billPayments) {
     if (billPaymentIds.has(payment.id)) throw new RentalValidationError("Bill payment IDs must be unique.");
     billPaymentIds.add(payment.id);
-    if (!billIds.has(payment.billId) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
+    if ((!billIds.has(payment.billId) && payment.billId !== APARTMENT_MEDIA_BILL_ID) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
       throw new RentalValidationError("Bill payment is invalid.");
   }
   const customIds = new Set<string>();

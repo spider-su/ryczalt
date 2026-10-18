@@ -33,6 +33,6 @@ export function PeriodSelector({
 
 const container = { width: "100%" as const, minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const };
 const arrow = { width: 48, height: 48, alignItems: "center" as const, justifyContent: "center" as const, borderRadius: 12 };
-const arrowText = { color: theme.colors.primary, fontSize: 25, fontWeight: "500" as const, lineHeight: 28 };
+const arrowText = { color: theme.colors.textSecondary, fontSize: 25, fontWeight: "500" as const, lineHeight: 28 };
 const disabledArrow = { color: theme.colors.disabled };
 const valueText = { flex: 1, color: theme.colors.textPrimary, textAlign: "center" as const, fontSize: 17, fontWeight: "700" as const, textTransform: "capitalize" as const };

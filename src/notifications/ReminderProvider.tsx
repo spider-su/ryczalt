@@ -8,7 +8,8 @@ import { supportsLocalNotifications } from "./support";
 import { ensureAndroidReminderChannel } from "./androidChannel";
 
 export type ReminderPermission = "unknown" | "granted" | "denied" | "unavailable";
-type ReminderContextValue = { permission: ReminderPermission; requestPermission: () => Promise<ReminderPermission> };
+type TestNotificationResult = "scheduled" | "denied" | "unavailable" | "failed";
+type ReminderContextValue = { permission: ReminderPermission; requestPermission: () => Promise<ReminderPermission>; scheduleTestNotification: (minutes?: number) => Promise<TestNotificationResult> };
 const ReminderContext = createContext<ReminderContextValue | null>(null);
 
 Notifications.setNotificationHandler({
@@ -78,7 +79,6 @@ export function ReminderProvider({ children }: PropsWithChildren) {
   }
 
   const requestPermission = useCallback(async () => {
-    if (isDemoMode) return permission;
     if (!supportsLocalNotifications(Platform.OS)) {
       setPermission("unavailable");
       return "unavailable";
@@ -99,7 +99,39 @@ export function ReminderProvider({ children }: PropsWithChildren) {
       setPermission("unavailable");
       return "unavailable";
     }
-  }, [isDemoMode, permission]);
+  }, []);
+
+  const scheduleTestNotification = useCallback(async (minutes = 5): Promise<TestNotificationResult> => {
+    if (!supportsLocalNotifications(Platform.OS)) return "unavailable";
+    try {
+      if (Platform.OS === "android") await ensureAndroidReminderChannel(Platform.OS, Notifications.setNotificationChannelAsync);
+      let current = await Notifications.getPermissionsAsync();
+      if (!current.granted) {
+        if (!current.canAskAgain) {
+          setPermission("denied");
+          return "denied";
+        }
+        current = await Notifications.requestPermissionsAsync();
+      }
+      if (!current.granted) {
+        setPermission("denied");
+        return "denied";
+      }
+      setPermission("granted");
+      const fireAt = new Date(Date.now() + Math.max(1, minutes) * 60_000);
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Test przypomnienia",
+          body: "Powiadomienia w Ryczałt działają poprawnie.",
+          data: { notificationTest: true },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fireAt, channelId: "reminders" },
+      });
+      return "scheduled";
+    } catch {
+      return "failed";
+    }
+  }, []);
 
   const reconcile = useCallback(async () => {
     if (!supportsLocalNotifications(Platform.OS)) return;
@@ -140,7 +172,7 @@ export function ReminderProvider({ children }: PropsWithChildren) {
     return () => subscription.remove();
   }, [reconcile, refreshPermission]);
 
-  const value = useMemo(() => ({ permission, requestPermission }), [permission, requestPermission]);
+  const value = useMemo(() => ({ permission, requestPermission, scheduleTestNotification }), [permission, requestPermission, scheduleTestNotification]);
   return <ReminderContext.Provider value={value}>{children}</ReminderContext.Provider>;
 }
 

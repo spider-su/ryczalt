@@ -5,21 +5,22 @@ export const RYCZALT_RULES = {
   2026: { lowerLimitPln: 100_000, lowerRate: 85, upperRate: 125 },
 } as const;
 export const SUPPORTED_TAX_YEARS = Object.keys(RYCZALT_RULES).map(Number) as (keyof typeof RYCZALT_RULES)[];
+const FIRST_RULES_YEAR = Math.min(...SUPPORTED_TAX_YEARS);
+const LATEST_RULES_YEAR = Math.max(...SUPPORTED_TAX_YEARS);
 export function hasTaxRulesForYear(year: number): boolean {
-  return year >= Math.min(...SUPPORTED_TAX_YEARS);
+  return Number.isInteger(year) && (Object.prototype.hasOwnProperty.call(RYCZALT_RULES, year) || year > LATEST_RULES_YEAR);
 }
-/** Select verified year-specific rules, or the latest verified year provisionally for future years. */
+/** Select exact-year rules, or carry the latest configured rules forward for any future year. */
 export function taxRulesYearFor(year: number): number {
-  if (!Number.isInteger(year) || year < Math.min(...SUPPORTED_TAX_YEARS)) throw new Error(`Tax rules for ${year} are not available`);
+  if (!Number.isInteger(year) || year < FIRST_RULES_YEAR) throw new Error(`Tax rules for ${year} are not available`);
   if (Object.prototype.hasOwnProperty.call(RYCZALT_RULES, year)) return year;
-  const latest = Math.max(...SUPPORTED_TAX_YEARS);
-  if (year > latest) return latest;
+  if (year > LATEST_RULES_YEAR) return LATEST_RULES_YEAR;
   throw new Error(`Tax rules for ${year} are not available`);
 }
 export function taxRulesAreProvisional(year: number): boolean {
   return taxRulesYearFor(year) !== year;
 }
-export function taxNavigationYears(now = new Date(), firstYear = 2025): number[] {
+export function taxNavigationYears(now = new Date(), firstYear = FIRST_RULES_YEAR): number[] {
   return Array.from({ length: Math.max(0, now.getFullYear() - firstYear + 1) }, (_, index) => firstYear + index);
 }
 
@@ -49,7 +50,7 @@ export type Settlement = {
   outstandingGrosz: number;
   overpaidGrosz: number;
   dueDate: string;
-  status: "no-tax" | "due" | "partial" | "paid" | "overdue";
+  status: "no-tax" | "due" | "paid" | "overdue";
 };
 
 export type OpeningTaxBalance = {
@@ -234,11 +235,7 @@ export function calculateTaxYear(args: {
       ? "no-tax"
       : outstandingGrosz === 0
         ? "paid"
-        : today > settlement.dueDate
-          ? "overdue"
-          : outstandingGrosz < settlement.obligationGrosz
-            ? "partial"
-            : "due";
+        : today > settlement.dueDate ? "overdue" : "due";
     return { ...settlement, allocatedPaidGrosz: settlement.obligationGrosz - outstandingGrosz, outstandingGrosz, status };
   }) };
 }

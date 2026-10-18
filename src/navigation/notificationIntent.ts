@@ -1,10 +1,10 @@
 import { isRentalMonth } from "../domain/rentalValidation";
 
 export type NotificationIntent =
-  | { screen: "Przychód"; params: { quickAdd: true; propertyId: string; rentalMonth: string; expectedAmount?: string } }
+  | { screen: "Pulpit"; params: { screen: "Wpłaty"; params: { quickAdd: true; returnTo: "Przegląd"; propertyId: string; rentalMonth: string; expectedAmount?: string } } }
   | { screen: "Podatek"; params: { period: string } }
   | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string; period?: string } }
-  | { screen: "Pulpit"; params: { taskId: string } };
+  | { screen: "Pulpit"; params: { screen: "Przegląd"; params: { taskId?: string; billId?: string; period?: string } } };
 
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const rentalMonth = (value: unknown): value is string => nonEmptyString(value) && isRentalMonth(value);
@@ -13,10 +13,10 @@ const taxPeriod = (value: unknown): value is string => nonEmptyString(value) && 
 export function notificationDataToIntent(data: Record<string, unknown>): NotificationIntent | null {
   if (data.category === "rent" && nonEmptyString(data.propertyId) && rentalMonth(data.period)) {
     const expectedAmount = typeof data.expectedAmount === "string" && /^\d+(\.\d{1,2})?$/.test(data.expectedAmount) ? data.expectedAmount : undefined;
-    return { screen: "Przychód", params: {
-      quickAdd: true, propertyId: data.propertyId, rentalMonth: data.period,
+    return { screen: "Pulpit", params: { screen: "Wpłaty", params: {
+      quickAdd: true, returnTo: "Przegląd", propertyId: data.propertyId, rentalMonth: data.period,
       ...(expectedAmount ? { expectedAmount } : {}),
-    } };
+    } } };
   }
   if (data.category === "tax" && taxPeriod(data.period))
     return { screen: "Podatek", params: { period: data.period } };
@@ -28,6 +28,6 @@ export function notificationDataToIntent(data: Record<string, unknown>): Notific
   if (data.category === "agreement" && nonEmptyString(data.propertyId))
     return { screen: "Ustawienia", params: { propertyId: data.propertyId } };
   if (data.category === "custom" && nonEmptyString(data.taskId))
-    return { screen: "Pulpit", params: { taskId: data.taskId } };
+    return { screen: "Pulpit", params: { screen: "Przegląd", params: { taskId: data.taskId } } };
   return null;
 }

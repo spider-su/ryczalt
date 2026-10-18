@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, showAggregateExpectedRent, showDashboardYtdProfit, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "./presentationFormat";
 import { formatPln } from "./ryczaltTax";
 
@@ -22,7 +22,7 @@ describe("rental presentation helpers", () => {
     expect(daysOverdue("2026-09", 28, new Date(2026, 8, 29, 8))).toBe(1);
     expect(daysOverdue("2026-09", 30, new Date(2026, 8, 29, 8))).toBe(0);
     expect(daysOverdue("2026-02", 31, new Date(2026, 2, 1, 8))).toBe(1);
-    const expectedButUnconfirmed = rentDisplayState(270_000, 0, 270_000);
+    const expectedButUnconfirmed = rentDisplayState(270_000, 270_000);
     expect(rentStatusLabel(expectedButUnconfirmed)).toBe("Do potwierdzenia");
     expect(rentCheckAgeLabel(daysOverdue("2026-09", 5, new Date(2026, 8, 28, 8)))).toBe("Termin sprawdzenia minął 23 dni temu");
     expect(rentCheckAgeLabel(0)).toBeNull();
@@ -60,21 +60,35 @@ describe("rental presentation helpers", () => {
     expect(dashboardAttentionTasks([...active, rent, dismissed, snoozed]).map((item) => item.type)).toEqual(operationalTypes);
   });
 
-  it("collapses paid and unpaid rent while retaining detail for partial payment", () => {
-    expect(rentDisplayState(270_000, 270_000, 0)).toEqual({ kind: "paid", expectedGrosz: 270_000 });
-    expect(rentDisplayState(270_000, 0, 270_000)).toEqual({ kind: "unpaid", remainingGrosz: 270_000 });
-    expect(rentDisplayState(270_000, 100_000, 170_000)).toEqual({ kind: "partial", confirmedGrosz: 100_000, expectedGrosz: 270_000, remainingGrosz: 170_000 });
-    expect(rentStatusLabel(rentDisplayState(270_000, 100_000, 170_000))).toBe("Częściowo otrzymano");
-    expect(rentStatusLabel(rentDisplayState(270_000, 270_000, 0))).toBe("Potwierdzone");
+  it("shows rent as either fully confirmed or awaiting confirmation", () => {
+    expect(rentDisplayState(270_000, 0)).toEqual({ kind: "paid", expectedGrosz: 270_000 });
+    expect(rentDisplayState(270_000, 270_000)).toEqual({ kind: "unpaid", remainingGrosz: 270_000 });
+    expect(rentStatusLabel(rentDisplayState(270_000, 270_000))).toBe("Do potwierdzenia");
+    expect(rentStatusLabel(rentDisplayState(270_000, 0))).toBe("Potwierdzone");
   });
 
-  it("keeps the rent summary amounts distinct for partial and fully confirmed rent, including large values", () => {
+  it("shows YTD profit only for a fully approved dashboard", () => {
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(true);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: false, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 1, taxApproved: true, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: false, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: false })).toBe(false);
+  });
+
+  it("shows aggregate expected rent only when more than one apartment is active", () => {
+    expect(showAggregateExpectedRent(0)).toBe(false);
+    expect(showAggregateExpectedRent(1)).toBe(false);
+    expect(showAggregateExpectedRent(2)).toBe(true);
+    expect(showAggregateExpectedRent(5)).toBe(true);
+  });
+
+  it("keeps outstanding and fully confirmed rent amounts correct, including large values", () => {
     const compact = (grosz: number) => formatPln(grosz).replace(/,00(?= zł)/, "");
-    const partial = rentDisplayState(553_400, 301_000, 252_400);
-    expect(partial).toMatchObject({ kind: "partial", confirmedGrosz: 301_000, remainingGrosz: 252_400, expectedGrosz: 553_400 });
+    const unpaid = rentDisplayState(553_400, 252_400);
+    expect(unpaid).toMatchObject({ kind: "unpaid", remainingGrosz: 252_400 });
     expect([301_000, 252_400, 553_400].map(compact)).toEqual(["3 010 zł", "2 524 zł", "5 534 zł"]);
 
-    const fullyConfirmed = rentDisplayState(553_400, 553_400, 0);
+    const fullyConfirmed = rentDisplayState(553_400, 0);
     expect(fullyConfirmed).toMatchObject({ kind: "paid", expectedGrosz: 553_400 });
     expect(compact(553_400)).toBe("5 534 zł");
     expect(compact(123_456_789_000)).toBe("1 234 567 890 zł");
@@ -82,11 +96,11 @@ describe("rental presentation helpers", () => {
 
   it("excludes paid apartments from pending and reports the all-paid state", () => {
     const groups = rentConfirmationGroups([
-      { id: "paid", state: rentDisplayState(270_000, 270_000, 0) },
-      { id: "partial", state: rentDisplayState(390_000, 100_000, 290_000) },
+      { id: "paid", state: rentDisplayState(270_000, 0) },
+      { id: "unpaid", state: rentDisplayState(390_000, 290_000) },
     ]);
-    expect(groups.pending.map((item) => item.id)).toEqual(["partial"]);
-    expect(rentConfirmationGroups([{ state: rentDisplayState(270_000, 270_000, 0) }]).allPaid).toBe(true);
+    expect(groups.pending.map((item) => item.id)).toEqual(["unpaid"]);
+    expect(rentConfirmationGroups([{ state: rentDisplayState(270_000, 0) }]).allPaid).toBe(true);
     expect(rentConfirmationGroups([{ state: { kind: "unknown" as const } }])).toMatchObject({ allPaid: false, pending: [{ state: { kind: "unknown" } }] });
   });
 

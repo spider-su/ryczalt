@@ -88,12 +88,12 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
   });
 
-  it("migrates a current-format legacy namespace without deleting the source", async () => {
+  it("migrates a valid legacy namespace without deleting the source", async () => {
     storage.getItem
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(JSON.stringify(validDocument));
-    storage.setItem.mockResolvedValueOnce();
+    storage.setItem.mockResolvedValue();
 
     await expect(loadRentalDocument()).resolves.toEqual(validDocument);
     expect(storage.setItem).toHaveBeenCalledWith(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(validDocument));
@@ -190,7 +190,7 @@ describe("localRentalStore", () => {
 
   it("rejects unsupported schema versions", async () => {
     storage.getItem.mockResolvedValueOnce(
-      JSON.stringify({ ...validDocument, schemaVersion: 2 }),
+      JSON.stringify({ ...validDocument, schemaVersion: 99 }),
     );
 
     await expect(loadRentalDocument()).rejects.toMatchObject({
@@ -199,7 +199,7 @@ describe("localRentalStore", () => {
   });
 
   it("does not recover a backup over an unsupported primary schema", async () => {
-    storage.getItem.mockResolvedValueOnce(JSON.stringify({ ...validDocument, schemaVersion: 2 })).mockResolvedValueOnce(JSON.stringify(validDocument));
+    storage.getItem.mockResolvedValueOnce(JSON.stringify({ ...validDocument, schemaVersion: 99 })).mockResolvedValueOnce(JSON.stringify(validDocument));
     await expect(loadRentalDocument()).rejects.toMatchObject({ code: "UNSUPPORTED_VERSION" });
   });
 

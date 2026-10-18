@@ -11,11 +11,11 @@ function settle(payments: { id: string; period: string; paidAt: string; amount: 
 }
 
 describe("tax presentation", () => {
-  it("shows obligation, allocated payments, and remaining balance for unpaid, partial, paid, and zero-tax periods", () => {
+  it("shows unpaid obligation, payment, and remaining balance", () => {
     const due = settle();
     expect(taxPaymentDisplay(due)).toMatchObject({ kind: "due", obligationGrosz: due.obligationGrosz, paidGrosz: 0, remainingGrosz: due.obligationGrosz, dueDate: due.dueDate });
-    const partial = taxPaymentDisplay(settle([{ id: "p", period: "2026-09", paidAt: "2026-09-28", amount: "500.00" }]));
-    expect(partial).toMatchObject({ kind: "partial", paidGrosz: 50_000, remainingGrosz: due.obligationGrosz - 50_000 });
+    const underpaidData = taxPaymentDisplay(settle([{ id: "p", period: "2026-09", paidAt: "2026-09-28", amount: "500.00" }]));
+    expect(underpaidData).toMatchObject({ kind: "due", paidGrosz: 50_000, remainingGrosz: due.obligationGrosz - 50_000 });
     const paid = taxPaymentDisplay(settle([{ id: "p", period: "2026-09", paidAt: "2026-09-28", amount: "1522.00" }]));
     expect(paid).toMatchObject({ kind: "paid", obligationGrosz: due.obligationGrosz, paidGrosz: due.obligationGrosz, remainingGrosz: 0, viaCredit: false });
     expect(taxPaymentDisplay(settle([], "2026-11-01"))).toMatchObject({ kind: "overdue" });

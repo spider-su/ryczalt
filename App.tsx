@@ -22,7 +22,19 @@ import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LoadingState } from './src/components/LoadingState';
 
 const Tabs = createBottomTabNavigator();
+const PulpitFlow = createBottomTabNavigator();
 const navigationRef = createNavigationContainerRef<any>();
+
+function PulpitFlowScreen() {
+  return <PulpitFlow.Navigator
+    initialRouteName="Przegląd"
+    backBehavior="history"
+    screenOptions={{ headerShown: false, tabBarStyle: { display: "none" } }}
+  >
+    <PulpitFlow.Screen name="Przegląd" component={PulpitScreen} />
+    <PulpitFlow.Screen name="Wpłaty" component={IncomeScreen} />
+  </PulpitFlow.Navigator>;
+}
 function RentalApp() {
   const { mode } = useTheme();
   const insets = useSafeAreaInsets();
@@ -74,10 +86,9 @@ function RentalApp() {
       tabBarInactiveTintColor: theme.colors.inactiveNavigation,
       tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, ...tabBarSafeAreaStyle(insets.bottom), elevation: 0 },
       tabBarLabel: ({ focused, color }) => <Text style={{ color, fontSize: 11, fontWeight: focused ? '700' : '500', marginTop: 1 }}>{route.name}</Text>,
-      tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Przychód' ? 'wallet-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
+      tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>
-      <Tabs.Screen name="Pulpit" component={PulpitScreen} />
-      <Tabs.Screen name="Przychód" component={IncomeScreen} />
+      <Tabs.Screen name="Pulpit" component={PulpitFlowScreen} />
       <Tabs.Screen name="Podatek" component={TaxScreen} />
       <Tabs.Screen name="Ustawienia" component={SettingsScreen} />
     </Tabs.Navigator>

@@ -12,7 +12,7 @@ A useful feature test is: **does this remove something the landlord otherwise ha
 
 ## POC release candidate — single source of truth
 
-This file is the release gate/status source for the lightweight private-rental POC. Product scope is frozen: apartment/current tenant and contact, owner income and media, manual rent and tax payment confirmation, rent/tax/lease reminders, local-first storage, and JSON backup/restore. Bills and user-created personal reminders are removed; older documents containing their legacy fields must continue to load. No backend, bank integration, cloud sync, or electronic filing.
+This file is the release gate/status source for the lightweight private-rental POC. Product scope is apartment/current tenant and contact, owner income and media, manual rent/bill/tax payment confirmation, rent/bill/tax/lease reminders, local-first storage, and JSON backup/restore. User-created personal reminders remain out of scope. No backend, bank integration, cloud sync, or electronic filing.
 
 **Status: NOT READY.** Do not tag or publish until every box is supported by candidate-specific evidence.
 
@@ -23,9 +23,9 @@ The public [web tax calculator](https://ryczalt.smart-box.workers.dev/) is a sep
 - [ ] Clean Android emulator happy path, correction/recalculation, and restart persistence pass.
 - [ ] Legacy local document loads; damaged-storage recovery behaves safely.
 - [ ] Export → clear app data/uninstall → reinstall → import round-trip verified, including tax and reminder results.
-- [ ] Physical Android notification permission, channel, delivery, tap routing, restart/reboot, revoke/regrant and duplicate checks pass.
+- [ ] Physical Android rent, bill and tax notification permission, channel, delivery, tap routing, restart/reboot, revoke/regrant and duplicate checks pass.
 - [ ] Tax calculation, overpayment carry-forward, exact-year selection, provisional fallback warning and deadline tests pass.
-- [x] PR #38 scope cleanup is merged; bills/custom reminders are absent from UI and notifications.
+- [x] PR #38 removed bills and custom reminders; recurring-bill payment tracking and due reminders are now restored by the current product request. Custom reminders remain out of scope.
 - [ ] Product, notification, data, tax and public-calculator documentation agrees on the POC scope, calculation boundaries and limitations.
 - [ ] Privacy policy is completed and publicly hosted; Google Play Data safety and Apple App Privacy declarations are reviewed against exact release builds; candidate-specific evidence is recorded in [privacy release evidence](docs/PRIVACY_RELEASE_EVIDENCE.md).
 - [ ] Native local-data encryption migration, recovery, export/import and Android backup policy are validated on release builds; browser storage limitation is disclosed.
@@ -65,7 +65,7 @@ Do not implement during the POC unless user evidence changes the priority:
 
 Ryczałt is a small landlord assistant, not a property-management suite. The recurring value proposition remains:
 
-**confirm rent → see what needs attention → know the current tax position → record payment → done.**
+**confirm rent → confirm bills → confirm tax → done.**
 
 Local-first data remains intentional. Native Android/iOS data is encrypted at rest with a device-held key; Android system backup is disabled because ciphertext without that key cannot be restored. JSON export/import remains the user-controlled portability mechanism and exports plaintext. Browser storage is not app-encrypted. See [privacy release evidence](docs/PRIVACY_RELEASE_EVIDENCE.md).
 
@@ -73,7 +73,6 @@ Local-first data remains intentional. Native Android/iOS data is encrypted at re
 ## POC scope simplification
 
 Removed from the product scope before POC freeze:
-- recurring household/property bills and their payment tracking,
 - user-created personal/custom reminders.
 
-Ryczałt notifications stay domain-native: expected rent, tax deadlines, and rental-agreement dates. Legacy bill/reminder fields may remain readable in local documents/backups for compatibility, but the app no longer creates, edits, schedules, or presents those features.
+Recurring bills are back in scope as a focused payment flow: apartment-linked monthly bill, due-day reminder, and full manual payment confirmation. No transfer is initiated or inferred. Other notifications remain domain-native: rent, tax and rental-agreement dates.

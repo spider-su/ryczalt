@@ -8,10 +8,12 @@
 
 ## Product pillars
 
-1. **Confirmed rental income:** actual receipt date and amount, partial receipts and corrections are manually confirmed; expected rent never counts as income.
+1. **Confirmed rental income:** the landlord confirms the full remaining rent and actual receipt date; expected rent never counts as income.
 2. **Correct ryczałt calculation:** calculate from confirmed taxable receipts using supported Polish rules, rates and thresholds.
-3. **Payment deadlines and status:** show the obligation, due date, confirmed tax payments and remaining amount.
+3. **Payment deadlines and status:** show the obligation, due date and remaining amount; a confirmation records the full outstanding tax.
 4. **Year-end readiness:** make annual income/tax figures clear and verifiable before the user compares or enters them in official tax services. Annual/PIT-28 verification is upcoming work; electronic filing is out of scope.
+
+For first-apartment setup, the rent start date defaults to January 1 of the current year and remains editable. New apartments default to tenant-paid media enabled. The landlord can confirm completed initial rent periods; that action records the full calculated tax obligation for each selected period as paid too, based on the landlord confirming the historical rent and tax were actually received and paid.
 
 ## Priority levels
 
@@ -30,7 +32,7 @@ Patterns we intentionally adopt and adapt:
 
 - apartment-level monthly overview;
 - expected vs confirmed rent;
-- partial-payment handling;
+- full-amount confirmation for rent and tax;
 - contract/agreement end reminders;
 - recurring reminders associated with a property;
 - a dashboard that combines attention items with a small financial summary;
@@ -64,7 +66,7 @@ The independently hosted [public calculator](https://ryczalt.smart-box.workers.d
 
 ## Status
 
-- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent/tax/lease notifications and compact statistics. Bills and personal reminders are removed from the POC UI/scheduling; legacy fields remain readable.
+- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, recurring-bill setup/payment confirmation, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent/tax/lease notifications and compact statistics. User-created personal reminders remain out of scope.
 - **Implemented:** validated local JSON export/import and last-good local recovery. AsyncStorage is not encrypted by the app.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
 - **POC release gate:** see the root [ROADMAP](../ROADMAP.md). Readiness remains unverified until candidate-specific CI, artifact, emulator, backup and physical-device evidence is recorded.

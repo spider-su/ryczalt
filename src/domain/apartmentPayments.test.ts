@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { defaultTaxableAmountGrosz, tenantMonthlyTotalGrosz } from "./apartmentPayments";
-import type { IncomeEntry, Property } from "../model/rental";
+import type { Property } from "../model/rental";
 
 const property: Property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT",
   rentSchedule: [{ effectiveFrom: "2026-01", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] };
-const entry = (amount: string, taxableAmount: string): IncomeEntry => ({ id: `${amount}-${taxableAmount}`, propertyId: "p1", receivedAt: "2026-09-10", rentalMonth: "2026-09", amount, taxableAmount });
 
 describe("apartment payment amounts", () => {
   it("includes tenant-paid media in the tenant total", () => {
@@ -12,10 +11,8 @@ describe("apartment payment amounts", () => {
     expect(tenantMonthlyTotalGrosz({ ...property, mediaPaidByTenant: false })).toBe(250_000);
   });
 
-  it("caps default taxable receipts at the owner's rent across partial confirmations", () => {
-    expect(defaultTaxableAmountGrosz({ property, amountGrosz: 100_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(100_000);
-    expect(defaultTaxableAmountGrosz({ property, amountGrosz: 250_000, rentalMonth: "2026-09", priorEntries: [entry("1000.00", "1000.00")] })).toBe(150_000);
-    expect(defaultTaxableAmountGrosz({ property, amountGrosz: 100_000, rentalMonth: "2026-09", priorEntries: [entry("2500.00", "2500.00")] })).toBe(0);
+  it("caps the taxable amount at the owner's rent", () => {
+    expect(defaultTaxableAmountGrosz({ property, amountGrosz: 300_000, rentalMonth: "2026-09", priorEntries: [] })).toBe(250_000);
   });
 
   it("uses the tax-base choice independently of who pays media", () => {

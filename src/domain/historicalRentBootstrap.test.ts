@@ -11,6 +11,7 @@ describe("historical rent bootstrap", () => {
   it("defaults to the rental start month through the last completed month", () => {
     expect(historicalBootstrapDefaultRange("2026-09-28", property.rentalStartDate)).toEqual({ startMonth: "2026-03", endMonth: "2026-08" });
     expect(historicalBootstrapDefaultRange("2026-01-02", property.rentalStartDate).endMonth).toBeNull();
+    expect(historicalBootstrapDefaultRange("2026-09-28", "2025-01-01").startMonth).toBe("2025-01");
   });
 
   it("adds separate monthly receipt facts, taxes the owner component, and is idempotent", () => {
@@ -53,18 +54,19 @@ describe("historical rent bootstrap", () => {
     const initial = doc();
     initial.properties = [property];
     const result = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
-    expect(historicalTaxPaymentsForImportedRent(result.document, result.created)).toEqual([]);
-    expect(historicalTaxPaymentsForImportedRent(result.document, result.created, true)).toEqual([{ id: "initial-tax-2026-03", period: "2026-03", paidAt: "2026-04-20", amount: "213.00", source: "INITIAL_IMPORT" }]);
+    expect(historicalTaxPaymentsForImportedRent(result.document, result.created)).toEqual([{ id: "initial-tax-2026-03", period: "2026-03", paidAt: "2026-04-20", amount: "213.00", source: "INITIAL_IMPORT" }]);
+    expect(result.document.taxPayments).toEqual([{ id: "initial-tax-2026-03", period: "2026-03", paidAt: "2026-04-20", amount: "213.00", source: "INITIAL_IMPORT" }]);
+    expect(calculateSettlements({ entries: result.document.incomeEntries, payments: result.document.taxPayments, taxYear: 2026, mode: "monthly", today: "2026-09-28" }).find(({ period }) => period === "2026-03")?.status).toBe("paid");
   });
 
   it("re-estimates an imported assumed payment when another apartment is imported for the same month", () => {
     const initial = doc();
     initial.properties = [property, { ...property, id: "second", address: "Druga 2" }];
     const first = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
-    const firstTax = historicalTaxPaymentsForImportedRent(first.document, first.created, true);
+    const firstTax = historicalTaxPaymentsForImportedRent(first.document, first.created);
     const withFirstTax = { ...first.document, taxPayments: firstTax };
     const second = bootstrapHistoricalRentPayments({ document: withFirstTax, property: { ...property, id: "second", address: "Druga 2" }, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
-    expect(historicalTaxPaymentsForImportedRent(second.document, second.created, true)).toEqual([{ ...firstTax[0], amount: "425.00" }]);
+    expect(historicalTaxPaymentsForImportedRent(second.document, second.created)).toEqual([{ ...firstTax[0], amount: "425.00" }]);
   });
 
   it("skips pre-existing months and the current or future months", () => {
