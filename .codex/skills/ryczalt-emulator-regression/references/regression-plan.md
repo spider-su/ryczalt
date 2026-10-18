@@ -143,22 +143,17 @@ Use the current rental month. Do not move the emulator date.
 1. Open Podatek for the current period.
 2. Verify the saved taxable revenue is 3000 zł under the default `OWNER_RENT` fixture despite 3500 zł gross receipts.
 3. Verify the obligation is 255 zł (8.5% of 3000, rounded according to the domain rules).
-4. Expand and collapse **Jak liczymy podatek?**.
-5. Open **Dane do przelewu**; exercise copy actions for any populated transfer details and close.
-6. Tap **Potwierdź wykonaną wpłatę**.
-7. If the first-payment history-review modal appears, inspect its values, close it once, reopen, then continue.
-8. Enter the actual tax payment amount/date and save.
-9. Verify status becomes paid and remaining tax is 0.
-10. Open the saved tax payment:
-    - use **Popraw**, change and save the amount once;
-    - verify recalculation;
-    - restore the intended amount;
-    - use **Usuń** and cancel once;
-    - invoke **Usuń** again and confirm;
-    - verify the tax becomes outstanding again;
-    - re-add the intended payment so persistence checks finish in a paid state.
-11. If overpayment can be entered in the current form, record one amount above the obligation, verify the displayed overpayment/carry-forward state, then restore the intended fixture or clearly record the resulting state used for F–H.
-12. Capture `12-tax-before-payment`, `13-tax-payment-form`, `14-tax-paid`.
+4. Expand **Rok <year>**, verify annual taxable income / threshold / remaining-threshold details, then collapse it.
+5. Expand and collapse **Jak liczymy podatek?**.
+6. While tax is outstanding, open **Dane do przelewu**; exercise copy actions for any populated transfer details and close.
+7. Tap **Potwierdź wykonaną wpłatę**.
+8. If the first-payment history-review modal appears, inspect its values, close it once, reopen, then continue.
+9. Enter the actual tax payment amount/date and save.
+10. Verify the hero becomes **Opłacone**, remaining tax is 0, and the transfer-details row is no longer promoted in the paid state.
+11. Expand **Historia płatności (1)** and verify the saved payment date/amount.
+12. Use **Usuń** and cancel once; invoke **Usuń** again and confirm; verify tax becomes outstanding again; re-add the intended payment so persistence checks finish in a paid state.
+13. If overpayment can be entered in the current form, record one amount above the obligation, verify the displayed overpayment/carry-forward state, then restore the intended fixture or clearly record the resulting state used for F–H.
+14. Capture `12-tax-before-payment`, `13-tax-payment-form`, `14-tax-paid`.
 
 ### F. Settings coverage
 
