@@ -52,13 +52,17 @@ export function TaxScreen() {
   const [annualOpen, setAnnualOpen] = useState(false);
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
+  const openPayments = () => navigation.navigate("Pulpit", { screen: "Wpłaty" });
+  const navigateReturn = (tab: string) => tab === "Pulpit"
+    ? navigation.navigate("Pulpit", { screen: "Przegląd" })
+    : navigation.navigate(tab);
   const closeConfirmationFlow = () => {
     setModalOpen(false);
     setHistoryReviewOpen(false);
     if (returnToTab) {
       const tab = returnToTab;
       setReturnToTab(null);
-      navigation.navigate(tab);
+      navigateReturn(tab);
     }
   };
   const settlementMode = document?.settings.settlementMode ?? "monthly";
@@ -102,7 +106,7 @@ export function TaxScreen() {
       const returnTo = params.returnTo;
       if (!targetSettlement || targetSettlement.outstandingGrosz <= 0) {
         setReturnToTab(null);
-        if (returnTo) navigation.navigate(returnTo);
+        if (returnTo) navigateReturn(returnTo);
       } else {
         const openConfirmation = () => {
           const priorPeriodsForTarget = targetCalculation?.settlements.filter((item) => item.period < targetPeriod) ?? [];
@@ -124,7 +128,7 @@ export function TaxScreen() {
           Alert.alert(
             "Nie wszystkie czynsze są potwierdzone",
             `${formatPolishCount(unconfirmedRentCount, ["mieszkanie wymaga potwierdzenia", "mieszkania wymagają potwierdzenia", "mieszkań wymaga potwierdzenia"])}. Najpierw potwierdź czynsz za ten miesiąc.`,
-            [{ text: "Sprawdź wpłaty", onPress: () => { setReturnToTab(null); navigation.navigate("Przychód"); } }],
+            [{ text: "Sprawdź wpłaty", onPress: () => { setReturnToTab(null); openPayments(); } }],
           );
         } else openConfirmation();
       }
@@ -175,7 +179,7 @@ export function TaxScreen() {
     Alert.alert(
       "Nie wszystkie czynsze są potwierdzone",
       `${formatPolishCount(unconfirmedRentCount, ["mieszkanie wymaga potwierdzenia", "mieszkania wymagają potwierdzenia", "mieszkań wymaga potwierdzenia"])}. Najpierw potwierdź czynsz za ten miesiąc.`,
-      [{ text: "Sprawdź wpłaty", onPress: () => navigation.navigate("Przychód") }],
+      [{ text: "Sprawdź wpłaty", onPress: () => openPayments() }],
     );
   };
   const continueAfterHistoryReview = () => {
@@ -264,7 +268,7 @@ export function TaxScreen() {
         {unconfirmedRentCount > 0 ? <View style={rentWarning}>
           <Text style={rentWarningTitle}>Nie wszystkie czynsze są potwierdzone</Text>
           <Text style={rentWarningText}>{formatPolishCount(unconfirmedRentCount, ["mieszkanie wymaga potwierdzenia", "mieszkania wymagają potwierdzenia", "mieszkań wymaga potwierdzenia"])}. Najpierw potwierdź czynsz za ten miesiąc. Podatek obejmuje tylko potwierdzone wpłaty.</Text>
-          <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => openPayments()}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
         </View> : null}
         {paymentPrompt?.showPayment && unconfirmedRentCount === 0 ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" accessibilityLabel={`Dane do przelewu. ${TAX_TRANSFER_HINT}`} onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><View><Text style={transferTitle}>Dane do przelewu</Text><Text style={transferHint}>{TAX_TRANSFER_HINT}</Text></View><Text style={action}>›</Text></Pressable> : null}
@@ -302,7 +306,7 @@ export function TaxScreen() {
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={ui.modalHeader}><Text style={ui.modalTitle}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w zakładce Przychód przed kontynuacją.</Text>
+          <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w Historii wpłat przed kontynuacją.</Text>
           <View style={[ui.card, { marginTop: 16, padding: 16, gap: 8 }]}>
             <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Od początku {taxYear}, przed okresem {taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}</Text>
             <Text style={taxContext}>Przychód opodatkowany: {formatPln(priorRevenueGrosz)}</Text>
@@ -310,7 +314,7 @@ export function TaxScreen() {
             <Text style={taxContext}>Zapisane wpłaty podatku: {formatPln(priorPaidGrosz)}</Text>
             <Text style={{ color: priorOutstandingGrosz > 0 ? theme.colors.warning : theme.colors.success, fontWeight: "700" }}>Pozostało według zapisanych danych: {formatPln(priorOutstandingGrosz)}</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => { setHistoryReviewOpen(false); navigation.navigate("Przychód"); }} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 16, marginTop: 12 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600", textAlign: "center" }}>Sprawdź lub popraw wpływy</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setHistoryReviewOpen(false); openPayments(); }} style={{ minHeight: 44, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 16, marginTop: 12 }}><Text style={{ color: theme.colors.textPrimary, fontWeight: "600", textAlign: "center" }}>Sprawdź lub popraw wpływy</Text></Pressable>
           <Text style={[taxHint, { marginTop: 16 }]}>Aplikacja nie zakłada, że wcześniejszy podatek został zapłacony. Jeśli chcesz uzupełnić historyczną wpłatę podatku, wybierz odpowiedni okres i potwierdź pełną pozostałą kwotę oraz rzeczywistą datę zapłaty.</Text>
           <Pressable accessibilityRole="button" disabled={saving} onPress={continueAfterHistoryReview} style={[primaryButton, { marginTop: 16 }, saving && { opacity: 0.5 }]}><Text style={primaryText}>Dalej do potwierdzenia bieżącej wpłaty</Text></Pressable>
         </ScrollView>
