@@ -536,7 +536,7 @@ export function SettingsScreen() {
           : <Text style={muted}>{permission === "granted" ? "Powiadomienia systemowe są włączone." : permission === "denied" ? "Brak zgody systemowej. Przypomnienia są nadal widoczne w aplikacji." : "Włącz zgodę systemową, aby otrzymywać przypomnienia poza aplikacją."}</Text>}
         {permission !== "granted" && permission !== "unavailable" ? <Pressable accessibilityRole="button" onPress={() => void requestPermission()} style={secondaryButton}><Text style={modeText}>Włącz powiadomienia</Text></Pressable> : null}
         {showNotificationTest ? <View style={[ui.card, { marginTop: 12, gap: 8 }]}>
-          <Text style={sectionTitle}>Test powiadomień</Text>
+          <Text style={ui.cardTitle}>Test powiadomień</Text>
           <Text style={helperText}>Tylko tryb demo/deweloperski. Zaplanuj jedno lokalne powiadomienie za 5 minut, bez zmiany danych najmu ani normalnego harmonogramu.</Text>
           <Pressable
             accessibilityRole="button"
@@ -622,9 +622,9 @@ export function SettingsScreen() {
         {showArchivedProperties ? archivedProperties.map((property) => <View key={property.id} style={[ui.card, apartmentCard]}><Text style={apartmentTitle}>{property.address}</Text><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane · historia zachowana</Text><Pressable accessibilityRole="button" accessibilityLabel={`Utwórz nowe mieszkanie na podstawie ${property.address}`} onPress={() => openNewApartmentFromArchived(property)} style={{ paddingVertical: 10 }}><Text style={action}>Utwórz nowy wpis z tych danych</Text></Pressable></View>) : null}
         </> : null}
         {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text><Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane na urządzeniu. Aplikacja nie wysyła rejestru na serwer. Wersja przeglądarkowa nie zapewnia szyfrowania aplikacyjnego.</Text><Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text></View>
+          <View style={[ui.card, trustCard]}><Text style={ui.cardTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text><Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane na urządzeniu. Aplikacja nie wysyła rejestru na serwer. Wersja przeglądarkowa nie zapewnia szyfrowania aplikacyjnego.</Text><Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text></View>
           <View style={[ui.card, trustCard]}>
-            <Text style={sectionTitle}>Kopia danych</Text>
+            <Text style={ui.cardTitle}>Kopia danych</Text>
             <Text style={muted}>Zapisz kopię, aby móc przywrócić historię najmu i podatku na tym lub innym urządzeniu.</Text>
             <Text style={helperText}>Plik pozostaje pod Twoją kontrolą. Aplikacja nie wysyła go do chmury.</Text>
             {isDemoMode ? <Text style={helperText}>Kopie danych są wyłączone w trybie demo.</Text> : <>
@@ -632,9 +632,9 @@ export function SettingsScreen() {
               <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void restoreBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>Przywróć z kopii</Text></Pressable>
             </>}
           </View>
-          <View style={[ui.card, trustCard]}><Text style={sectionTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>Lokalny mechanizm odzyskiwania chroni przed błędem zapisu; kopia plikowa chroni także przy zmianie lub utracie urządzenia.</Text></View>
+          <View style={[ui.card, trustCard]}><Text style={ui.cardTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>Lokalny mechanizm odzyskiwania chroni przed błędem zapisu; kopia plikowa chroni także przy zmianie lub utracie urządzenia.</Text></View>
           {isDemoMode ? <Text style={helperText}>W trybie demo możesz wyjść z prezentacji, aby zarządzać zapisanymi danymi.</Text> : <View style={[ui.card, trustCard]}>
-            <Text style={sectionTitle}>Usuwanie danych</Text>
+            <Text style={ui.cardTitle}>Usuwanie danych</Text>
             <Text style={muted}>Usuń wszystkie zapisane dane i kopię odzyskiwania z tego urządzenia.</Text>
             <Pressable accessibilityRole="button" disabled={clearingLocalData} onPress={confirmClearLocalData} style={[clearDataButton, clearingLocalData && { opacity: 0.6 }]}>
               <Text style={clearDataText}>{clearingLocalData ? "Usuwanie danych…" : "Usuń wszystkie dane"}</Text>

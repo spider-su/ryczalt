@@ -271,6 +271,6 @@ function dateInMonth(month: string, day: number): string {
 function formatStartDate(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return value;
-  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+  return new Intl.DateTimeFormat("pl-PL", { day: "2-digit", month: "short", year: "numeric" })
     .format(new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12));
 }
