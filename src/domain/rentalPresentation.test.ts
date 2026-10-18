@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
-import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, showAggregateExpectedRent, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
+import { annualRentalIncome, annualRentalThreshold, attentionSummary, dashboardAttentionTasks, dashboardProgress, dashboardTaskPresentation, dashboardTaxIssueSummary, daysOverdue, historicalTasks, incomeHistory, incomeSectionLabels, primaryDashboardMetrics, rentCheckAgeLabel, rentConfirmationGroups, rentDisplayState, rentIncomeAction, rentStatusLabel, settingsSections, showAggregateExpectedRent, showDashboardYtdProfit, taxPaymentPrompt, unallocatedRentWarning, upcomingTaskPresentation, upcomingTasks } from "./rentalPresentation";
 import { formatPolishCount, formatPolishDate } from "./presentationFormat";
 import { formatPln } from "./ryczaltTax";
 
@@ -65,6 +65,14 @@ describe("rental presentation helpers", () => {
     expect(rentDisplayState(270_000, 270_000)).toEqual({ kind: "unpaid", remainingGrosz: 270_000 });
     expect(rentStatusLabel(rentDisplayState(270_000, 270_000))).toBe("Do potwierdzenia");
     expect(rentStatusLabel(rentDisplayState(270_000, 0))).toBe("Potwierdzone");
+  });
+
+  it("shows YTD profit only for a fully approved dashboard", () => {
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(true);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: false, pendingBillCount: 0, taxApproved: true, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 1, taxApproved: true, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: false, chargesKnown: true })).toBe(false);
+    expect(showDashboardYtdProfit({ rentFullyConfirmed: true, pendingBillCount: 0, taxApproved: true, chargesKnown: false })).toBe(false);
   });
 
   it("shows aggregate expected rent only when more than one apartment is active", () => {
