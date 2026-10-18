@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
-import type { KeyboardTypeOptions } from "react-native";
+import type { KeyboardTypeOptions, TextInputProps } from "react-native";
 import { theme } from "../theme/theme";
+import { ui } from "../theme/ui";
 
 type ButtonTone = "primary" | "secondary" | "danger";
 export function FormButton({ label, onPress, disabled = false, busy = false, tone = "primary" }: {
@@ -13,7 +14,7 @@ export function FormButton({ label, onPress, disabled = false, busy = false, ton
     accessibilityState={{ disabled: disabled || busy, busy }} disabled={disabled || busy}
     onPress={onPress}
     style={({ pressed }) => ({
-      minHeight: 48, borderRadius: 12, paddingHorizontal: 16,
+      minHeight: 48, borderRadius: theme.radius.control, paddingHorizontal: 16,
       justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 8,
       backgroundColor: filled ? background : theme.colors.surface,
       borderWidth: filled ? 0 : 1, borderColor: theme.colors.inputBorder,
@@ -24,17 +25,18 @@ export function FormButton({ label, onPress, disabled = false, busy = false, ton
   </Pressable>;
 }
 
-export function FormField({ label, value, onChangeText, error, keyboardType = "default", placeholder, children }: {
+export function FormField({ label, value, onChangeText, error, keyboardType = "default", placeholder, children, multiline = false, autoCapitalize, selectTextOnFocus }: {
   label: string; value: string; onChangeText: (value: string) => void; error?: string;
-  keyboardType?: KeyboardTypeOptions; placeholder?: string; children?: ReactNode;
+  keyboardType?: KeyboardTypeOptions; placeholder?: string; children?: ReactNode; multiline?: boolean;
+  autoCapitalize?: TextInputProps["autoCapitalize"]; selectTextOnFocus?: boolean;
 }) {
   return <View style={{ gap: 6 }}>
-    <Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{label}</Text>
+    <Text style={ui.fieldLabel}>{label}</Text>
     <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText}
       keyboardType={keyboardType} placeholder={placeholder} placeholderTextColor={theme.colors.textMuted}
-      style={{ minHeight: 48, borderRadius: 12, borderWidth: 1,
-        borderColor: error ? theme.colors.danger : theme.colors.inputBorder,
-        color: theme.colors.textPrimary, paddingHorizontal: 12, backgroundColor: theme.colors.inputBackground }} />
+      multiline={multiline} autoCapitalize={autoCapitalize} selectTextOnFocus={selectTextOnFocus}
+      textAlignVertical={multiline ? "top" : "center"}
+      style={[ui.input, multiline && { minHeight: 84, paddingVertical: 10 }, error && { borderColor: theme.colors.danger }]} />
     {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text> : null}
     {children}
   </View>;
