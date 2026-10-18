@@ -297,7 +297,7 @@ export function PulpitScreen() {
         </View> : ownerCashflow ? <Text style={ownerNetDetail}>Zysk niedostępny — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View> : null}
 
-      <View style={sectionHeader}><Text style={sectionTitle}>Mieszkania</Text></View>
+      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text></View>
       {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
         <Pressable accessibilityRole={rentFullyConfirmed ? "button" : undefined}
           accessibilityLabel={rentFullyConfirmed ? `Czynsz ${compactPln(receivedRent)}. Potwierdzone. ${rentDetailsExpanded ? "Ukryj mieszkania" : "Pokaż mieszkania"}` : undefined}
@@ -326,7 +326,7 @@ export function PulpitScreen() {
         const rentConfirmed = paymentState.kind === "paid";
         return <Pressable key={property.id} accessibilityRole="button" accessibilityState={{ disabled: rentConfirmed }} accessibilityLabel={`${property.address}, ${property.tenantName ?? ""}, ${rentStatusLabel(paymentState)}${rentConfirmed ? "" : ". Potwierdź czynsz"}`} disabled={rentConfirmed} onPress={() => addIncome(property.id, selectedMonth)} style={[apartmentListRow, index > 0 && apartmentListDivider]}>
           <View style={compactPropertyHeader}><View style={{ flex: 1 }}><Text style={propertyName} numberOfLines={1}>{property.address}</Text>{property.tenantName ? <Text style={compactTenant} numberOfLines={1}>{property.tenantName}</Text> : null}</View>
-            <StatusBadge label={rentStatusLabel(paymentState)} tone={paymentState.kind === "paid" ? "positive" : paymentState.kind === "unpaid" ? "attention" : "neutral"} />
+            {!rentFullyConfirmed ? <StatusBadge label={rentStatusLabel(paymentState)} tone={paymentState.kind === "paid" ? "positive" : paymentState.kind === "unpaid" ? "attention" : "neutral"} /> : null}
           </View>
           {paymentState.kind === "unknown" ? <Text style={compactMuted}>Uzupełnij oczekiwany czynsz</Text>
             : <Text style={compactAmount}>{compactPln(paymentState.kind === "paid" ? paymentState.expectedGrosz : paymentState.remainingGrosz)}</Text>}
@@ -338,12 +338,12 @@ export function PulpitScreen() {
 
       <View style={[paymentActionRow, width < 360 && paymentActionRowStacked]}>
         <Pressable accessibilityRole="button" accessibilityLabel={dashboardBills.length ? `Opłaty. ${pendingBills.length ? `${pendingBills.length} do potwierdzenia` : "potwierdzone"}` : "Dodaj pierwszą opłatę"} onPress={() => setBillListOpen(true)} style={[ui.card, paymentActionCard]}>
-          <View style={paymentActionHeading}><MaterialIcons name="receipt-long" size={18} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>OPŁATY</Text></View>
+          <View style={paymentActionHeading}><MaterialIcons name="receipt-long" size={16} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>OPŁATY</Text></View>
           <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{apartmentChargesKnown ? compactPln(apartmentMediaTotal) : dashboardBills.length && billAmountsComplete ? compactPln(knownBillTotal) : dashboardBills.length ? "Kwota zmienna" : "Dodaj"}</Text>
           <Text style={[paymentActionStatus, nextPendingDue && nextPendingDue < todayIsoDate() && paymentActionStatusOverdue]} numberOfLines={2}>{dashboardBills.length === 0 ? "Dodaj rachunki i przypomnienia" : pendingBills.length === 0 ? "✓ Potwierdzone" : `${pendingBills.length} do opłacenia${nextPendingDue ? ` · ${nextPendingDue < todayIsoDate() ? "po terminie" : "termin"} ${formatPolishDate(nextPendingDue)}` : " · ustaw termin"}`}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: !currentPeriod || currentPeriod.outstandingGrosz <= 0 }} accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${currentPeriod.status === "paid" ? "Potwierdzone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} disabled={!currentPeriod || currentPeriod.outstandingGrosz <= 0} onPress={() => currentPeriod && navigation.navigate("Podatek", { period: currentPeriod.period, openPaymentConfirmation: true, returnTo: "Pulpit" })} style={[ui.card, paymentActionCard]}>
-          <View style={paymentActionHeading}><MaterialIcons name="account-balance" size={18} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>PODATEK</Text></View>
+          <View style={paymentActionHeading}><MaterialIcons name="account-balance" size={16} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>PODATEK</Text></View>
           <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text>
           <Text style={[paymentActionStatus, currentPeriod?.status === "paid" && paymentActionStatusPaid]} numberOfLines={2}>{currentPeriod?.status === "paid" ? "✓ Potwierdzone" : currentPeriod?.status === "no-tax" ? "Brak do zapłaty" : currentPeriod?.status === "overdue" ? `Termin minął · ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : `Brak danych dla ${selectedYear}`}</Text>
         </Pressable>
@@ -503,9 +503,10 @@ const smallLabel = { color: theme.colors.textSecondary, fontSize: 13, fontWeight
 const fieldLabel = { color: theme.colors.textPrimary, fontSize: 13, fontWeight: "600" as const, marginTop: 8 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 };
 const action = { color: theme.colors.primary, fontWeight: "700" as const, fontSize: 13 };
-const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 12 };
+const sectionHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: 6 };
+const dashboardSectionTitle = { ...ui.sectionTitle, marginTop: 12, marginBottom: 8 };
 const emptyText = { color: theme.colors.textSecondary, backgroundColor: theme.colors.surface, padding: 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 15, marginVertical: 6, fontSize: 14 };
-const summaryCard = { padding: 18, marginVertical: 6 };
+const summaryCard = { padding: 16, marginVertical: 4 };
 const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5 };
 const summaryHeroValue = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, marginTop: 3 };
 const summaryDetail = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, marginTop: 3 };
@@ -514,18 +515,18 @@ const summaryPaid = { color: theme.colors.success, fontSize: 14, fontWeight: "70
 const ownerNetBlock = { width: "100%" as const };
 const ownerNetValue = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, marginTop: 3 };
 const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
-const apartmentListCard = { padding: 15, marginTop: 6 };
+const apartmentListCard = { padding: 14, marginTop: 4 };
 const apartmentRentSummary = { gap: 4, paddingBottom: 14, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const rentSummaryHeading = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const };
-const apartmentListRow = { paddingVertical: 13, paddingHorizontal: 4, minHeight: 76 };
+const apartmentListRow = { paddingVertical: 10, paddingHorizontal: 4, minHeight: 68 };
 const apartmentListDivider = { borderTopWidth: 1, borderTopColor: theme.colors.divider };
 const propertyRow = { paddingVertical: 13, paddingHorizontal: 15, marginTop: 7, minHeight: 76 };
 const compactPropertyHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 };
 const propertyName = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const };
-const compactTenant = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 2 };
+const compactTenant = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 2 };
 const compactMuted = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const };
-const compactAmount = { color: theme.colors.textPrimary, fontSize: 22, fontWeight: "800" as const, textAlign: "right" as const, marginTop: 7 };
-const overdueMeta = { color: theme.colors.danger, fontSize: 12, textAlign: "right" as const, marginTop: 2 };
+const compactAmount = { color: theme.colors.textPrimary, fontSize: 20, fontWeight: "800" as const, textAlign: "right" as const, alignSelf: "flex-end" as const, minWidth: 110, marginTop: 5 };
+const overdueMeta = { color: theme.colors.warning, fontSize: 11, fontWeight: "600" as const, textAlign: "right" as const, marginTop: 2 };
 const bulkListContent = { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16 };
 const bulkHint = { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 14 };
 const bulkSelectAllRow = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 10, borderRadius: 12, backgroundColor: theme.colors.surfaceMuted, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 };
@@ -539,10 +540,10 @@ const bulkAmount = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: 
 const bulkFooter = { borderTopWidth: 1, borderTopColor: theme.colors.divider, backgroundColor: theme.colors.background, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 };
 const paymentActionRow = { flexDirection: "row" as const, gap: 10, marginTop: 8 };
 const paymentActionRowStacked = { flexDirection: "column" as const };
-const paymentActionCard = { flex: 1, minWidth: 0, padding: 13, marginVertical: 4, minHeight: 118 };
+const paymentActionCard = { flex: 1, minWidth: 0, padding: 12, marginVertical: 4, minHeight: 104 };
 const paymentActionHeading = { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 };
-const paymentActionAmount = { color: theme.colors.textPrimary, fontSize: 21, lineHeight: 27, fontWeight: "800" as const, marginTop: 8 };
-const paymentActionStatus = { color: theme.colors.textSecondary, fontSize: 12, lineHeight: 16, marginTop: 4 };
+const paymentActionAmount = { color: theme.colors.textPrimary, fontSize: 20, lineHeight: 25, fontWeight: "800" as const, marginTop: 7, fontVariant: ["tabular-nums"] as const };
+const paymentActionStatus = { color: theme.colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 4 };
 const paymentActionStatusPaid = { color: theme.colors.success, fontWeight: "700" as const };
 const paymentActionStatusOverdue = { color: theme.colors.danger, fontWeight: "700" as const };
 const billListContent = { paddingHorizontal: 20, paddingVertical: 14 };
