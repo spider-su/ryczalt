@@ -216,7 +216,7 @@ export function TaxScreen() {
   };
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 36 }}>
+    <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
       <PeriodSelector value={taxPeriodLabel(selectedPeriod, document.settings.settlementMode)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
         previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode)}
         onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, document.settings.settlementMode, now, earliestPeriod))}
@@ -251,11 +251,11 @@ export function TaxScreen() {
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
         </View> : null}
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700", marginTop: 15 }}>Przychód opodatkowany w {taxYear}</Text>
+        <Text style={ui.sectionTitle}>Przychód opodatkowany w {taxYear}</Text>
         <Text style={taxContext}>{formatPln(annualIncome)} / próg stawki 12,5% {annualThreshold > 0 ? formatPln(annualThreshold) : "niedostępny"}</Text>
         {annualThreshold > 0 ? <Text style={thresholdRemaining}>Do progu stawki 12,5%: {formatPln(remainingThreshold)}</Text> : null}
         {annualThreshold > 0 ? <View style={{ marginTop: 8 }}><ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Wykorzystanie progu stawki 12,5%" /></View> : null}
-        {payments.length ? <><Text style={{ color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700", marginTop: 18 }}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text></> : null}
+        {payments.length ? <><Text style={ui.sectionTitle}>Wpłaty zapisane dla okresu</Text><Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text></> : null}
         {payments.map((payment) => <View key={payment.id} style={[ui.card, { padding: 14, marginTop: 8 }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
           {payment.source === "INITIAL_IMPORT" ? <Text style={taxContext}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
@@ -268,7 +268,7 @@ export function TaxScreen() {
     </ScrollView>
     <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700", flex: 1 }}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
+        <View style={ui.modalHeader}><Text style={ui.modalTitle}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w zakładce Przychód przed kontynuacją.</Text>
           <View style={[ui.card, { marginTop: 16, padding: 16, gap: 8 }]}>
@@ -286,7 +286,7 @@ export function TaxScreen() {
     </Modal>
     <Modal visible={modalOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
+        <View style={ui.modalHeader}><Text style={ui.modalTitle}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
           <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ?? ""}</Text>
           <Text style={fieldLabel}>Pełna pozostała kwota podatku (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
@@ -335,5 +335,5 @@ const taxDetails = { marginTop: 14, padding: 11, borderRadius: 12, backgroundCol
 const rentWarning = { marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.warning, backgroundColor: theme.colors.surface };
 const rentWarningTitle = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "700" as const };
 const rentWarningText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4, marginBottom: 6 };
-const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 };
-const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
+const fieldLabel = { ...ui.fieldLabel, marginTop: 12 };
+const inputStyle = { ...ui.input, paddingVertical: 10 };

@@ -387,15 +387,7 @@ export function IncomeScreen() {
     } = {},
   ) => (
     <View style={{ marginBottom: 14 }} key={key}>
-      <Text
-        style={{
-          color: theme.colors.textSecondary,
-          fontSize: 13,
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </Text>
+      <Text style={ui.fieldLabel}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         value={draft[key]}
@@ -414,16 +406,7 @@ export function IncomeScreen() {
         editable={key !== "amount"}
         placeholder={options.placeholder}
         placeholderTextColor={theme.colors.textMuted}
-        style={{
-          color: theme.colors.textPrimary,
-          backgroundColor: theme.colors.inputBackground,
-          borderColor: theme.colors.inputBorder,
-          borderWidth: 1,
-          borderRadius: 8,
-          minHeight: 46,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-        }}
+        style={[ui.input, { paddingVertical: 10 }]}
       />
     </View>
   );
@@ -434,7 +417,7 @@ export function IncomeScreen() {
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 18, paddingBottom: 32, flexGrow: 1 }}
+        contentContainerStyle={{ ...ui.content, flexGrow: 1 }}
         ListHeaderComponent={<View style={{ paddingBottom: 8 }}>
           <PeriodSelector value={String(taxYear)} valueLabel={`Rok ${taxYear}`} previousLabel="Poprzedni rok" nextLabel="Następny rok"
             previousDisabled={taxYearIndex <= 0} nextDisabled={taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear}
@@ -445,14 +428,14 @@ export function IncomeScreen() {
             <Text style={summaryAmount}>{formatPlnSummary(summary.totalGrosz)}</Text>
             <Text style={muted}>{summary.count ? `Na podstawie ${formatPolishCount(summary.count, ["potwierdzonego wpływu", "potwierdzonych wpływów", "potwierdzonych wpływów"])} · ${formatPolishCount(summary.propertyCount, ["mieszkanie", "mieszkania", "mieszkań"])}` : `Brak potwierdzonych wpływów w ${taxYear}.`}</Text>
             {ownerCashflow && ownerCashflow.chargesKnown && summary.count > 0 ? <View style={ownerNetBlock}>
-              <Text style={ownerNetLabel}>ZOSTAJE WŁAŚCICIELOWI</Text>
+              <Text style={ownerNetLabel}>ZYSK</Text>
               <Text style={ownerNetAmount}>{formatPlnSummary(ownerCashflow.ownerNetGrosz)}</Text>
               <Text style={ownerNetDetail}>Wpłaty {formatPlnSummary(ownerCashflow.receivedGrosz)} · opłaty {formatPlnSummary(ownerCashflow.chargesGrosz)} · podatek {formatPlnSummary(ownerCashflow.taxGrosz)}</Text>
-            </View> : ownerCashflow && !ownerCashflow.chargesKnown && summary.count > 0 ? <Text style={muted}>Kwota dla właściciela niedostępna — brakuje historycznych warunków najmu dla części wpłat.</Text> : null}
+            </View> : ownerCashflow && !ownerCashflow.chargesKnown && summary.count > 0 ? <Text style={muted}>Zysk niedostępny — brakuje historycznych warunków najmu dla części wpłat.</Text> : null}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} accessibilityHint="Otwiera wybór mieszkania" onPress={() => setFilterOpen(true)} style={filterControl}>
+          {availableProperties.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel={`Filtr mieszkań: ${selectedPropertyName ?? "Wszystkie mieszkania"}`} accessibilityHint="Otwiera wybór mieszkania" onPress={() => setFilterOpen(true)} style={filterControl}>
             <Text numberOfLines={1} style={filterSelected}>{selectedPropertyName ?? "Wszystkie mieszkania"}</Text><MaterialIcons name="expand-more" size={24} color={theme.colors.textSecondary} />
-          </Pressable>
+          </Pressable> : null}
           {taxYear === Number(currentMonth.slice(0, 4)) && rentRows.length > 0 ? <View style={[ui.card, rentStatusCard]}>
             <Text style={rentStatusHeading}>Czynsz za {formatPolishMonth(currentMonth)}</Text>
             {rentRows.map((row) => {
@@ -530,32 +513,9 @@ export function IncomeScreen() {
         onRequestClose={closeEntryModal}
       >
         <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-          <View
-            style={{
-              padding: 18,
-              borderBottomWidth: 1,
-              borderBottomColor: theme.colors.divider,
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: theme.colors.textPrimary,
-                fontSize: 19,
-                fontWeight: "700",
-              }}
-            >
-              Potwierdź wpłatę
-            </Text>
-            <Text
-              onPress={closeEntryModal}
-              accessibilityRole="button"
-              style={action}
-            >
-              Zamknij
-            </Text>
+          <View style={ui.modalHeader}>
+            <Text style={ui.modalTitle}>Potwierdź wpłatę</Text>
+            <Text onPress={closeEntryModal} accessibilityRole="button" style={action}>Zamknij</Text>
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -676,7 +636,7 @@ const summaryCard = { marginTop: 4, padding: 16 };
 const summaryEyebrow = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "600" as const };
 const summaryAmount = { color: theme.colors.textPrimary, fontSize: 30, fontWeight: "700" as const, marginTop: 2 };
 const ownerNetBlock = { borderTopWidth: 1, borderTopColor: theme.colors.divider, marginTop: 12, paddingTop: 10 };
-const ownerNetLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.4 };
+const ownerNetLabel = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.5 };
 const ownerNetAmount = { color: theme.colors.textPrimary, fontSize: 24, fontWeight: "800" as const, marginTop: 2 };
 const ownerNetDetail = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 };
 const rentStatusCard = { marginTop: 8, padding: 14 };
@@ -692,7 +652,7 @@ const currentMonthReceiptList = { borderTopWidth: 1, borderColor: theme.colors.d
 const receiptListHeading = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const, marginBottom: 2 };
 const filterControl = { marginTop: 8, minHeight: 48, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8, paddingHorizontal: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12 };
 const filterSelected = { color: theme.colors.textPrimary, fontSize: 14, fontWeight: "600" as const, flex: 1 };
-const historyTitle = { color: theme.colors.textPrimary, fontSize: 17, fontWeight: "700" as const, marginTop: 12, marginBottom: 2 };
+const historyTitle = { ...ui.sectionTitle, marginTop: 16, marginBottom: 4 };
 const rangeHeader = { minHeight: 58, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingVertical: 8, paddingHorizontal: 10, marginTop: 3, backgroundColor: theme.colors.surfaceMuted, borderRadius: 10 };
 const rangeLabel = { color: theme.colors.textPrimary, fontSize: 12, fontWeight: "700" as const, letterSpacing: 0.25 };
 const monthHeader = { minHeight: 58, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.colors.divider };
@@ -702,7 +662,7 @@ const periodClosedLabel = { color: theme.colors.textSecondary, fontSize: 11, fon
 const emptyHistory = { paddingVertical: 20 };
 const emptyText = { color: theme.colors.textSecondary, fontSize: 14 };
 const filterBackdrop = { flex: 1, justifyContent: "flex-end" as const, backgroundColor: "rgba(0,0,0,0.35)" };
-const filterSheet = { maxHeight: "75%" as const, paddingHorizontal: 20, paddingTop: 16, backgroundColor: theme.colors.background, borderTopLeftRadius: 18, borderTopRightRadius: 18 };
+const filterSheet = { maxHeight: "75%" as const, paddingHorizontal: 20, paddingTop: 16, backgroundColor: theme.colors.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18 };
 const sheetHeader = { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingBottom: 12 };
 const sheetTitle = { color: theme.colors.textPrimary, fontSize: 18, fontWeight: "700" as const };
 const filterOption = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderTopWidth: 1, borderColor: theme.colors.divider };

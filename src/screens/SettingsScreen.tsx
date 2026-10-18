@@ -33,6 +33,7 @@ import { formatPolishCount, formatPolishDate } from "../domain/presentationForma
 import { formatPlnAmount } from "../domain/ryczaltTax";
 import { ELECTRICITY_PROVIDER_PRESETS, mergeAdministrationSuggestions, newApartmentDefaults } from "../domain/apartmentSetup";
 import { FirstApartmentWizard } from "../components/onboarding/FirstApartmentWizard";
+import { FormField } from "../components/FormControls";
 import { defaultFirstApartmentDraftValues } from "../domain/firstApartmentOnboarding";
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
@@ -414,42 +415,19 @@ export function SettingsScreen() {
       selectTextOnFocus?: boolean;
     } = {},
   ) => (
-    <View style={{ marginBottom: 14 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
+    <View style={{ marginBottom: 16 }} key={key} onLayout={setupFocus && setupActionField(setupFocus) === key ? (event) => {
       propertyEditorScrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 12), animated: true });
       setSetupFocus(null);
     } : undefined}>
-      <Text
-        style={{
-          color: theme.colors.textSecondary,
-          fontSize: 13,
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </Text>
-      <TextInput
-        accessibilityLabel={label}
+      <FormField
+        label={label}
         value={draft[key] ?? ""}
-        onChangeText={(value) =>
-          setDraft((current) => ({ ...current, [key]: value }))
-        }
+        onChangeText={(value) => setDraft((current) => ({ ...current, [key]: value }))}
         placeholder={options.placeholder}
-        placeholderTextColor={theme.colors.textMuted}
         keyboardType={options.keyboardType ?? "default"}
         autoCapitalize={key.endsWith("Url") ? "none" : undefined}
         multiline={options.multiline}
         selectTextOnFocus={options.selectTextOnFocus}
-        style={{
-          color: theme.colors.textPrimary,
-          backgroundColor: theme.colors.inputBackground,
-          borderColor: theme.colors.inputBorder,
-          borderWidth: 1,
-          borderRadius: 8,
-          minHeight: options.multiline ? 84 : 46,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          textAlignVertical: options.multiline ? "top" : "center",
-        }}
       />
     </View>
   );
@@ -510,20 +488,20 @@ export function SettingsScreen() {
       <View style={ui.page}>
       <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
         {activeSection === null ? <>
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 26, fontWeight: "700", marginBottom: 12 }}>Ustawienia</Text>
+        <Text style={ui.pageTitle}>Ustawienia</Text>
         {settingsSections.map((section) => {
           const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
             : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
                 : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax", "bills"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax" | "bills"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
-          return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={categoryRow}>
+          return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={ui.settingsRow}>
             <View style={{ flex: 1 }}><Text style={categoryLabel}>{section.label}</Text><Text style={[muted, section.id === "payment" && summary === "Dane wymagają uzupełnienia" && settingsAttention]}>{summary}</Text></View><MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
           </Pressable>;
         })}
         </> : <>
         <Pressable accessibilityRole="button" onPress={() => setActiveSection(null)} style={settingsBack}><Text style={action}>‹ Ustawienia</Text></Pressable>
-        <Text style={{ color: theme.colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 12 }}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
+        <Text style={ui.pageTitle}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
         {activeSection === "tax" ? <>
         <PeriodSelector value={String(document.settings.taxYear)} valueLabel={`Rok podatkowy ${document.settings.taxYear}`} previousLabel="Poprzedni rok podatkowy" nextLabel="Następny rok podatkowy"
           previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= new Date().getFullYear()}
@@ -855,15 +833,7 @@ function optional(
   return trimmed ? { [key]: trimmed } : {};
 }
 
-const primaryButton = {
-  backgroundColor: theme.colors.primary,
-  minHeight: 48,
-  borderRadius: 8,
-  justifyContent: "center" as const,
-  alignItems: "center" as const,
-  paddingHorizontal: 16,
-  marginVertical: 8,
-};
+const primaryButton = ui.primaryButton;
 const primaryText = {
   color: theme.colors.onAccent,
   fontWeight: "700" as const,
@@ -878,7 +848,6 @@ const action = {
 const modeButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 10 };
 const modeText = { color: theme.colors.textPrimary, fontWeight: "600" as const };
 const sectionTitle = ui.sectionTitle;
-const categoryRow = { minHeight: 72, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 14, paddingHorizontal: 14, marginBottom: 9 };
 const categoryLabel = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
 const settingsAttention = { color: theme.colors.warning, fontWeight: "600" as const };
 const rowTitle = { color: theme.colors.textPrimary, fontWeight: "600" as const, fontSize: 16 };
@@ -888,9 +857,9 @@ const apartmentTenant = { color: theme.colors.textSecondary, fontSize: 13, margi
 const apartmentMeta = { color: theme.colors.textSecondary, fontSize: 14, marginTop: 7 };
 const settingsBack = { minHeight: 44, justifyContent: "center" as const, marginBottom: 6 };
 const notificationRow = { minHeight: 52, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
-const secondaryButton = { borderWidth: 1, borderColor: theme.colors.inputBorder, minHeight: 44, borderRadius: 13, justifyContent: "center" as const, alignItems: "center" as const, paddingHorizontal: 14, marginVertical: 8, backgroundColor: theme.colors.surface };
-const fieldLabel = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 12, marginBottom: 6 };
-const inputStyle = { color: theme.colors.textPrimary, backgroundColor: theme.colors.inputBackground, borderColor: theme.colors.inputBorder, borderWidth: 1, borderRadius: 8, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 };
+const secondaryButton = { ...ui.secondaryButton, marginVertical: 8 };
+const fieldLabel = { ...ui.fieldLabel, marginTop: 12 };
+const inputStyle = { ...ui.input, paddingVertical: 10 };
 const staticPaymentValue = { color: theme.colors.textPrimary, fontSize: 16, minHeight: 38, paddingVertical: 7 };
 const helperText = { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 };
 const validationError = { color: theme.colors.danger, fontSize: 13, marginTop: 3 };
@@ -903,9 +872,9 @@ const legalText = { color: theme.colors.textSecondary, fontSize: 13, lineHeight:
 const trustCard = { padding: 16 };
 const clearDataButton = { minHeight: 46, justifyContent: "center" as const, alignItems: "center" as const, marginTop: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 12 };
 const clearDataText = { color: theme.colors.danger, fontSize: 14, fontWeight: "700" as const };
-const modalHeader = { padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const };
-const modalTitle = { color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" as const };
-const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
+const modalHeader = ui.modalHeader;
+const modalTitle = ui.modalTitle;
+const taxableOption = { minHeight: 56, flexDirection: "row" as const, alignItems: "center" as const, gap: 12, borderWidth: 1, borderColor: theme.colors.borderSubtle, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginTop: 7, backgroundColor: theme.colors.surface };
 const taxableOptionSelected = { borderColor: theme.colors.selectedBorder, backgroundColor: theme.colors.selectedSurface };
 const taxableOptionLabel = { color: theme.colors.textPrimary, flex: 1, fontSize: 14 };
 const taxableOptionLabelSelected = { fontWeight: "600" as const };
