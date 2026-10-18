@@ -516,11 +516,7 @@ export function SettingsScreen() {
           onPrevious={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}
           onNext={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} />
         {!hasTaxRulesForYear(document.settings.taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.warning, marginTop: 8 }}>Możesz wybrać ten rok kalendarzowy, ale reguły podatkowe nie są jeszcze zweryfikowane i wyliczenie pozostanie niedostępne.</Text> : null}
-        <Text style={sectionTitle}>Rozliczenie</Text>
-        <View style={[ui.card, { padding: 14, marginVertical: 10 }]}>
-          <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Rozliczenie miesięczne</Text>
-          <Text style={muted}>Nowe ustawienia konta korzystają z miesięcznych okresów podatkowych.</Text>
-        </View>
+        <Text style={sectionTitle}>Próg podatkowy</Text>
         <View style={notificationRow}><Text style={{ ...rowTitle, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch disabled={hasAnyTaxSnapshots} value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
           if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
           Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
@@ -530,13 +526,18 @@ export function SettingsScreen() {
         {hasAnyTaxSnapshots ? <Text style={muted}>Limit progu jest zablokowany po zapisaniu rozliczeń, aby nie zmienić pozostałych okresów roku.</Text> : null}
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxEligibilityOpen }} onPress={() => setTaxEligibilityOpen((open) => !open)} style={disclosureRow}><Text style={disclosureTitle}>ⓘ Kiedy mogę użyć tego limitu? {taxEligibilityOpen ? "⌃" : "›"}</Text></Pressable>
         {taxEligibilityOpen ? <Text style={legalText}>Wyższy limit 200 000 zł stosuj wyłącznie przy wspólności majątkowej i wyborze opodatkowania całości przychodów z najmu przez jednego małżonka, po złożeniu wymaganego oświadczenia w terminie.</Text> : null}
-        <Text style={[sectionTitle, { marginTop: 18 }]}>Stan początkowy {document.settings.taxYear}</Text>
-        <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w tym roku. Kwoty wpływają na roczny próg i pokazują zbiorczy stan, bez przypisywania różnicy do nieznanego miesiąca.</Text>
-        <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
-        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-        <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
-        <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-        <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz stan początkowy</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxAdvancedOpen }} onPress={() => setTaxAdvancedOpen((open) => !open)} style={[disclosureRow, { marginTop: 18 }]}>
+          <View style={{ flex: 1 }}><Text style={disclosureTitle}>Dane początkowe</Text><Text style={muted}>Tylko jeśli zaczynasz śledzenie w trakcie roku.</Text></View>
+          <MaterialIcons name={taxAdvancedOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
+        </Pressable>
+        {taxAdvancedOpen ? <View style={[ui.compactCard, { marginTop: 4 }]}>
+          <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w {document.settings.taxYear}. Kwoty wpływają na roczny próg bez przypisywania różnicy do nieznanego miesiąca.</Text>
+          <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
+          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+          <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
+          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
+          <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz dane początkowe</Text></Pressable>
+        </View> : null}
         </> : null}
         {activeSection === "notifications" ? <>
         {settingsNotificationsUnavailable(permission)
@@ -630,20 +631,30 @@ export function SettingsScreen() {
         {showArchivedProperties ? archivedProperties.map((property) => <View key={property.id} style={[ui.card, apartmentCard]}><Text style={apartmentTitle}>{property.address}</Text><Text style={muted}>{property.tenantName ?? "Najemca nieuzupełniony"} · Zarchiwizowane · historia zachowana</Text><Pressable accessibilityRole="button" accessibilityLabel={`Utwórz nowe mieszkanie na podstawie ${property.address}`} onPress={() => openNewApartmentFromArchived(property)} style={{ paddingVertical: 10 }}><Text style={action}>Utwórz nowy wpis z tych danych</Text></Pressable></View>) : null}
         </> : null}
         {activeSection === "data" ? <View style={{ gap: 9, marginTop: 2 }}>
-          <View style={[ui.card, trustCard]}><Text style={ui.cardTitle}>Dane lokalne</Text><Text style={muted}>{settingsBackupStatus.local}</Text><Text style={helperText}>{settingsBackupStatus.network}</Text><Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane na urządzeniu. Aplikacja nie wysyła rejestru na serwer. Wersja przeglądarkowa nie zapewnia szyfrowania aplikacyjnego.</Text><Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text></View>
           <View style={[ui.card, trustCard]}>
             <Text style={ui.cardTitle}>Kopia danych</Text>
-            <Text style={muted}>Zapisz kopię, aby móc przywrócić historię najmu i podatku na tym lub innym urządzeniu.</Text>
-            <Text style={helperText}>Plik pozostaje pod Twoją kontrolą. Aplikacja nie wysyła go do chmury.</Text>
+            <Text style={muted}>Dane są zapisane lokalnie na tym urządzeniu. Utwórz kopię, aby móc odtworzyć historię po zmianie lub utracie telefonu.</Text>
             {isDemoMode ? <Text style={helperText}>Kopie danych są wyłączone w trybie demo.</Text> : <>
               <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void exportBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>{backupBusy ? "Przetwarzanie…" : "Utwórz kopię danych"}</Text></Pressable>
               <Pressable accessibilityRole="button" disabled={backupBusy} onPress={() => void restoreBackup()} style={[secondaryButton, backupBusy && disabledControl]}><Text style={modeText}>Przywróć z kopii</Text></Pressable>
             </>}
           </View>
-          <View style={[ui.card, trustCard]}><Text style={ui.cardTitle}>Odzyskiwanie danych</Text><Text style={muted}>{settingsBackupStatus.capabilities}</Text><Text style={muted}>{settingsBackupStatus.uninstall}</Text><Text style={helperText}>Lokalny mechanizm odzyskiwania chroni przed błędem zapisu; kopia plikowa chroni także przy zmianie lub utracie urządzenia.</Text></View>
+          <View style={[ui.card, trustCard]}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: dataInfoOpen }} onPress={() => setDataInfoOpen((open) => !open)} style={disclosureRow}>
+              <Text style={ui.cardTitle}>O danych lokalnych</Text>
+              <MaterialIcons name={dataInfoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
+            </Pressable>
+            {dataInfoOpen ? <View>
+              <Text style={muted}>{settingsBackupStatus.network}</Text>
+              <Text style={helperText}>Na Androidzie i iOS dane aplikacji są szyfrowane przez system urządzenia. Wersja przeglądarkowa nie zapewnia takiej samej ochrony.</Text>
+              <Text style={helperText}>{settingsBackupStatus.capabilities}</Text>
+              <Text style={helperText}>{settingsBackupStatus.uninstall}</Text>
+              <Text style={helperText}>Kopia JSON jest niezaszyfrowana. Zapisuj ją w bezpiecznym miejscu i udostępniaj tylko zaufanym osobom.</Text>
+            </View> : null}
+          </View>
           {isDemoMode ? <Text style={helperText}>W trybie demo możesz wyjść z prezentacji, aby zarządzać zapisanymi danymi.</Text> : <View style={[ui.card, trustCard]}>
             <Text style={ui.cardTitle}>Usuwanie danych</Text>
-            <Text style={muted}>Usuń wszystkie zapisane dane i kopię odzyskiwania z tego urządzenia.</Text>
+            <Text style={muted}>Usuń wszystkie zapisane dane i lokalną kopię odzyskiwania z tego urządzenia.</Text>
             <Pressable accessibilityRole="button" disabled={clearingLocalData} onPress={confirmClearLocalData} style={[clearDataButton, clearingLocalData && { opacity: 0.6 }]}>
               <Text style={clearDataText}>{clearingLocalData ? "Usuwanie danych…" : "Usuń wszystkie dane"}</Text>
             </Pressable>
