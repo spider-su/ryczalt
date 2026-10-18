@@ -54,6 +54,15 @@ export function showAggregateExpectedRent(activeApartmentCount: number) {
   return activeApartmentCount > 1;
 }
 
+export function showDashboardYtdProfit(args: {
+  rentFullyConfirmed: boolean;
+  pendingBillCount: number;
+  taxApproved: boolean;
+  chargesKnown: boolean;
+}) {
+  return args.rentFullyConfirmed && args.pendingBillCount === 0 && args.taxApproved && args.chargesKnown;
+}
+
 export function dashboardProgress(value: number, total: number) {
   const safeTotal = Math.max(0, total);
   const safeValue = Math.max(0, value);
