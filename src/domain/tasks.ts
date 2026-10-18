@@ -182,7 +182,7 @@ export function taskNotificationPlan(document: RentalDocument, now = new Date())
       for (const fireAt of fireTimes) {
         if (!fireAt || fireAt <= now || fireAt > cutoff) continue;
         const overdue = fireAt.getTime() > task.dueAt.getTime();
-        const title = overdue ? `Niepotwierdzona opłata — ${task.title.replace(/^Opłać /, "")}` : "Termin opłaty";
+        const title = overdue ? "Niepotwierdzona opłata" : "Termin opłaty";
         const body = overdue ? "Opłata nadal czeka na potwierdzenie. Otwórz Ryczałt, aby zapisać płatność." : "Sprawdź termin rachunku i potwierdź opłacenie po wykonaniu przelewu.";
         const key = `${task.id}:${overdue ? "overdue" : activelySnoozed ? "snoozed" : "due"}`;
         notifications.push({ key, signature: `${title}|${body}|${fireAt.getTime()}`, title, body, fireAt,
