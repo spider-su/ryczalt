@@ -24,6 +24,19 @@ import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
 import { rentMonthStatusRows } from "../domain/incomeHistory";
+import { lifecycleForMonth } from "../domain/apartmentLifecycle";
+import type { RentalDocument } from "../model/rental";
+
+function unconfirmedRentCountForMonth(document: RentalDocument, month: string) {
+  const rentingProperties = document.properties.filter((property) => {
+    if (lifecycleForMonth(property, month) !== "ACTIVE") return false;
+    const startMonth = property.rentalStartDate?.slice(0, 7);
+    const endMonth = property.leaseEndDate?.slice(0, 7);
+    return (!startMonth || month >= startMonth) && (!endMonth || month <= endMonth);
+  });
+  const rowsByProperty = new Map(rentMonthStatusRows(document.properties, document.incomeEntries, month).map((row) => [row.propertyId, row]));
+  return rentingProperties.filter((property) => rowsByProperty.get(property.id)?.status !== "paid").length;
+}
 
 export function TaxScreen() {
   const { document, error, update } = useRentalData();
@@ -105,16 +118,13 @@ export function TaxScreen() {
           else setModalOpen(true);
         };
         const unconfirmedRentCount = document.settings.settlementMode === "monthly"
-          ? rentMonthStatusRows(document.properties, document.incomeEntries, targetPeriod).filter((row) => row.status === "unpaid").length
+          ? unconfirmedRentCountForMonth(document, targetPeriod)
           : 0;
         if (unconfirmedRentCount > 0) {
           Alert.alert(
-            "Nie wszystkie wpłaty są potwierdzone",
-            `${formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek jest wyliczony tylko z potwierdzonych wpłat. Jeśli czynsz został otrzymany, należny podatek może się zwiększyć.`,
-            [
-              { text: "Sprawdź wpłaty", style: "cancel", onPress: () => { setReturnToTab(null); navigation.navigate("Przychód"); } },
-              { text: "Kontynuuj mimo to", onPress: openConfirmation },
-            ],
+            "Nie wszystkie czynsze są potwierdzone",
+            `${formatPolishCount(unconfirmedRentCount, ["mieszkanie wymaga potwierdzenia", "mieszkania wymagają potwierdzenia", "mieszkań wymaga potwierdzenia"])}. Najpierw potwierdź czynsz za ten miesiąc.`,
+            [{ text: "Sprawdź wpłaty", onPress: () => { setReturnToTab(null); navigation.navigate("Przychód"); } }],
           );
         } else openConfirmation();
       }
@@ -130,11 +140,11 @@ export function TaxScreen() {
   const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
-  const unconfirmedRentRows = settlementMode === "monthly"
-    ? rentMonthStatusRows(document.properties, document.incomeEntries, selectedPeriod).filter((row) => row.status === "unpaid")
-    : [];
-  const unconfirmedRentCount = unconfirmedRentRows.length;
+  const unconfirmedRentCount = settlementMode === "monthly"
+    ? unconfirmedRentCountForMonth(document, selectedPeriod)
+    : 0;
   const openPayment = () => {
+    if (unconfirmedRentCount > 0) return;
     setPaymentDraft({ amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
     setModalOpen(true);
   };
@@ -163,21 +173,25 @@ export function TaxScreen() {
       return;
     }
     Alert.alert(
-      "Nie wszystkie wpłaty są potwierdzone",
-      `${formatPolishCount(unconfirmedRentCount, ["mieszkanie czeka", "mieszkania czekają", "mieszkań czeka"])} na potwierdzenie. Podatek jest wyliczony tylko z potwierdzonych wpłat. Jeśli czynsz został otrzymany, należny podatek może się zwiększyć.`,
-      [
-        { text: "Sprawdź wpłaty", style: "cancel", onPress: () => navigation.navigate("Przychód") },
-        { text: "Kontynuuj mimo to", onPress: proceedToPaymentWithHistoryReview },
-      ],
+      "Nie wszystkie czynsze są potwierdzone",
+      `${formatPolishCount(unconfirmedRentCount, ["mieszkanie wymaga potwierdzenia", "mieszkania wymagają potwierdzenia", "mieszkań wymaga potwierdzenia"])}. Najpierw potwierdź czynsz za ten miesiąc.`,
+      [{ text: "Sprawdź wpłaty", onPress: () => navigation.navigate("Przychód") }],
     );
   };
   const continueAfterHistoryReview = () => {
     // Reviewing history never manufactures tax-payment records. The user confirms
     // the actual amount and date in the payment form that follows.
     setHistoryReviewOpen(false);
+    if (unconfirmedRentCount > 0) return;
     openPayment();
   };
   const savePayment = async () => {
+    if (unconfirmedRentCount > 0) {
+      setModalOpen(false);
+      setHistoryReviewOpen(false);
+      Alert.alert("Najpierw potwierdź czynsz", "Potwierdź czynsz we wszystkich mieszkaniach za ten miesiąc, aby zapisać wpłatę podatku.");
+      return;
+    }
     const amount = paymentDraft.amount.trim().replace(",", ".");
     if (!isPositiveMoney(amount) || !isValidCalendarDate(paymentDraft.paidAt)) {
       Alert.alert("Sprawdź dane wpłaty", "Kwota musi być dodatnia (maks. 2 miejsca po przecinku), a data rzeczywista w formacie RRRR-MM-DD.");
@@ -248,11 +262,11 @@ export function TaxScreen() {
           {calculation.openingBalance.overpaidGrosz > 0 ? <Text style={taxContext}>Nadpłata stanu początkowego: {formatPln(calculation.openingBalance.overpaidGrosz)}. Nie przypisano jej do miesięcznego okresu.</Text> : null}
         </View> : null}
         {unconfirmedRentCount > 0 ? <View style={rentWarning}>
-          <Text style={rentWarningTitle}>{formatPolishCount(unconfirmedRentCount, ["czynsz czeka na potwierdzenie", "czynsze czekają na potwierdzenie", "czynszów czeka na potwierdzenie"])}</Text>
-          <Text style={rentWarningText}>Podatek obejmuje tylko potwierdzone wpłaty.</Text>
+          <Text style={rentWarningTitle}>Nie wszystkie czynsze są potwierdzone</Text>
+          <Text style={rentWarningText}>{formatPolishCount(unconfirmedRentCount, ["mieszkanie wymaga potwierdzenia", "mieszkania wymagają potwierdzenia", "mieszkań wymaga potwierdzenia"])}. Najpierw potwierdź czynsz za ten miesiąc. Podatek obejmuje tylko potwierdzone wpłaty.</Text>
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate("Przychód")}><Text style={action}>Sprawdź wpłaty ›</Text></Pressable>
         </View> : null}
-        {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
+        {paymentPrompt?.showPayment && unconfirmedRentCount === 0 ? <Pressable accessibilityRole="button" onPress={openPaymentWithHistoryReview} style={primaryButton}><Text style={primaryText}>Potwierdź wykonaną wpłatę</Text></Pressable> : null}
         {paymentPrompt?.showPayment ? <Pressable accessibilityRole="button" accessibilityLabel={`Dane do przelewu. ${TAX_TRANSFER_HINT}`} onPress={() => setPaymentDetailsOpen(true)} style={transferRow}><View><Text style={transferTitle}>Dane do przelewu</Text><Text style={transferHint}>{TAX_TRANSFER_HINT}</Text></View><Text style={action}>›</Text></Pressable> : null}
         <View style={compactSection}>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: annualOpen }} accessibilityLabel={`Rok ${taxYear}, przychód opodatkowany ${formatPln(annualIncome)}`} onPress={() => setAnnualOpen((open) => !open)} style={disclosureRow}>

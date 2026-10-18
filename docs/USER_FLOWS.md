@@ -18,11 +18,11 @@ Apartment terms → period-specific expected rent/reminder → landlord checks t
 
 ## Calculate and confirm tax
 
-Confirmed taxable receipts → versioned rules calculate period obligation and deadline → landlord pays outside the app and manually records amount/date → paid/outstanding balance updates, with overpayment carried forward. Editing/deleting receipts or payments recalculates the tax position. When a future year has no verified rules, the latest verified year is used provisionally and a visible warning names the rules year; the result is informational and must be checked before payment.
+Confirmed taxable receipts → versioned rules calculate period obligation and deadline → after every apartment's rent for the month is fully confirmed, the landlord pays outside the app and manually records amount/date → paid/outstanding balance updates, with overpayment carried forward. Tax payment confirmation stays unavailable while any active apartment has unknown or unconfirmed rent for that month. Editing/deleting receipts or payments recalculates the tax position. When a future year has no verified rules, the latest verified year is used provisionally and a visible warning names the rules year; the result is informational and must be checked before payment.
 
-## Confirm recurring bills
+## Confirm apartment media charges
 
-Add a recurring bill to an apartment with a name, due day and optional expected monthly amount. A local reminder appears on the due date and once more the next day if the bill remains unconfirmed. The Pulpit places **Opłaty** before **Podatek**; selecting a bill records its full actual amount and today's payment date only after manual confirmation. Variable bills use the amount entered at confirmation. No bank transfer is initiated or inferred.
+The **Opłaty** card totals known media charges from active apartments for the selected month. Open it to review the apartment amounts and confirm the full total after paying. The app saves one monthly confirmation and marks Opłaty as confirmed. A local reminder appears using the latest payment day among apartments with media charges, then once more the next day if still unconfirmed. There is no separate form for adding arbitrary Opłaty, and no bank transfer is initiated or inferred.
 
 ## Lease expiry
 
@@ -30,7 +30,7 @@ Optional lease end date → local reminder 30 days before expiry → tap opens a
 
 ## Monthly apartment overview
 
-Pulpit flow: confirm rent → confirm recurring bills → confirm tax. The rent summary appears with apartment details; compact Opłaty and Podatek cards share a row when the screen is wide enough and stack on narrow screens. Select apartment/month for expected owner rent, confirmed receipts, amount still to check, nearby lease reminder, administration/electricity links and contextual rent confirmation. Media is separate from owner income.
+Pulpit flow: confirm rent → confirm apartment media charges → confirm tax. The rent summary appears with apartment details; compact Opłaty and Podatek cards share a row when the screen is wide enough and stack on narrow screens. Select apartment/month for expected owner rent, confirmed receipts, amount still to check, nearby lease reminder, administration/electricity links and contextual rent confirmation. Media is separate from owner income.
 
 ## JSON backup and restore
 

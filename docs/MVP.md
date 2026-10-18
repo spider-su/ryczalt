@@ -2,18 +2,18 @@
 
 This document defines the functional scope for the private-rental POC. Release readiness is tracked in the root [ROADMAP](../ROADMAP.md); no public release is implied.
 
-## Core acceptance: rent → bills → tax
+## Core acceptance: rent → apartment media charges → tax
 
-The user confirms actual rent receipts, records recurring bill payments after paying outside the app, and sees ryczałt calculated from confirmed taxable receipts. Rent, bills and tax are confirmed manually in that order. Reminders and expected amounts never create financial records or imply payment. This workflow is P0; apartment setup and reminders support it.
+The user confirms actual rent receipts, confirms payment of the known media charges configured for apartments, and sees ryczałt calculated from confirmed taxable receipts. Rent, apartment media charges and tax are confirmed manually in that order. Reminders and expected amounts never create financial records or imply payment. This workflow is P0; apartment setup and reminders support it.
 
 ## User outcomes and acceptance
 
 1. **Confirm rental income:** record actual receipt date and confirm the full rent in one action; keep expected rent separate. Initial historical rent is added only after the landlord confirms the selected period in the setup flow.
-2. **Track recurring bills:** configure a bill name, due day and optional expected amount for an apartment. Show due and confirmed states, allow manual confirmation of the full actual amount, and schedule local reminders.
+2. **Confirm apartment media charges:** aggregate known monthly media amounts for active apartments, show the total on Pulpit, and let the landlord manually confirm the full amount after paying. Do not offer adding separate arbitrary Opłaty. Local reminders use the apartments' configured payment days.
 3. **Calculate and pay tax:** calculate from confirmed taxable receipts; show applicable settlement period, obligation, due date, and confirm the full outstanding tax amount. Corrections update calculations and tasks.
 4. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; dismissing an OS notification does not erase a task. Empty state is useful.
 5. **Configure the rental context:** apartment address, editable rent start date (default January 1 of the current year), owner rent and separate media amount/responsibility, due day, current tenant/contact, optional lease end, administration and electricity-provider URLs. New apartments default to tenant-paid media enabled. Rent reminders are grouped by due date; they are derived from apartments rather than configured individually.
-6. **Support the core with reminders:** local reminders for rent checks, bills, tax and lease end. No user-created personal reminders. Keep this a support function, not a generic task manager.
+6. **Support the core with reminders:** local reminders for rent checks, apartment media charges, tax and lease end. No user-created personal reminders. Keep this a support function, not a generic task manager.
 7. **Protect local records:** validated JSON export/import is available and the clear/reinstall/restore round-trip is a release gate. Android system backup is best-effort and device/settings dependent.
 8. **Use relevant services:** user-supplied administrator and utility links open externally without credentials, scraping or implied completion.
 9. **Show a light overview:** confirmed income, amount to check, tax remaining and attention count; six-month trend and apartment split. No ROI or valuation.

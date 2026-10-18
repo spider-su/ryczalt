@@ -110,6 +110,9 @@ export type BillPayment = {
   amount: string;
 };
 
+/** Stable reference used to store the monthly confirmation of apartment media charges in billPayments. */
+export const APARTMENT_MEDIA_BILL_ID = "apartment-media";
+
 export type IncomeEntry = {
   id: string;
   propertyId: string;

@@ -10,7 +10,7 @@ Release candidate evidence must record the exact main SHA, app version, GitHub C
 
 Native Android/iOS apartment, tenant/contact, income, tax-payment and reminder records are encrypted locally with AES-256-GCM; the device-bound key is stored by SecureStore/Keychain/Keystore. Android system backup is disabled. Valid pre-encryption local documents migrate on first load; JSON export/import remains user-controlled plaintext. Browser storage is not app-encrypted. No backend, account, bank connection, cloud sync or electronic PIT-28 submission exists. Privacy and store declaration evidence remains incomplete; see [PRIVACY_RELEASE_EVIDENCE](PRIVACY_RELEASE_EVIDENCE.md).
 
-Private rental only; manual rent, recurring bill and tax payment confirmation; local reminders for rent, bill due dates, tax and lease expiry. User-created custom/personal reminders remain out of scope. Existing schema-1 bill records continue to load and now participate in the bill UI and reminder flow.
+Private rental only; manual rent, apartment media-charge and tax payment confirmation; local reminders for rent, media charges, tax and lease expiry. User-created custom/personal reminders remain out of scope. Existing schema-1 recurring bill records continue to load and their legacy task/reminder behavior remains supported; the current Opłaty flow uses apartment terms.
 
 Tax calculations are informational. Rules are versioned by year; exact-year rules take precedence, while every future year without an exact entry uses the latest configured rules provisionally with a visible warning and saved applied-rules-year metadata. Users must verify the result before paying.
 

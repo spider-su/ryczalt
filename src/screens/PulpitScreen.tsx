@@ -6,12 +6,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { deriveTasks, localIso, rentMonthAmounts, setTaskState, snoozeOptions, type AssistantTask } from "../domain/tasks";
 import { calculateTaxYear, formatPln, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth, taxOnRevenue } from "../domain/ryczaltTax";
+import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { taxSummaryForPeriod } from "../domain/taxPresentation";
 import { isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
 import { deriveSetupProgress, type SetupAction } from "../domain/setupProgress";
 import { setupActionIntent } from "../navigation/setupIntent";
 import { navigateToTaxDetails } from "../navigation/taxIntent";
-import type { Property } from "../model/rental";
+import { APARTMENT_MEDIA_BILL_ID, type Property } from "../model/rental";
 import { useReminders } from "../notifications/ReminderProvider";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
@@ -41,15 +42,11 @@ export function PulpitScreen() {
   const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [rentDetailsExpanded, setRentDetailsExpanded] = useState(false);
-  const [billListOpen, setBillListOpen] = useState(false);
   const [billToConfirmId, setBillToConfirmId] = useState<string | null>(null);
   const [billAmountDraft, setBillAmountDraft] = useState("");
   const [billSaving, setBillSaving] = useState(false);
-  const [billAddOpen, setBillAddOpen] = useState(false);
-  const [billNameDraft, setBillNameDraft] = useState("");
-  const [billExpectedDraft, setBillExpectedDraft] = useState("");
-  const [billDueDayDraft, setBillDueDayDraft] = useState("5");
-  const [billPropertyDraft, setBillPropertyDraft] = useState("");
+  const [mediaConfirmationOpen, setMediaConfirmationOpen] = useState(false);
+  const [mediaSaving, setMediaSaving] = useState(false);
   const [adminPickerVisible, setAdminPickerVisible] = useState(false);
   const [snoozeTask, setSnoozeTask] = useState<AssistantTask | null>(null);
   const [snoozeDate, setSnoozeDate] = useState(todayIsoDate());
@@ -58,12 +55,17 @@ export function PulpitScreen() {
   useEffect(() => {
     const params = route.params as { billId?: string; period?: string } | undefined;
     if (!document || !params?.billId) return;
+    if (params.billId === APARTMENT_MEDIA_BILL_ID) {
+      if (params.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.period)) setSelectedMonth(params.period);
+      setMediaConfirmationOpen(true);
+      navigation.setParams({ billId: undefined, period: undefined });
+      return;
+    }
     const bill = document.recurringBills.find((item) => item.id === params.billId);
     if (!bill) return;
     if (params.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.period)) setSelectedMonth(params.period);
     setBillAmountDraft(bill.expectedAmount ?? "");
     setBillToConfirmId(bill.id);
-    setBillListOpen(false);
     navigation.setParams({ billId: undefined, period: undefined });
   }, [document, navigation, route.params]);
 
@@ -103,6 +105,7 @@ export function PulpitScreen() {
   const receivedRent = expectedRent - remainingRent;
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
   const rentFullyConfirmed = rentExpectationKnown && expectedRent > 0 && remainingRent === 0;
+  const rentConfirmationPending = !rentExpectationKnown || remainingRent > 0;
   const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
   const taxSummary = currentPeriodKey ? taxSummaryForPeriod(settlements, currentPeriodKey) : { current: null, previousOutstanding: { count: 0, totalGrosz: 0 } };
   const currentPeriod = taxSummary.current;
@@ -132,15 +135,11 @@ export function PulpitScreen() {
   const apartmentChargeTerms = activeProperties.map((property) => apartmentTermsForMonth(property, selectedMonth));
   const apartmentChargesKnown = activeProperties.length > 0 && apartmentChargeTerms.every(Boolean);
   const apartmentMediaTotal = apartmentChargeTerms.reduce((sum, terms) => sum + (terms?.mediaPaidByTenant ? terms.mediaAmountGrosz : 0), 0);
-  const dashboardBills = document.recurringBills.filter((bill) => activeProperties.some((property) => property.id === bill.propertyId));
-  const pendingBills = dashboardBills.filter((bill) => !document.billPayments.some((payment) => payment.billId === bill.id && payment.period === selectedMonth));
-  const knownBillTotal = dashboardBills.reduce((sum, bill) => sum + (bill.expectedAmount ? moneyToGrosz(bill.expectedAmount) : 0), 0);
-  const billAmountsComplete = dashboardBills.every((bill) => Boolean(bill.expectedAmount));
-  const nextPendingBill = pendingBills.filter((bill) => bill.dueDay).sort((left, right) => left.dueDay! - right.dueDay!)[0];
-  const nextPendingDue = nextPendingBill?.dueDay ? rentDueIso(selectedMonth, nextPendingBill.dueDay) : null;
+  const mediaPayment = document.billPayments.find((payment) => payment.billId === APARTMENT_MEDIA_BILL_ID && payment.period === selectedMonth);
+  const pendingBillCount = apartmentMediaTotal > 0 && !mediaPayment ? 1 : 0;
   const dashboardFullyApproved = showDashboardYtdProfit({
     rentFullyConfirmed,
-    pendingBillCount: pendingBills.length,
+    pendingBillCount,
     taxApproved: Boolean(currentPeriod && currentPeriod.outstandingGrosz === 0 && taxSummary.previousOutstanding.count === 0),
     chargesKnown: Boolean(ytdCashflow?.chargesKnown),
   });
@@ -155,6 +154,10 @@ export function PulpitScreen() {
       expectedAmount: task.remainingGrosz ? (task.remainingGrosz / 100).toFixed(2) : undefined,
     });
     else if (task.type === "TAX_PAYMENT") navigateToTaxDetails(navigation, task.period);
+    else if (task.type === "RECURRING_BILL" && task.billId === APARTMENT_MEDIA_BILL_ID) {
+      setSelectedMonth(task.period ?? selectedMonth);
+      setMediaConfirmationOpen(true);
+    }
     else if (task.type === "RECURRING_BILL") {
       const bill = document.recurringBills.find((item) => item.id === task.billId);
       if (bill) { setSelectedMonth(task.period ?? selectedMonth); setBillAmountDraft(bill.expectedAmount ?? ""); setBillToConfirmId(bill.id); }
@@ -211,12 +214,6 @@ export function PulpitScreen() {
       Alert.alert("Wpłaty nie zostały potwierdzone", "Nie udało się zapisać zestawu wpłat. Żadna nie została oznaczona jako potwierdzona — sprawdź dane i spróbuj ponownie.");
     } finally { setBulkSaving(false); }
   };
-  const openBillPayment = (billId: string) => {
-    const bill = document.recurringBills.find((item) => item.id === billId);
-    if (!bill) return;
-    setBillToConfirmId(billId);
-    setBillAmountDraft(bill.expectedAmount ?? "");
-  };
   const confirmBillPayment = async () => {
     const amount = billAmountDraft.trim().replace(",", ".");
     if (!billToConfirm || !isPositiveMoney(amount) || billSaving) {
@@ -232,24 +229,24 @@ export function PulpitScreen() {
       Alert.alert("Nie zapisano opłaty", "Nie udało się potwierdzić płatności. Spróbuj ponownie.");
     } finally { setBillSaving(false); }
   };
-  const saveRecurringBill = async () => {
-    const name = billNameDraft.trim();
-    const expectedAmount = billExpectedDraft.trim().replace(",", ".");
-    const dueDay = Number(billDueDayDraft);
-    if (!billPropertyDraft || !activeProperties.some((property) => property.id === billPropertyDraft) || !name || !Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31 || (expectedAmount && !isPositiveMoney(expectedAmount))) {
-      Alert.alert("Sprawdź dane opłaty", "Wybierz mieszkanie, wpisz nazwę, prawidłowy dzień miesiąca i opcjonalną kwotę większą od 0 zł.");
-      return;
-    }
+  const confirmApartmentMediaPayment = async () => {
+    if (mediaSaving || !apartmentChargesKnown || apartmentMediaTotal <= 0 || mediaPayment) return;
+    setMediaSaving(true);
     try {
-      await update((current) => ({ ...current, recurringBills: [...current.recurringBills, {
-        id: createId("bill"), propertyId: billPropertyDraft, name, dueDay, reminderEnabled: true,
-        ...(expectedAmount ? { expectedAmount } : { variableAmount: true }),
-      }] }));
-      setBillAddOpen(false);
-      setBillNameDraft(""); setBillExpectedDraft(""); setBillDueDayDraft("5");
+      await update((current) => {
+        if (current.billPayments.some((payment) => payment.billId === APARTMENT_MEDIA_BILL_ID && payment.period === selectedMonth)) throw new Error("Apartment media already confirmed.");
+        const currentTotal = activeProperties.reduce((sum, property) => {
+          const currentProperty = current.properties.find((item) => item.id === property.id);
+          const terms = currentProperty ? apartmentTermsForMonth(currentProperty, selectedMonth) : undefined;
+          return sum + (terms?.mediaPaidByTenant ? terms.mediaAmountGrosz : 0);
+        }, 0);
+        if (currentTotal !== apartmentMediaTotal || currentTotal <= 0) throw new Error("Apartment media changed before confirmation.");
+        return { ...current, billPayments: [...current.billPayments, makeBillPayment(createId("bill-payment"), APARTMENT_MEDIA_BILL_ID, selectedMonth, decimalFromGrosz(currentTotal), todayIsoDate())] };
+      });
+      setMediaConfirmationOpen(false);
     } catch {
-      Alert.alert("Nie zapisano opłaty", "Nie udało się dodać opłaty. Spróbuj ponownie.");
-    }
+      Alert.alert("Nie potwierdzono opłat", "Kwoty uległy zmianie albo nie udało się zapisać potwierdzenia. Sprawdź dane i spróbuj ponownie.");
+    } finally { setMediaSaving(false); }
   };
 
   if (activeProperties.length === 0) {
@@ -314,7 +311,7 @@ export function PulpitScreen() {
         </View> : ownerCashflow ? <Text style={ownerNetDetail}>Zysk niedostępny — brakuje warunków najmu dla części wpłat.</Text> : null}
       </View> : null}
 
-      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Przychód")} style={sectionHeaderAction}><Text style={action}>Historia wpłat ›</Text></Pressable></View>
+      <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Przychód")} style={sectionHeaderAction}><Text style={[action, { color: theme.colors.selectedNavigation }]}>Historia wpłat ›</Text></Pressable></View>
       {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
         <Pressable accessibilityRole={rentFullyConfirmed ? "button" : undefined}
           accessibilityLabel={rentFullyConfirmed ? `Czynsz ${compactPln(receivedRent)}. Potwierdzone. ${rentDetailsExpanded ? "Ukryj mieszkania" : "Pokaż mieszkania"}` : undefined}
@@ -354,15 +351,15 @@ export function PulpitScreen() {
       </View>}
 
       <View style={[paymentActionRow, width < 360 && paymentActionRowStacked]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={dashboardBills.length ? `Opłaty. ${pendingBills.length ? `${pendingBills.length} do potwierdzenia` : "potwierdzone"}` : "Dodaj pierwszą opłatę"} onPress={() => setBillListOpen(true)} style={[ui.card, paymentActionCard]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !apartmentChargesKnown || apartmentMediaTotal <= 0 || Boolean(mediaPayment) }} accessibilityLabel={`Opłaty. ${!apartmentChargesKnown ? "Kwota nieznana" : mediaPayment ? "Potwierdzone" : apartmentMediaTotal > 0 ? `${compactPln(apartmentMediaTotal)} do potwierdzenia` : "Brak opłat"}`} disabled={!apartmentChargesKnown || apartmentMediaTotal <= 0 || Boolean(mediaPayment)} onPress={() => setMediaConfirmationOpen(true)} style={[ui.card, paymentActionCard]}>
           <View style={paymentActionHeading}><MaterialIcons name="receipt-long" size={16} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>OPŁATY</Text></View>
-          <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{apartmentChargesKnown ? compactPln(apartmentMediaTotal) : dashboardBills.length && billAmountsComplete ? compactPln(knownBillTotal) : dashboardBills.length ? "Kwota zmienna" : "Dodaj"}</Text>
-          <Text style={[paymentActionStatus, nextPendingDue && nextPendingDue < todayIsoDate() && paymentActionStatusOverdue]} numberOfLines={2}>{dashboardBills.length === 0 ? "Dodaj rachunki i przypomnienia" : pendingBills.length === 0 ? "✓ Potwierdzone" : `${pendingBills.length} do opłacenia${nextPendingDue ? ` · ${nextPendingDue < todayIsoDate() ? "po terminie" : "termin"} ${formatPolishDate(nextPendingDue)}` : " · ustaw termin"}`}</Text>
+          <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{apartmentChargesKnown ? compactPln(apartmentMediaTotal) : "—"}</Text>
+          <Text style={[paymentActionStatus, mediaPayment && paymentActionStatusPaid]} numberOfLines={2}>{!apartmentChargesKnown ? "Uzupełnij kwoty w mieszkaniach" : apartmentMediaTotal === 0 ? "Brak opłat" : mediaPayment ? "✓ Potwierdzone" : "Do potwierdzenia"}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !currentPeriod || currentPeriod.outstandingGrosz <= 0 }} accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${currentPeriod.status === "paid" ? "Potwierdzone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} disabled={!currentPeriod || currentPeriod.outstandingGrosz <= 0} onPress={() => currentPeriod && navigation.navigate("Podatek", { period: currentPeriod.period, openPaymentConfirmation: true, returnTo: "Pulpit" })} style={[ui.card, paymentActionCard]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !currentPeriod || currentPeriod.outstandingGrosz <= 0 || rentConfirmationPending }} accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${rentConfirmationPending ? "Najpierw potwierdź wszystkie czynsze" : currentPeriod.status === "paid" ? "Potwierdzone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} disabled={!currentPeriod || currentPeriod.outstandingGrosz <= 0 || rentConfirmationPending} onPress={() => currentPeriod && navigation.navigate("Podatek", { period: currentPeriod.period, openPaymentConfirmation: true, returnTo: "Pulpit" })} style={[ui.card, paymentActionCard, rentConfirmationPending && currentPeriod?.outstandingGrosz ? { opacity: 0.62 } : null]}>
           <View style={paymentActionHeading}><MaterialIcons name="account-balance" size={16} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>PODATEK</Text></View>
           <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text>
-          <Text style={[paymentActionStatus, currentPeriod?.status === "paid" && paymentActionStatusPaid]} numberOfLines={2}>{currentPeriod?.status === "paid" ? "✓ Potwierdzone" : currentPeriod?.status === "no-tax" ? "Brak do zapłaty" : currentPeriod?.status === "overdue" ? `Termin minął · ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : `Brak danych dla ${selectedYear}`}</Text>
+          <Text style={[paymentActionStatus, currentPeriod?.status === "paid" && paymentActionStatusPaid]} numberOfLines={2}>{rentConfirmationPending && currentPeriod?.outstandingGrosz ? "Najpierw potwierdź czynsze" : currentPeriod?.status === "paid" ? "✓ Potwierdzone" : currentPeriod?.status === "no-tax" ? "Brak do zapłaty" : currentPeriod?.status === "overdue" ? `Termin minął · ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : `Brak danych dla ${selectedYear}`}</Text>
         </Pressable>
       </View>
 
@@ -410,20 +407,28 @@ export function PulpitScreen() {
       </SafeAreaView>
     </Modal>
 
-    <Modal visible={billListOpen} animationType="slide" onRequestClose={() => setBillListOpen(false)}>
+    <Modal visible={mediaConfirmationOpen} animationType="slide" onRequestClose={() => !mediaSaving && setMediaConfirmationOpen(false)}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <ModalHeader title={`Opłaty · ${formatPolishMonth(selectedMonth)}`} onClose={() => setBillListOpen(false)} />
-        <ScrollView contentContainerStyle={billListContent}>
-          {dashboardBills.length === 0 ? <Text style={muted}>Dodaj cykliczną opłatę, aby otrzymywać przypomnienie w terminie.</Text> : dashboardBills.map((bill) => {
-            const property = document.properties.find((item) => item.id === bill.propertyId);
-            const payment = document.billPayments.find((item) => item.billId === bill.id && item.period === selectedMonth);
-            return <View key={bill.id} style={billListRow}>
-              <View style={billListDetails}><Text style={bulkItemName}>{bill.name}</Text><Text style={compactTenant}>{property?.address ?? "Mieszkanie"} · {payment ? formatPln(moneyToGrosz(payment.amount)) : bill.expectedAmount ? formatPln(moneyToGrosz(bill.expectedAmount)) : "zmienna kwota"}</Text><Text style={billListStatus}>{payment ? `✓ Potwierdzone · ${formatPolishDate(payment.paidAt)}` : `Termin ${bill.dueDay ?? "—"}. dnia`}</Text></View>
-              {payment ? <MaterialIcons name="check-circle" size={22} color={theme.colors.success} /> : <Pressable accessibilityRole="button" onPress={() => { setBillListOpen(false); openBillPayment(bill.id); }} style={billConfirmLink}><Text style={billConfirmLinkText}>Potwierdź</Text></Pressable>}
+        <ModalHeader title="Potwierdź opłacenie opłat" onClose={() => !mediaSaving && setMediaConfirmationOpen(false)} />
+        <ScrollView contentContainerStyle={bulkListContent}>
+          <Text style={bulkHint}>{formatPolishMonth(selectedMonth)} · opłaty z warunków mieszkań</Text>
+          {activeProperties.map((property, index) => {
+            const terms = apartmentTermsForMonth(property, selectedMonth);
+            const amount = terms?.mediaPaidByTenant ? terms.mediaAmountGrosz : 0;
+            if (!amount) return null;
+            return <View key={property.id} style={[apartmentListRow, index > 0 && apartmentListDivider]}>
+              <View style={{ flex: 1 }}><Text style={propertyName}>{property.address}</Text><Text style={compactTenant}>Opłaty</Text></View>
+              <Text style={bulkAmount}>{formatPln(amount)}</Text>
             </View>;
           })}
-          {activeProperties.length ? <Pressable accessibilityRole="button" onPress={() => { setBillPropertyDraft(activeProperties[0]?.id ?? ""); setBillNameDraft(""); setBillExpectedDraft(""); setBillDueDayDraft("5"); setBillAddOpen(true); }} style={[primaryButton, billAddButton]}><Text style={primaryText}>＋ Dodaj opłatę</Text></Pressable> : null}
+          <View style={[ui.card, { marginTop: 16 }]}>
+            <Text style={summaryEyebrow}>ŁĄCZNIE</Text>
+            <Text style={summaryHeroValue}>{compactPln(apartmentMediaTotal)}</Text>
+          </View>
         </ScrollView>
+        <View style={bulkFooter}>
+          <Pressable accessibilityRole="button" disabled={mediaSaving || Boolean(mediaPayment)} onPress={() => void confirmApartmentMediaPayment()} style={[primaryButton, (mediaSaving || Boolean(mediaPayment)) && disabledButton]}><Text style={primaryText}>{mediaSaving ? "Zapisywanie…" : mediaPayment ? "Potwierdzone" : "Potwierdź opłacenie"}</Text></Pressable>
+        </View>
       </SafeAreaView>
     </Modal>
 
@@ -433,20 +438,6 @@ export function PulpitScreen() {
         {billToConfirm ? <><Text style={[muted, { marginTop: 12 }]}>{billToConfirm.name} · {formatPolishMonth(selectedMonth)}</Text><Text style={fieldLabel}>{billToConfirm.expectedAmount ? "Kwota miesięczna" : "Zapłacona kwota"}</Text>{billToConfirm.expectedAmount ? <Text style={billFixedAmount}>{formatPln(moneyToGrosz(billToConfirm.expectedAmount))}</Text> : <TextInput accessibilityLabel="Zapłacona kwota opłaty" value={billAmountDraft} onChangeText={setBillAmountDraft} keyboardType="decimal-pad" placeholder="np. 500,00" style={input} />}<Pressable accessibilityRole="button" disabled={billSaving} onPress={() => void confirmBillPayment()} style={[primaryButton, billSaving && disabledButton]}><Text style={primaryText}>{billSaving ? "Zapisywanie…" : "Potwierdź opłacenie"}</Text></Pressable></> : null}
       </View></SafeAreaView>
     </Modal>
-
-    <Modal visible={billAddOpen} transparent animationType="fade" onRequestClose={() => setBillAddOpen(false)}>
-      <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}>
-        <ModalHeader title="Nowa cykliczna opłata" onClose={() => setBillAddOpen(false)} />
-        <Text style={fieldLabel}>Mieszkanie</Text>
-        <View style={billPropertyChoices}>{activeProperties.map((property) => <Pressable key={property.id} accessibilityRole="radio" accessibilityState={{ checked: billPropertyDraft === property.id }} onPress={() => setBillPropertyDraft(property.id)} style={[billPropertyChoice, billPropertyDraft === property.id && billPropertyChoiceSelected]}><Text style={billPropertyChoiceText} numberOfLines={1}>{property.address}</Text></Pressable>)}</View>
-        <Text style={fieldLabel}>Nazwa opłaty</Text><TextInput accessibilityLabel="Nazwa opłaty" value={billNameDraft} onChangeText={setBillNameDraft} placeholder="np. Czynsz administracyjny" style={input} />
-        <Text style={fieldLabel}>Kwota miesięczna (opcjonalnie)</Text><TextInput accessibilityLabel="Kwota miesięczna opłaty" value={billExpectedDraft} onChangeText={setBillExpectedDraft} keyboardType="decimal-pad" placeholder="Zmienna kwota" style={input} />
-        <Text style={fieldLabel}>Termin płatności — dzień miesiąca</Text><TextInput accessibilityLabel="Dzień terminu opłaty" value={billDueDayDraft} onChangeText={(value) => setBillDueDayDraft(value.replace(/\D/g, "").slice(0, 2))} keyboardType="number-pad" maxLength={2} style={input} />
-        <Text style={helperText}>Przypomnienie pojawi się w terminie. Opłata pozostanie do potwierdzenia, dopóki nie zapiszesz płatności.</Text>
-        <Pressable accessibilityRole="button" onPress={() => void saveRecurringBill()} style={primaryButton}><Text style={primaryText}>Zapisz opłatę</Text></Pressable>
-      </View></SafeAreaView>
-    </Modal>
-
 
     <Modal visible={Boolean(snoozeTask)} transparent animationType="fade" onRequestClose={() => setSnoozeTask(null)}>
       <SafeAreaView edges={modalSafeAreaEdges} style={modalBackdrop}><View style={modalPanel}><ModalHeader title="Przypomnij później" onClose={() => setSnoozeTask(null)} />
@@ -562,15 +553,15 @@ const paymentActionRow = { flexDirection: "row" as const, gap: 10, marginTop: 8 
 const paymentActionRowStacked = { flexDirection: "column" as const };
 const paymentActionCard = { flex: 1, minWidth: 0, padding: 12, marginVertical: 4, minHeight: 104 };
 const paymentActionHeading = { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 };
-const paymentActionAmount = { color: theme.colors.textPrimary, fontSize: 20, lineHeight: 25, fontWeight: "800" as const, marginTop: 7 };
+const paymentActionAmount = { color: theme.colors.textPrimary, fontSize: 20, lineHeight: 25, fontWeight: "800" as const, marginTop: 7, fontVariant: ["tabular-nums" as const] };
 const paymentActionStatus = { color: theme.colors.textSecondary, fontSize: 11, lineHeight: 15, marginTop: 4 };
 const paymentActionStatusPaid = { color: theme.colors.success, fontWeight: "700" as const };
+const billFixedAmount = { color: theme.colors.textPrimary, backgroundColor: theme.colors.surfaceMuted, borderRadius: 12, minHeight: 46, paddingHorizontal: 11, paddingVertical: 12, marginTop: 6, marginBottom: 12, fontSize: 16, fontWeight: "700" as const };
 const paymentActionStatusOverdue = { color: theme.colors.danger, fontWeight: "700" as const };
 const billListContent = { paddingHorizontal: 20, paddingVertical: 14 };
 const billListRow = { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, minHeight: 76, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.divider };
 const billListDetails = { flex: 1 };
 const billListStatus = { color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" as const, marginTop: 5 };
-const billFixedAmount = { color: theme.colors.textPrimary, backgroundColor: theme.colors.surfaceMuted, borderRadius: 12, minHeight: 48, paddingHorizontal: 12, paddingVertical: 12, marginTop: 6, marginBottom: 12, fontSize: 16, fontWeight: "700" as const };
 const billConfirmLink = { minHeight: 40, justifyContent: "center" as const, paddingHorizontal: 10, borderRadius: 10, backgroundColor: theme.colors.accentSoft };
 const billConfirmLinkText = { color: theme.colors.primary, fontSize: 13, fontWeight: "700" as const };
 const billAddButton = { marginTop: 16 };

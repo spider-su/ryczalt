@@ -83,7 +83,7 @@ Most tasks are **projections**, not manually stored financial obligations.
 Core task categories:
 - tenant payment check;
 - tax payment;
-- recurring bill;
+- apartment media-charge confirmation (plus legacy recurring-bill tasks);
 - agreement end;
 - minimal personal reminder.
 
@@ -140,20 +140,9 @@ A lightweight checklist can guide the initial configuration:
 
 Required vs optional fields must be clear. Completed setup should disappear from the everyday dashboard.
 
-## 8. Bills
+## 8. Opłaty
 
-Two modes only unless requirements change:
-
-**Fixed**
-- expected amount can be shown/prefilled;
-- reminder based on due day.
-
-**Variable**
-- do not treat last amount as authoritative;
-- reminder says to verify the current amount;
-- provide relevant portal/link if configured.
-
-Opening a portal is not payment.
+The Opłaty card totals tenant-paid media charges from active apartments for the selected month. The landlord can manually confirm one full monthly total after paying; the confirmation is recorded locally and the card then shows **Potwierdzone**. Do not add a separate arbitrary-bill form. Existing recurring bill records must remain readable, but they do not define the current Opłaty amount.
 
 ## 9. UI priorities
 
@@ -179,7 +168,7 @@ No competitor screen should be copied. Adapt only interaction patterns documente
 
 ## 10. Scope guardrails
 
-Product priority is confirmed rent → recurring bill payments → ryczałt calculation and tax confirmation. Apartment setup, expected rent, rent/bill/tax/lease reminders, tax payment details and local backup/restore support that job. Custom/personal reminders are outside the POC scope. Do not let supporting workflows displace the core.
+Product priority is confirmed rent → apartment media-charge confirmation → ryczałt calculation and tax confirmation. Apartment setup, expected rent, rent/media/tax/lease reminders, tax payment details and local backup/restore support that job. Custom/personal reminders are outside the POC scope. Do not let supporting workflows displace the core.
 
 Do not implement upcoming features unless they are explicitly in scope for the task:
 - year-to-date/annual tax summary and PIT-28 verification readiness (upcoming 0.6/0.7; not electronic filing);

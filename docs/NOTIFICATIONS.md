@@ -1,10 +1,10 @@
 # Rental, tax and lease reminders
 
-**POC scope:** local reminders for expected rent, recurring bill due dates, outstanding ryczałt payments and lease expiry. Bill reminders fire on the due date and once the next day if still unpaid; they open the bill's payment confirmation. A saved full payment cancels that period's reminders. User-created personal reminders are not available. Notifications are local and best-effort; permission, OS scheduling and delivery still require candidate-device verification.
+**POC scope:** local reminders for expected rent, apartment media-charge confirmation, outstanding ryczałt payments and lease expiry. The media-charge reminder uses the latest configured rent payment day among active apartments with tenant-paid media charges, and repeats once the next day if still unconfirmed. It opens the aggregate Opłaty confirmation. A saved full payment cancels that period's reminder. User-created personal reminders are not available. Notifications are local and best-effort; permission, OS scheduling and delivery still require candidate-device verification.
 
 ## Categories and behavior
 
-`TENANT_PAYMENT_CHECK`, `TAX_PAYMENT`, and `RENTAL_AGREEMENT_END` are derived from local apartment, receipt and tax records. Stable task identities include the apartment/tax period or lease date. Rent reminders use the configured payment day and delay, group apartments with the same due date, and never imply debt: the landlord manually confirms receipts. Tax reminders derive from calculated obligations and manually recorded payments. Lease reminders use a 30-day lead.
+`TENANT_PAYMENT_CHECK`, aggregate media-charge confirmation, `TAX_PAYMENT`, and `RENTAL_AGREEMENT_END` are derived from local apartment, receipt and tax records. Stable task identities include the apartment/tax period or lease date. Rent reminders use the configured payment day and delay, group apartments with the same due date, and never imply debt: the landlord manually confirms receipts. Media reminders derive from apartment terms and one manually confirmed full monthly payment. Tax reminders derive from calculated obligations and manually recorded payments. Lease reminders use a 30-day lead.
 
 Upcoming, needs-attention, snoozed, completed and dismissed are task presentation states. Rent/tax completion only follows saved financial records; snooze/dismiss never means paid. Editing or deleting a receipt/payment can reopen the corresponding task.
 

@@ -1,9 +1,9 @@
 import { calculateSettlements, formatPln, hasTaxRulesForYear, moneyToGrosz } from "./ryczaltTax";
 import { taxSettlementFromSnapshot } from "./periodSnapshots";
-import type { RentalDocument, TaskState } from "../model/rental";
+import { APARTMENT_MEDIA_BILL_ID, type RentalDocument, type TaskState } from "../model/rental";
 import { rentMonthAmounts } from "./rentAllocation";
 import { formatPolishDate, formatPolishMonth } from "./presentationFormat";
-import { effectivePaymentDay } from "./apartmentTerms";
+import { apartmentTermsForMonth, effectivePaymentDay } from "./apartmentTerms";
 import { lifecycleForMonth } from "./apartmentLifecycle";
 export { expectedRentForMonth, rentMonthAmounts } from "./rentAllocation";
 
@@ -97,6 +97,30 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
         }
       }
     }
+  }
+
+  for (let offset = -1; offset <= 3; offset++) {
+    const period = shiftMonth(current, offset);
+    const periodProperties = document.properties.filter((property) => lifecycleForMonth(property, period) === "ACTIVE");
+    const periodTerms = periodProperties.map((property) => ({ property, terms: apartmentTermsForMonth(property, period) }));
+    if (!periodTerms.length || periodTerms.some(({ terms }) => !terms)) continue;
+    const mediaProperties = periodTerms.filter(({ terms }) => terms!.mediaPaidByTenant && terms!.mediaAmountGrosz > 0);
+    const mediaGrosz = mediaProperties.reduce((sum, { terms }) => sum + terms!.mediaAmountGrosz, 0);
+    if (mediaProperties.length === 0) continue;
+    const payment = document.billPayments.find((item) => item.billId === APARTMENT_MEDIA_BILL_ID && item.period === period);
+    const dueDay = Math.max(...mediaProperties.map(({ property }) => effectivePaymentDay(property, period)));
+    const dueAt = paymentDay(period, dueDay);
+    const taskId = `RECURRING_BILL:${APARTMENT_MEDIA_BILL_ID}:${period}`;
+    tasks.push(makeTask(document, now, {
+      id: taskId, type: "RECURRING_BILL",
+      title: payment ? `Opłaty potwierdzone — ${monthLabel(period)}` : `Potwierdź opłacenie opłat — ${monthLabel(period)}`,
+      detail: `${mediaProperties.length} ${mediaProperties.length === 1 ? "mieszkanie" : "mieszkania"} · ${formatPln(mediaGrosz)}${dueAt ? ` · termin ${formatDate(localIso(dueAt))}` : ""}`,
+      billId: APARTMENT_MEDIA_BILL_ID, period, dueAt, notificationAt: dueAt,
+      expectedGrosz: mediaGrosz,
+      confirmedGrosz: payment ? moneyToGrosz(payment.amount) : 0,
+      remainingGrosz: payment ? 0 : mediaGrosz,
+      resolved: Boolean(payment),
+    }));
   }
 
   if (hasTaxRulesForYear(document.settings.taxYear)) {
