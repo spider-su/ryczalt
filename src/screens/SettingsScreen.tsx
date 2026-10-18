@@ -115,7 +115,7 @@ export function SettingsScreen() {
     setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
     setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
     const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"]; billId?: string; period?: string } | undefined;
-    if (params?.billId) navigation.navigate("Pulpit", { billId: params.billId, period: params.period });
+    if (params?.billId) navigation.navigate("Pulpit", { screen: "Przegląd", params: { billId: params.billId, period: params.period } });
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
     if (params?.settingsSection) setActiveSection(params.settingsSection);
     if (params?.setupAction === "apartment" && !params.propertyId) { setActiveSection("properties"); openProperty(undefined, params.setupAction, params.onboarding === true && document.properties.length === 0); }
@@ -223,7 +223,7 @@ export function SettingsScreen() {
     setEditing(null);
     setSetupFocus(null);
     setWizardMode(false);
-    if (returnToPulpit) navigation.navigate("Pulpit");
+    if (returnToPulpit) navigation.navigate("Pulpit", { screen: "Przegląd" });
   };
   const openNewApartmentFromArchived = (property: Property) => {
     setEditing(null);
@@ -377,7 +377,7 @@ export function SettingsScreen() {
       setSetupFocus(null);
       setWizardMode(false);
       setModalOpen(false);
-      if (returnToPulpit) navigation.navigate("Pulpit");
+      if (returnToPulpit) navigation.navigate("Pulpit", { screen: "Przegląd" });
     } catch {
       /* The provider reports the save failure. */
     } finally {
