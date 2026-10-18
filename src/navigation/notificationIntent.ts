@@ -4,7 +4,7 @@ export type NotificationIntent =
   | { screen: "Pulpit"; params: { screen: "Wpłaty"; params: { quickAdd: true; returnTo: "Przegląd"; propertyId: string; rentalMonth: string; expectedAmount?: string } } }
   | { screen: "Podatek"; params: { period: string } }
   | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string; period?: string } }
-  | { screen: "Pulpit"; params: { taskId?: string; billId?: string; period?: string } };
+  | { screen: "Pulpit"; params: { screen: "Przegląd"; params: { taskId?: string; billId?: string; period?: string } } };
 
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const rentalMonth = (value: unknown): value is string => nonEmptyString(value) && isRentalMonth(value);
@@ -28,6 +28,6 @@ export function notificationDataToIntent(data: Record<string, unknown>): Notific
   if (data.category === "agreement" && nonEmptyString(data.propertyId))
     return { screen: "Ustawienia", params: { propertyId: data.propertyId } };
   if (data.category === "custom" && nonEmptyString(data.taskId))
-    return { screen: "Pulpit", params: { taskId: data.taskId } };
+    return { screen: "Pulpit", params: { screen: "Przegląd", params: { taskId: data.taskId } } };
   return null;
 }
