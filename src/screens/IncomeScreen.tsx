@@ -40,7 +40,6 @@ import {
   isPositiveMoney,
   isFullPaymentAmount,
   isRentalMonth,
-  isValidCalendarDate,
   RentalValidationError,
 } from "../domain/rentalValidation";
 
