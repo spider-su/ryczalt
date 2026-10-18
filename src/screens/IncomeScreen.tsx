@@ -370,6 +370,10 @@ export function IncomeScreen() {
         stickySectionHeadersEnabled={false}
         contentContainerStyle={{ ...ui.content, flexGrow: 1 }}
         ListHeaderComponent={<View style={{ paddingBottom: 8 }}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Wróć do pulpitu" onPress={() => navigation.navigate("Przegląd")} style={backToDashboard}>
+            <MaterialIcons name="chevron-left" size={20} color={theme.colors.textSecondary} />
+            <Text style={backToDashboardText}>Pulpit</Text>
+          </Pressable>
           <Text style={ui.pageTitle}>Wpłaty</Text>
           <PeriodSelector value={String(taxYear)} valueLabel={`Rok ${taxYear}`} previousLabel="Poprzedni rok" nextLabel="Następny rok"
             previousDisabled={taxYearIndex <= 0} nextDisabled={taxYearIndex >= incomeYears.length - 1 || taxYear >= currentYear}
@@ -503,6 +507,8 @@ const primaryText = {
   fontSize: 15,
 };
 const muted = { color: theme.colors.textSecondary, marginTop: 5, fontSize: 14 };
+const backToDashboard = { minHeight: 40, flexDirection: "row" as const, alignItems: "center" as const, alignSelf: "flex-start" as const, marginBottom: 4, marginLeft: -6, paddingHorizontal: 2 };
+const backToDashboardText = { color: theme.colors.textSecondary, fontSize: 14, fontWeight: "600" as const };
 const action = {
   color: theme.colors.primary,
   fontWeight: "600" as const,
