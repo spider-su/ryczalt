@@ -93,7 +93,6 @@ export const emptyDocument = (
   taxSettlementSnapshots: [],
   settings: {
     taxYear,
-    settlementMode: "monthly",
     jointSpouseThreshold: false,
     reminderCategories: { rent: true, agreements: true, tax: true, bills: true },
     rentReminderDelayDays: 1,
@@ -199,12 +198,10 @@ function validateRentalDocument(data: unknown): RentalDocument {
     throw corrupted("Local rental settings are invalid.");
   }
   const taxYear = settings.taxYear;
-  const settlementMode = settings.settlementMode;
   const jointSpouseThreshold = settings.jointSpouseThreshold;
   const reminderCategories = validateReminderCategories(settings.reminderCategories);
   const rentReminderDelayDays = typeof settings.rentReminderDelayDays === "number" ? settings.rentReminderDelayDays : NaN;
   if (
-    settlementMode !== "monthly" ||
     typeof jointSpouseThreshold !== "boolean" ||
     !Number.isInteger(rentReminderDelayDays) || rentReminderDelayDays < 0 || rentReminderDelayDays > 30
   ) throw corrupted("Local tax settings are invalid.");
@@ -243,7 +240,7 @@ function validateRentalDocument(data: unknown): RentalDocument {
       apartmentPeriods,
       taxSettlementSnapshots,
       settings: {
-        taxYear, settlementMode, jointSpouseThreshold, reminderCategories, rentReminderDelayDays,
+        taxYear, jointSpouseThreshold, reminderCategories, rentReminderDelayDays,
         ...(optionalString(settings.taxRecipientName) ? { taxRecipientName: settings.taxRecipientName } : {}),
         ...(optionalString(settings.taxMicroAccount) ? { taxMicroAccount: settings.taxMicroAccount } : {}),
         ...(optionalDecimal(settings.openingTaxableRevenue, "openingTaxableRevenue") ? { openingTaxableRevenue: settings.openingTaxableRevenue } : {}),
