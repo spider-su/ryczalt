@@ -88,4 +88,25 @@ describe("historical rent bootstrap", () => {
     expect(result.document.properties[0]?.rentalStartDate).toBe("2026-01-01");
     expect(rentMonthAmounts(result.document.properties[0]!, result.document.incomeEntries, "2026-08", new Date(2026, 8, 28))).toMatchObject({ expectedGrosz: 300_000, confirmedGrosz: 300_000, remainingGrosz: 0 });
   });
+  it("updates existing generated historical confirmations without duplicating them", () => {
+    const secondProperty = { ...property, id: "p2", address: "Second" };
+    const initial = { ...doc(), properties: [property, secondProperty] };
+    const first = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-04", today: "2026-10-19" });
+    const original = first.document.taxPayments.find((payment) => payment.period === "2026-03")!;
+    const second = bootstrapHistoricalRentPayments({ document: first.document, property: secondProperty, startMonth: "2026-04", endMonth: "2026-04", today: "2026-10-19" });
+    expect(second.document.taxPayments.filter((payment) => payment.period === "2026-04")).toHaveLength(1);
+    expect(second.document.taxPayments.find((payment) => payment.period === "2026-03")).toEqual(original);
+    expect(second.document.taxPayments.find((payment) => payment.period === "2026-04")?.amount).toBe("425.00");
+    expect(second.document.taxPayments.some((payment) => payment.period === "2026-10")).toBe(false);
+  });
+
+  it("preserves manual payments when importing another apartment", () => {
+    const secondProperty = { ...property, id: "p2", address: "Second" };
+    const initial = { ...doc(), properties: [property, secondProperty] };
+    const first = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-10-19" });
+    const manual = { id: "bank-1", period: "2026-03", paidAt: "2026-04-20", amount: "213.00" };
+    const next = bootstrapHistoricalRentPayments({ document: { ...first.document, taxPayments: [manual] }, property: secondProperty, startMonth: "2026-03", endMonth: "2026-03", today: "2026-10-19" });
+    expect(next.document.taxPayments).toEqual([manual]);
+  });
+
 });
