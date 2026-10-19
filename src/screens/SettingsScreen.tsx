@@ -353,25 +353,26 @@ export function SettingsScreen() {
     };
     setSaving(true);
     try {
-      await update((current) => ({
-        ...current,
-        administrationSuggestions: administrationName
-          ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
-          : current.administrationSuggestions,
-        properties: editing
-          ? current.properties.map((item) =>
-              item.id === editing.id ? property : item,
-            )
-          : [...current.properties, property],
-      }));
-      if (!editing) {
-        const today = todayIsoDate();
+      const today = todayIsoDate();
+      await update((current) => {
+        const saved = {
+          ...current,
+          administrationSuggestions: administrationName
+            ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
+            : current.administrationSuggestions,
+          properties: editing
+            ? current.properties.map((item) => item.id === editing.id ? property : item)
+            : [...current.properties, property],
+        };
+        if (editing || !ownerRent) return saved;
         const range = historicalBootstrapDefaultRange(today, draft.rentalStartDate || undefined);
-        if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
-          setBootstrapProperty(property);
-          setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth });
-        }
-      }
+        if (!range.endMonth || range.startMonth > range.endMonth) return saved;
+        // Initialize historical months in the same atomic document update as the apartment.
+        // The current month is intentionally excluded by bootstrapHistoricalRentPayments.
+        return bootstrapHistoricalRentPayments({
+          document: saved, property, startMonth: range.startMonth, endMonth: range.endMonth, today,
+        }).document;
+      });
       const returnToPulpit = wizardMode && !editing;
       setEditing(null);
       setSetupFocus(null);
