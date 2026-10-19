@@ -353,7 +353,6 @@ const action = { color: theme.colors.primary, fontWeight: "600" as const, paddin
 const secondaryPaymentAction = { minWidth: 56, minHeight: 44, justifyContent: "center" as const, paddingHorizontal: 8 };
 const secondaryPaymentActionText = { color: theme.colors.textSecondary, fontSize: 13, fontWeight: "500" as const };
 const muted = { color: theme.colors.textSecondary, marginTop: 6, fontSize: 14 };
-const settlementContext = { color: theme.colors.textSecondary, fontSize: 12, marginTop: 0 };
 const primaryButton = ui.primaryButton;
 const primaryText = { color: theme.colors.onAccent, fontWeight: "700" as const, fontSize: 15 };
 const dueLabel = { color: theme.colors.textSecondary, fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5 };

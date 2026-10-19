@@ -24,7 +24,7 @@ import type { IncomeEntry, RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { createIncomeEntry } from "../domain/rentalOperations";
-import { formatPln, formatPlnAmount, moneyToGrosz } from "../domain/ryczaltTax";
+import { formatPlnAmount, moneyToGrosz } from "../domain/ryczaltTax";
 import { decimalFromGrosz, defaultTaxableAmountGrosz } from "../domain/apartmentPayments";
 import { IncomeEntryRow } from "../components/income/IncomeEntryRow";
 import { PeriodSelector } from "../components/PeriodSelector";
@@ -68,7 +68,7 @@ export function IncomeScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  const properties = document?.properties ?? [];
+  const properties = useMemo(() => document?.properties ?? [], [document?.properties]);
   const [selectedTaxYear, setSelectedTaxYear] = useState<number | null>(null);
   const currentMonth = todayIsoDate().slice(0, 7);
   const confirmationRentalMonth = isRentalMonth(draft.rentalMonth)
@@ -146,7 +146,9 @@ export function IncomeScreen() {
     if (!modalOpen || confirmationProperties.some((property) => property.id === draft.propertyId)) return;
     const property = confirmationProperties[0];
     if (!property) {
-      if (draft.propertyId || draft.amount || draft.taxableAmount) setDraft((current) => ({ ...current, propertyId: "", amount: "", taxableAmount: "" }));
+      setDraft((current) => current.propertyId || current.amount || current.taxableAmount
+        ? { ...current, propertyId: "", amount: "", taxableAmount: "" }
+        : current);
       return;
     }
     const amount = decimalFromGrosz(rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).expectedGrosz ?? 0);
@@ -155,7 +157,7 @@ export function IncomeScreen() {
       ? decimalFromGrosz(defaultTaxableAmountGrosz({ property, amountGrosz: moneyToGrosz(amount), rentalMonth: confirmationRentalMonth, priorEntries: document?.incomeEntries ?? [] }))
       : "";
     setDraft((current) => ({ ...current, propertyId: property.id, amount, taxableAmount }));
-  }, [modalOpen, confirmationProperties, confirmationRentalMonth, draft.propertyId]);
+  }, [modalOpen, confirmationProperties, confirmationRentalMonth, draft.propertyId, document?.incomeEntries]);
   if (!document)
     return error ? (
       <View style={{ padding: 24 }}>
@@ -506,7 +508,6 @@ const primaryText = {
   fontWeight: "700" as const,
   fontSize: 15,
 };
-const muted = { color: theme.colors.textSecondary, marginTop: 5, fontSize: 14 };
 const backToDashboard = { minHeight: 40, flexDirection: "row" as const, alignItems: "center" as const, alignSelf: "flex-start" as const, marginBottom: 4, marginLeft: -6, paddingHorizontal: 2 };
 const backToDashboardText = { color: theme.colors.textSecondary, fontSize: 14, fontWeight: "600" as const };
 const action = {
