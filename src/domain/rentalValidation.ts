@@ -243,14 +243,14 @@ export function validateRentalDocumentShape(
     stateIds.add(state.taskId);
   }
   const apartmentPeriodIds = new Set<string>();
-  for (const snapshot of document.apartmentPeriods ?? []) {
+  for (const snapshot of document.apartmentPeriods) {
     const id = `${snapshot.propertyId}:${snapshot.month}`;
     if (!propertyIds.has(snapshot.propertyId) || !isRentalMonth(snapshot.month) || apartmentPeriodIds.has(id) || (snapshot.ownerRent !== undefined && !isNonnegativeMoney(snapshot.ownerRent)) || (snapshot.expectedAmount !== undefined && !isNonnegativeMoney(snapshot.expectedAmount)) || typeof snapshot.expectedKnown !== "boolean" || !isNonnegativeMoney(snapshot.confirmedAmount) || !isNonnegativeMoney(snapshot.taxableAmount) || !isValidCalendarDate(snapshot.closedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId))) throw new RentalValidationError("Apartment period snapshot is invalid.");
     apartmentPeriodIds.add(id);
   }
   const taxSnapshotPeriods = new Set<string>();
-  for (const snapshot of document.taxSettlementSnapshots ?? []) {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(snapshot.period) || taxSnapshotPeriods.has(snapshot.period) || ![snapshot.revenue, snapshot.taxableBase, snapshot.cumulativeRevenue, snapshot.cumulativeTax, snapshot.obligation, snapshot.paid, snapshot.allocatedPaid, snapshot.creditApplied, snapshot.outstanding, snapshot.overpaid].every(isNonnegativeMoney) || !isValidCalendarDate(snapshot.dueDate) || !Number.isInteger(snapshot.rulesYear) || !isValidCalendarDate(snapshot.savedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId)) || !snapshot.taxPaymentIds.every((paymentId) => taxIds.has(paymentId))) throw new RentalValidationError("Tax settlement snapshot is invalid.");
+  for (const snapshot of document.taxSettlementSnapshots) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(snapshot.period) || taxSnapshotPeriods.has(snapshot.period) || ![snapshot.revenue, snapshot.taxableBase, snapshot.cumulativeRevenue, snapshot.cumulativeTax, snapshot.obligation, snapshot.paid, snapshot.allocatedPaid, snapshot.creditApplied, snapshot.outstanding, snapshot.overpaid].every(isNonnegativeMoney) || !isValidCalendarDate(snapshot.dueDate) || !Number.isInteger(snapshot.rulesYear) || !Number.isInteger(snapshot.appliedRulesYear) || snapshot.appliedRulesYear < 2025 || snapshot.appliedRulesYear > Number(snapshot.period.slice(0, 4)) || !isValidCalendarDate(snapshot.savedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId)) || !snapshot.taxPaymentIds.every((paymentId) => taxIds.has(paymentId))) throw new RentalValidationError("Tax settlement snapshot is invalid.");
     taxSnapshotPeriods.add(snapshot.period);
   }
   if (document.settings.taxMicroAccount && !isValidPolishBankAccount(document.settings.taxMicroAccount))
