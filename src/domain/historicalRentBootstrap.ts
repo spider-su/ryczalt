@@ -15,7 +15,7 @@ export function historicalTaxPaymentsForImportedRent(document: RentalDocument, c
   for (const period of periods) {
     const year = Number(period.slice(0, 4));
     if (!hasTaxRulesForYear(year)) continue;
-    if (!byYear.has(year)) byYear.set(year, calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: year, mode: "monthly", jointSpouseThreshold: document.settings.jointSpouseThreshold,
+    if (!byYear.has(year)) byYear.set(year, calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: year, jointSpouseThreshold: document.settings.jointSpouseThreshold,
       openingTaxableRevenueGrosz: document.settings.taxYear === year && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
       openingTaxPaidGrosz: document.settings.taxYear === year && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
     }));
