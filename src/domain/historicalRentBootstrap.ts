@@ -9,24 +9,37 @@ import { apartmentTermsForMonth } from "./apartmentTerms";
 export type HistoricalBootstrapResult = { document: RentalDocument; created: IncomeEntry[]; skippedMonths: string[] };
 
 /** Builds full tax-paid confirmations for the imported initial-rent periods. */
-export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[]): TaxPayment[] {
-  const periods = [...new Set(created.map((entry) => entry.receivedAt.slice(0, 7)))].sort();
-  const byYear = new Map<number, ReturnType<typeof calculateSettlements>>();
-  for (const period of periods) {
-    const year = Number(period.slice(0, 4));
+export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[], today = new Date().toISOString().slice(0, 10)): TaxPayment[] {
+  if (!created.length) return [];
+  const currentMonth = today.slice(0, 7);
+  const years = [...new Set(created.map((entry) => Number(entry.receivedAt.slice(0, 4))))];
+  const generated: TaxPayment[] = [];
+  for (const year of years) {
     if (!hasTaxRulesForYear(year)) continue;
-    if (!byYear.has(year)) byYear.set(year, calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: year, jointSpouseThreshold: document.settings.jointSpouseThreshold,
+    // Rebuild imported confirmations against the complete income history. Previously
+    // generated payments are excluded so they cannot offset recalculated liabilities.
+    const manual = document.taxPayments.filter((payment) => payment.source !== "INITIAL_IMPORT");
+    const settlements = calculateSettlements({
+      entries: document.incomeEntries, payments: manual, taxYear: year,
+      jointSpouseThreshold: document.settings.jointSpouseThreshold,
       openingTaxableRevenueGrosz: document.settings.taxYear === year && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
       openingTaxPaidGrosz: document.settings.taxYear === year && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
-    }));
+    });
+    for (const settlement of settlements) {
+      const period = settlement.period;
+      const existing = document.taxPayments.filter((payment) => payment.period === period);
+      if (period > currentMonth || (period === currentMonth && !existing.some((payment) => payment.source === "INITIAL_IMPORT"))) continue;
+      if (existing.some((payment) => payment.source !== "INITIAL_IMPORT")) continue;
+      if (period < currentMonth && settlement.obligationGrosz <= 0 && !existing.some((payment) => payment.source === "INITIAL_IMPORT")) continue;
+      if (period < currentMonth && !document.incomeEntries.some((entry) => entry.receivedAt.slice(0, 7) === period)) continue;
+      generated.push({
+        id: existing.find((payment) => payment.source === "INITIAL_IMPORT")?.id ?? `initial-tax-${period}`,
+        period, paidAt: existing.find((payment) => payment.source === "INITIAL_IMPORT")?.paidAt ?? settlement.dueDate,
+        amount: decimalFromGrosz(settlement.obligationGrosz), source: "INITIAL_IMPORT",
+      });
+    }
   }
-  return periods.flatMap((period) => {
-    const existing = document.taxPayments.filter((payment) => payment.period === period);
-    if (existing.some((payment) => payment.source !== "INITIAL_IMPORT")) return [];
-    const settlement = byYear.get(Number(period.slice(0, 4)))?.find((item) => item.period === period);
-    if (!settlement || settlement.obligationGrosz <= 0) return [];
-    return [{ id: existing[0]?.id ?? `initial-tax-${period}`, period, paidAt: existing[0]?.paidAt ?? settlement.dueDate, amount: decimalFromGrosz(settlement.obligationGrosz), source: "INITIAL_IMPORT" as const }];
-  });
+  return generated;
 }
 
 export function historicalBootstrapDefaultRange(today: string, rentalStartDate?: string) {
@@ -109,7 +122,7 @@ export function bootstrapHistoricalRentPayments(args: {
     });
   }
   const rentDocument = { ...document, properties, incomeEntries: [...document.incomeEntries, ...created] };
-  const taxPayments = historicalTaxPaymentsForImportedRent(rentDocument, created);
+  const taxPayments = historicalTaxPaymentsForImportedRent(rentDocument, created, today);
   const replacedPeriods = new Set(taxPayments.map((payment) => payment.period));
   const nextDocument = taxPayments.length
     ? { ...rentDocument, taxPayments: [...rentDocument.taxPayments.filter((payment) => !replacedPeriods.has(payment.period) || payment.source !== "INITIAL_IMPORT"), ...taxPayments] }
