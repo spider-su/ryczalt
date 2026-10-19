@@ -62,25 +62,14 @@ export type TaxSettlementSnapshot = {
   overpaid: string;
   dueDate: string;
   rulesYear: number;
-  /** Verified rules actually used; omitted on legacy exact-year snapshots. */
-  appliedRulesYear?: number;
+  /** Verified rules actually used for this settlement snapshot. */
+  appliedRulesYear: number;
   receiptIds: string[];
   taxPaymentIds: string[];
   savedAt: string;
 };
 
 export type ApartmentLifecycleRate = { effectiveFrom: string; lifecycle: "ACTIVE" | "PAUSED" | "ARCHIVED" };
-
-export type ReminderRecurrence = "ONCE" | "MONTHLY" | "YEARLY";
-
-export type CustomReminder = {
-  id: string;
-  title: string;
-  propertyId?: string;
-  dueDate: string;
-  note?: string;
-  recurrence: ReminderRecurrence;
-};
 
 export type TaskState = {
   taskId: string;
@@ -141,20 +130,17 @@ export type RentalDocument = {
   recurringBills: RecurringBill[];
   billPayments: BillPayment[];
   administrationSuggestions: AdministrationSuggestion[];
-  customReminders: CustomReminder[];
   taskStates: TaskState[];
   apartmentPeriods: ApartmentPeriodSnapshot[];
   taxSettlementSnapshots: TaxSettlementSnapshot[];
   settings: {
     taxYear: number;
-    settlementMode: "monthly";
     jointSpouseThreshold: boolean;
     reminderCategories: {
       rent: boolean;
       agreements: boolean;
       tax: boolean;
       bills: boolean;
-      custom: boolean;
     };
     rentReminderDelayDays: number;
     taxRecipientName?: string;

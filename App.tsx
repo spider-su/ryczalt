@@ -2,10 +2,9 @@ import { createNavigationContainerRef, NavigationContainer } from '@react-naviga
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme, theme } from './src/theme/theme';
 import { IncomeScreen } from './src/screens/IncomeScreen';

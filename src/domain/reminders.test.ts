@@ -14,9 +14,9 @@ const fixture = (): RentalDocument => ({
     rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 30 }], leaseEndDate: "2026-12-31" }],
   incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-01-10", rentalMonth: "2026-01", amount: "1000.00", taxableAmount: "300.00" }],
   taxPayments: [], recurringBills: [{ id: "b1", propertyId: "p1", name: "Prąd", reminderEnabled: true, dueDay: 15, variableAmount: true }],
-  billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 0 },
+  billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+  settings: { taxYear: 2026, jointSpouseThreshold: false,
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 0 },
 });
 
 describe("task reminders and payment details", () => {
@@ -222,7 +222,6 @@ describe("task reminders and payment details", () => {
   it("uses generic lock-screen text and keeps each category switch independent", async () => {
     const doc = fixture();
     doc.properties[0]!.leaseEndDate = "2026-09-15";
-    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-08-05", propertyId: "p1", note: "Szczegóły poufne", recurrence: "ONCE" }];
     doc.incomeEntries = [{ id: "taxable", propertyId: "p1", receivedAt: "2026-07-10", rentalMonth: "2026-07", amount: "3000.00", taxableAmount: "3000.00" }];
     const now = new Date(2026, 7, 1, 8);
     const plan = taskNotificationPlan(doc, now);

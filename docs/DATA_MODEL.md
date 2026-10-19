@@ -2,11 +2,11 @@
 
 ## POC document
 
-`RentalDocument.schemaVersion = 1`; the current storage key is `pl.ryczalt.rental.localDocument.v2` (the previous `.v1` key is checked for namespace migration). Runtime validation rejects unsupported versions and malformed dates, references and monetary values. The document holds apartments, manually confirmed full rent and tax confirmations, task state and period snapshots.
+`RentalDocument.schemaVersion = 1`; the current storage key is `pl.ryczalt.rental.localDocument.v2`. No pre-release storage-namespace or plaintext-encryption migration path is shipped. Runtime validation rejects unsupported versions and malformed dates, references and monetary values. The document holds apartments, manually confirmed full rent and tax confirmations, task state and period snapshots.
 
 Apartment rent terms are effective-dated by `YYYY-MM` and include owner rent, media amount/responsibility, taxable treatment and payment day. Tenant name and contact are stored on the apartment; income records keep receipt date, actual/taxable amount, optional rent month, tenant snapshot and manual/import provenance. Expected rent is never taxable income. Tax calculations use only confirmed taxable receipts and manually confirmed tax payments; excess payments carry forward.
 
-The current Opłaty flow derives a monthly total from effective-dated apartment media terms and stores one full manual confirmation in `billPayments`, using the reserved `apartment-media` bill ID, period, amount and payment date. The persisted document shape and schema version do not change. Existing `recurringBills` records remain readable and their saved reminders/payments remain available to legacy tasks; the app no longer creates arbitrary recurring bills. Custom-reminder fields/categories may remain in old documents, but the app does not create or present custom reminders.
+The current Opłaty flow derives a monthly total from effective-dated apartment media terms and stores one full manual confirmation in `billPayments`, using the reserved `apartment-media` bill ID, period, amount and payment date. The persisted document shape and schema version do not change. Existing `recurringBills` records remain part of the current bill/reminder workflow; the app no longer creates arbitrary recurring bills outside that focused flow. Custom reminders are not part of the schema or product.
 
 Initial historical rent import records one full rent receipt per selected completed month. It also records the calculated full tax obligation for each imported receipt month as an `INITIAL_IMPORT` tax payment. This represents the landlord's confirmation in the initial-rent flow; ordinary rent expectations do not create income or tax-payment records.
 
@@ -14,7 +14,7 @@ Tax snapshots retain `rulesYear` as the tax year and may also carry `appliedRule
 
 ## Storage and backup
 
-Rental, tenant/contact, income, tax and reminder configuration is stored locally. Android/iOS AsyncStorage values are AES-256-GCM encrypted with a random key stored through SecureStore/Keychain/Keystore; a valid legacy plaintext document is encrypted after validation on first load. The last-good recovery copy is encrypted too. Android system backup is disabled because the device-bound key is not backed up. User JSON backups remain plaintext for portability. Web storage remains browser-managed and is not app-encrypted. No backend, account sync or remote backup exists.
+Rental, tenant/contact, income, tax and reminder configuration is stored locally. Android/iOS AsyncStorage values are AES-256-GCM encrypted with a random key stored through SecureStore/Keychain/Keystore. The last-good recovery copy is encrypted too. Android system backup is disabled because the device-bound key is not backed up. User JSON backups remain plaintext for portability. Web storage remains browser-managed and is not app-encrypted. No backend, account sync or remote backup exists.
 
 User-controlled JSON export/import is implemented. Exported data includes the schema version and full local document. Restore validates the file before replacing current data and leaves the current document unchanged on validation failure. Export a copy outside the app before uninstall/device change. A full export → clear/uninstall → reinstall → import → compare financial results is required POC evidence; automated JSON tests alone do not prove that device round-trip.
 

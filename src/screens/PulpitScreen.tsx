@@ -82,13 +82,13 @@ export function PulpitScreen() {
   const selectedTaxSnapshot = document.taxSettlementSnapshots?.find((snapshot) => snapshot.period === selectedMonth);
   const taxCalculation = !selectedTaxSnapshot && hasTaxRulesForYear(selectedYear) ? calculateTaxYear({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: selectedYear,
-    mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
+    jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: openingRevenue, openingTaxPaidGrosz: openingTaxPaid,
   }) : undefined;
   const settlements = selectedTaxSnapshot
     ? document.taxSettlementSnapshots!.filter((snapshot) => snapshot.rulesYear === selectedYear && snapshot.period <= selectedMonth).map((snapshot) => taxSettlementFromSnapshot(snapshot, todayIsoDate()))
     : taxCalculation?.settlements ?? [];
-  const activeProperties = document.properties.filter((property) => (document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === property.id && snapshot.month === selectedMonth)
+  const activeProperties = document.properties.filter((property) => document.apartmentPeriods.some((snapshot) => snapshot.propertyId === property.id && snapshot.month === selectedMonth)
     || (lifecycleForMonth(property, selectedMonth) === "ACTIVE" && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth)));
   const monthAmounts = activeProperties.map((property) => {
     const snapshot = document.apartmentPeriods?.find((item) => item.propertyId === property.id && item.month === selectedMonth);
@@ -106,7 +106,7 @@ export function PulpitScreen() {
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
   const rentFullyConfirmed = rentExpectationKnown && expectedRent > 0 && remainingRent === 0;
   const rentConfirmationPending = !rentExpectationKnown || remainingRent > 0;
-  const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
+  const currentPeriodKey = settlementPeriodForMonth(selectedMonth);
   const taxSummary = currentPeriodKey ? taxSummaryForPeriod(settlements, currentPeriodKey) : { current: null, previousOutstanding: { count: 0, totalGrosz: 0 } };
   const currentPeriod = taxSummary.current;
   const projectedOlderPeriods = new Set(settlements.filter((item) => currentPeriodKey && item.period < currentPeriodKey && item.outstandingGrosz > 0).map((item) => item.period));

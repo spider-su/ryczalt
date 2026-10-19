@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { effectiveLifecycle, lifecycleForMonth, setApartmentLifecycle } from "./apartmentLifecycle";
 import type { RentalDocument } from "../model/rental";
 
-const document: RentalDocument = { schemaVersion: 1, properties: [{ id: "p1", address: "Parkowa 1", lifecycle: "ACTIVE" }], incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-08-10", amount: "100.00", taxableAmount: "100.00" }], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 } };
+const document: RentalDocument = { schemaVersion: 1, properties: [{ id: "p1", address: "Parkowa 1", lifecycle: "ACTIVE" }], incomeEntries: [{ id: "i1", propertyId: "p1", receivedAt: "2026-08-10", amount: "100.00", taxableAmount: "100.00" }], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 } };
 
 describe("apartment lifecycle", () => {
   it("treats an unspecified lifecycle as active and changes status without losing payment history", () => {

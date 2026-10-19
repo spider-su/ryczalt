@@ -1,39 +1,30 @@
-import type { Settlement, SettlementMode } from "./ryczaltTax";
+import type { Settlement } from "./ryczaltTax";
 import { formatPolishMonth } from "./presentationFormat";
 
-export function shiftTaxPeriod(period: string, offset: number, mode: SettlementMode): string {
-  const match = /^(\d{4})-(\d{2}|Q[1-4])$/.exec(period);
+export function shiftTaxPeriod(period: string, offset: number): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
   if (!match) return period;
   const year = Number(match[1]);
-  const value = match[2];
-  if (!value) return period;
-  if (mode === "monthly") {
-    const month = Number(value);
-    const date = new Date(year, month - 1 + offset, 1, 12);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-  }
-  const quarter = Number(value.slice(1));
-  const date = new Date(year, (quarter - 1) * 3 + offset * 3, 1, 12);
-  return `${date.getFullYear()}-Q${Math.floor(date.getMonth() / 3) + 1}`;
+  const month = Number(match[2]);
+  const date = new Date(year, month - 1 + offset, 1, 12);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function currentTaxPeriod(now = new Date(), mode: SettlementMode = "monthly") {
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  return mode === "monthly" ? month : `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`;
+export function currentTaxPeriod(now = new Date()) {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export function taxPeriodsForYear(year: number, mode: SettlementMode, now = new Date(), earliestPeriod = "2025-01") {
+export function taxPeriodsForYear(year: number, now = new Date(), earliestPeriod = "2025-01") {
   const currentYear = now.getFullYear();
   if (year > currentYear) return [];
-  const count = mode === "monthly" ? (year === currentYear ? now.getMonth() + 1 : 12) : (year === currentYear ? Math.ceil((now.getMonth() + 1) / 3) : 4);
-  return Array.from({ length: count }, (_, index) => mode === "monthly"
-    ? `${year}-${String(index + 1).padStart(2, "0")}`
-    : `${year}-Q${index + 1}`).filter((period) => period >= earliestPeriod);
+  const count = year === currentYear ? now.getMonth() + 1 : 12;
+  return Array.from({ length: count }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`)
+    .filter((period) => period >= earliestPeriod);
 }
 
-export function shiftTaxPeriodWithinRange(period: string, offset: number, mode: SettlementMode, now = new Date(), earliestPeriod = "2025-01") {
-  const shifted = shiftTaxPeriod(period, offset, mode);
-  const latest = currentTaxPeriod(now, mode);
+export function shiftTaxPeriodWithinRange(period: string, offset: number, now = new Date(), earliestPeriod = "2025-01") {
+  const shifted = shiftTaxPeriod(period, offset);
+  const latest = currentTaxPeriod(now);
   return shifted > latest ? latest : shifted < earliestPeriod ? earliestPeriod : shifted;
 }
 
@@ -45,11 +36,8 @@ export const TAX_TRANSFER_HINT = "PPE · mikrorachunek podatkowy";
 export const TAX_CALCULATION_EXPLANATION = "Podatek wynika z potwierdzonych wpływów przypisanych do okresu, uwzględnia zapisane wpłaty podatku oraz saldo otwarcia skonfigurowane dla roku. To wyliczenie pomocnicze i nie uwzględnia indywidualnych odliczeń.";
 export const TAX_PAYMENT_ALLOCATION_HINT = "Wpłaty są zaliczane od najstarszej nierozliczonej należności. Wpłata zarejestrowana dla tego okresu mogła pokryć wcześniejszy okres.";
 
-export function taxPeriodLabel(period: string, mode: SettlementMode): string {
-  if (mode === "monthly") return formatPolishMonth(period);
-  const match = /^(\d{4})-Q([1-4])$/.exec(period);
-  if (!match) return period;
-  return `${["I", "II", "III", "IV"][Number(match[2]) - 1] ?? match[2]} kwartał ${match[1]}`;
+export function taxPeriodLabel(period: string): string {
+  return formatPolishMonth(period);
 }
 
 export function taxRateLabel(cumulativeRevenueGrosz: number, thresholdGrosz: number): string {

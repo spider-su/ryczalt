@@ -10,13 +10,12 @@ export type HistoricalBootstrapResult = { document: RentalDocument; created: Inc
 
 /** Builds full tax-paid confirmations for the imported initial-rent periods. */
 export function historicalTaxPaymentsForImportedRent(document: RentalDocument, created: IncomeEntry[]): TaxPayment[] {
-  if (document.settings.settlementMode !== "monthly") return [];
   const periods = [...new Set(created.map((entry) => entry.receivedAt.slice(0, 7)))].sort();
   const byYear = new Map<number, ReturnType<typeof calculateSettlements>>();
   for (const period of periods) {
     const year = Number(period.slice(0, 4));
     if (!hasTaxRulesForYear(year)) continue;
-    if (!byYear.has(year)) byYear.set(year, calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: year, mode: "monthly", jointSpouseThreshold: document.settings.jointSpouseThreshold,
+    if (!byYear.has(year)) byYear.set(year, calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: year, jointSpouseThreshold: document.settings.jointSpouseThreshold,
       openingTaxableRevenueGrosz: document.settings.taxYear === year && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
       openingTaxPaidGrosz: document.settings.taxYear === year && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
     }));
@@ -60,7 +59,7 @@ export function bootstrapHistoricalRentPayments(args: {
   const skippedMonths: string[] = [];
   for (const month of months) {
     if (existingMonths.has(month)) { skippedMonths.push(month); continue; }
-    if ((document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === property.id && snapshot.month === month) || (document.taxSettlementSnapshots ?? []).some((snapshot) => snapshot.period === month)) { skippedMonths.push(month); continue; }
+    if (document.apartmentPeriods.some((snapshot) => snapshot.propertyId === property.id && snapshot.month === month) || document.taxSettlementSnapshots.some((snapshot) => snapshot.period === month)) { skippedMonths.push(month); continue; }
     if (property.rentalStartDate && month < property.rentalStartDate.slice(0, 7)) { skippedMonths.push(month); continue; }
     if (property.leaseEndDate && month > property.leaseEndDate.slice(0, 7)) { skippedMonths.push(month); continue; }
     const terms = apartmentTermsForMonth(property, month);

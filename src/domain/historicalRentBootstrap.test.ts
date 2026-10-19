@@ -4,7 +4,7 @@ import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange, histo
 import { calculateSettlements } from "./ryczaltTax";
 import { rentMonthAmounts } from "./tasks";
 
-const doc = (): RentalDocument => ({ schemaVersion: 1, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 } });
+const doc = (): RentalDocument => ({ schemaVersion: 1, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 } });
 const property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, rentalStartDate: "2026-03-12", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-03", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }] };
 
 describe("historical rent bootstrap", () => {
@@ -28,7 +28,7 @@ describe("historical rent bootstrap", () => {
     const again = bootstrapHistoricalRentPayments({ document: first.document, property, startMonth: "2026-01", endMonth: "2026-09", today: "2026-09-28" });
     expect(again.created).toHaveLength(0);
     expect(again.document.incomeEntries).toHaveLength(6);
-    const settlements = calculateSettlements({ entries: first.created, payments: [], taxYear: 2026, mode: "monthly", today: "2026-09-28" });
+    const settlements = calculateSettlements({ entries: first.created, payments: [], taxYear: 2026, today: "2026-09-28" });
     expect(settlements.find(({ period }) => period === "2026-03")?.revenueGrosz).toBe(250_000);
     expect(settlements.find(({ period }) => period === "2026-02")?.revenueGrosz).toBe(0);
     expect(settlements.find(({ period }) => period === "2026-03")?.dueDate).toBe("2026-04-20");
@@ -56,7 +56,7 @@ describe("historical rent bootstrap", () => {
     const result = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
     expect(historicalTaxPaymentsForImportedRent(result.document, result.created)).toEqual([{ id: "initial-tax-2026-03", period: "2026-03", paidAt: "2026-04-20", amount: "213.00", source: "INITIAL_IMPORT" }]);
     expect(result.document.taxPayments).toEqual([{ id: "initial-tax-2026-03", period: "2026-03", paidAt: "2026-04-20", amount: "213.00", source: "INITIAL_IMPORT" }]);
-    expect(calculateSettlements({ entries: result.document.incomeEntries, payments: result.document.taxPayments, taxYear: 2026, mode: "monthly", today: "2026-09-28" }).find(({ period }) => period === "2026-03")?.status).toBe("paid");
+    expect(calculateSettlements({ entries: result.document.incomeEntries, payments: result.document.taxPayments, taxYear: 2026, today: "2026-09-28" }).find(({ period }) => period === "2026-03")?.status).toBe("paid");
   });
 
   it("re-estimates an imported assumed payment when another apartment is imported for the same month", () => {
