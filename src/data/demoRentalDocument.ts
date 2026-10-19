@@ -56,12 +56,12 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
       };
     });
   });
-  const settlements = calculateSettlements({ entries: incomeEntries, payments: [], taxYear: supportedYear, mode: "monthly", today });
+  const settlements = calculateSettlements({ entries: incomeEntries, payments: [], taxYear: supportedYear, today });
   const taxPayments: TaxPayment[] = settlements
     .filter((settlement) => settlement.obligationGrosz > 0 && settlement.dueDate <= today)
     .map((settlement) => ({
       id: `demo-tax-${settlement.period}`,
-      period: settlementPeriodForMonth(settlement.period, "monthly")!,
+      period: settlementPeriodForMonth(settlement.period)!,
       paidAt: settlement.dueDate,
       amount: (settlement.obligationGrosz / 100).toFixed(2),
     }));
@@ -70,7 +70,7 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
     administrationSuggestions: [],
     taskStates: [],
     settings: {
-      taxYear: supportedYear, settlementMode: "monthly", jointSpouseThreshold: false,
+      taxYear: supportedYear, jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1,
       taxRecipientName: "Urząd Skarbowy Kraków", taxMicroAccount: "12 1010 1270 0000 0000 0000 0000",
     },
