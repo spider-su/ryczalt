@@ -27,7 +27,7 @@ describe("personal assistant tasks", () => {
     doc.taxSettlementSnapshots = [{
       period: "2026-09", revenue: "1000.00", taxableBase: "1000.00", cumulativeRevenue: "1000.00", cumulativeTax: "85.00",
       obligation: "85.00", paid: "0.00", allocatedPaid: "0.00", creditApplied: "0.00", outstanding: "85.00", overpaid: "0.00",
-      dueDate: "2026-10-20", rulesYear: 2026, receiptIds: [], taxPaymentIds: [], savedAt: "2026-10-01T00:00:00.000Z",
+      dueDate: "2026-10-20", rulesYear: 2026, appliedRulesYear: 2026, receiptIds: [], taxPaymentIds: [], savedAt: "2026-10-01T00:00:00.000Z",
     }];
     const task = deriveTasks(doc, new Date(2026, 9, 1)).find((item) => item.id === "TAX_PAYMENT:2026-09");
     expect(task).toMatchObject({ expectedGrosz: 8500, remainingGrosz: 8500 });
@@ -103,7 +103,7 @@ describe("personal assistant tasks", () => {
     doc.taxSettlementSnapshots = [{
       period: "2026-09", revenue: "3000.00", taxableBase: "3000.00", cumulativeRevenue: "3000.00", cumulativeTax: "255.00",
       obligation: "255.00", paid: "0.00", allocatedPaid: "0.00", creditApplied: "0.00", outstanding: "255.00", overpaid: "0.00",
-      dueDate: "2026-10-20", rulesYear: 2026, receiptIds: ["sep"], taxPaymentIds: [], savedAt: "2026-10-01T00:00:00.000Z",
+      dueDate: "2026-10-20", rulesYear: 2026, appliedRulesYear: 2026, receiptIds: ["sep"], taxPaymentIds: [], savedAt: "2026-10-01T00:00:00.000Z",
     }];
     const tasks = deriveTasks(doc, new Date(2026, 9, 15, 12));
     expect(tasks.some((task) => task.id === "TAX_PAYMENT:2026-09")).toBe(true);
