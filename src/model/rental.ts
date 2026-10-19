@@ -62,8 +62,8 @@ export type TaxSettlementSnapshot = {
   overpaid: string;
   dueDate: string;
   rulesYear: number;
-  /** Verified rules actually used; omitted on legacy exact-year snapshots. */
-  appliedRulesYear?: number;
+  /** Verified rules actually used for this settlement snapshot. */
+  appliedRulesYear: number;
   receiptIds: string[];
   taxPaymentIds: string[];
   savedAt: string;
@@ -135,7 +135,6 @@ export type RentalDocument = {
   taxSettlementSnapshots: TaxSettlementSnapshot[];
   settings: {
     taxYear: number;
-    settlementMode: "monthly";
     jointSpouseThreshold: boolean;
     reminderCategories: {
       rent: boolean;
