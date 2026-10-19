@@ -93,7 +93,7 @@ describe("Polish private-rental ryczałt", () => {
     expect(status([{ id: "tax", period: "2026-01", paidAt: "2026-02-10", amount: "85.00" }], "2026-02-21")).toBe("paid");
   });
 
-  it("keeps December and Q4 periodic payments due in January", () => {
+  it("keeps December payment due in January", () => {
     const monthly = calculateSettlements({ entries: [], payments: [], taxYear: 2026, today: "2026-12-01" });
     expect(monthly[9]?.dueDate).toBe("2026-11-20");
     expect(monthly[10]?.dueDate).toBe("2026-12-21"); // Sunday 20 December moves to Monday.
