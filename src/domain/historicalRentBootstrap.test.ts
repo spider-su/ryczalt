@@ -4,7 +4,7 @@ import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange, histo
 import { calculateSettlements } from "./ryczaltTax";
 import { rentMonthAmounts } from "./tasks";
 
-const doc = (): RentalDocument => ({ schemaVersion: 1, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 } });
+const doc = (): RentalDocument => ({ schemaVersion: 1, properties: [], incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [], settings: { taxYear: 2026, jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 } });
 const property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, rentalStartDate: "2026-03-12", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-03", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }] };
 
 describe("historical rent bootstrap", () => {
