@@ -78,4 +78,3 @@ export async function removeLocalEncryptionKey(): Promise<void> {
   keyPromise = null;
 }
 
-export const isEncryptedLocalValue = (value: string | null) => value?.startsWith(PREFIX) ?? false;
