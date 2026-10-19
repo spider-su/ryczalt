@@ -263,6 +263,3 @@ export function validateRentalDocumentShape(
   return document;
 }
 
-function isSettlementPeriod(value: string): boolean {
-  return isRentalMonth(value) || /^\d{4}-Q[1-4]$/.test(value);
-}
