@@ -6,8 +6,8 @@ const base = (): RentalDocument => ({
   schemaVersion: 1,
   properties: [{ id: "flat-a", address: "Parkowa", lifecycle: "ACTIVE", ownerRent: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-01", amount: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }] }],
   incomeEntries: [{ id: "receipt-sep", propertyId: "flat-a", receivedAt: "2026-09-10", rentalMonth: "2026-09", amount: "3000.00", taxableAmount: "3000.00" }],
-  taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+  taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
 });
 
 describe("period snapshots", () => {
