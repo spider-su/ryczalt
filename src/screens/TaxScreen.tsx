@@ -137,7 +137,7 @@ export function TaxScreen() {
     ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text></View>
     : <ActivityIndicator style={{ flex: 1 }} />;
   const settlement = persistedTaxSnapshot ? taxSettlementFromSnapshot(persistedTaxSnapshot, todayIsoDate()) : settlements.find((item) => item.period === selectedPeriod);
-  const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
+  const payments = document.taxPayments.slice().sort((a, b) => b.paidAt.localeCompare(a.paidAt) || b.period.localeCompare(a.period));
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
   const unconfirmedRentCount = unconfirmedRentCountForMonth(document, selectedPeriod);
@@ -277,25 +277,42 @@ export function TaxScreen() {
           {annualThreshold > 0 ? <ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Wykorzystanie progu stawki 12,5%" /> : null}
           {annualOpen && annualThreshold > 0 ? <Text style={thresholdRemaining}>Do progu stawki 12,5%: {formatPln(remainingThreshold)}</Text> : null}
         </View>
-        {payments.length ? <View style={compactSection}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: paymentHistoryOpen }} accessibilityLabel={`Historia płatności, ${payments.length}`} onPress={() => setPaymentHistoryOpen((open) => !open)} style={disclosureRow}>
-            <Text style={disclosureTitle}>Historia płatności ({payments.length})</Text>
-            <MaterialIcons name={paymentHistoryOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
-          </Pressable>
-          {paymentHistoryOpen ? <>
-            <Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text>
-            {payments.map((payment) => <View key={payment.id} style={paymentHistoryRow}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}><Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
-              {payment.source === "INITIAL_IMPORT" ? <Text style={taxContextCompact}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
-              {persistedTaxSnapshot ? <Text style={taxHint}>Okres zamknięty · usunięcie wpłaty niedostępne</Text> : <Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable>}
-            </View>)}
-          </> : null}
-        </View> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Historia wpłat, ${payments.length}`} onPress={() => setPaymentHistoryOpen(true)} style={[compactSection, disclosureRow]}>
+          <View style={{ flex: 1 }}>
+            <Text style={disclosureTitle}>Historia wpłat</Text>
+            <Text style={disclosureSummary}>Wszystkie wpłaty podatkowe · {payments.length}</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
+        </Pressable>
       </>}
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
       <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek?</Text><MaterialIcons name={infoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></View></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
     </ScrollView>
+    <Modal visible={paymentHistoryOpen} animationType="slide" onRequestClose={() => setPaymentHistoryOpen(false)}>
+      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <View style={ui.modalHeader}>
+          <Text style={ui.modalTitle}>Historia wpłat podatku</Text>
+          <Text accessibilityRole="button" onPress={() => setPaymentHistoryOpen(false)} style={action}>Zamknij</Text>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności. Okres przypisania wpłaty nie musi odpowiadać miesiącowi jej wykonania.</Text>
+          {payments.length === 0 ? <Text style={[taxContext, { marginTop: 16 }]}>Brak zapisanych wpłat podatku.</Text> : null}
+          {payments.map((payment) => {
+            const locked = document.taxSettlementSnapshots.some((snapshot) => snapshot.period === payment.period);
+            return <View key={payment.id} style={[compactSection, { padding: 16, gap: 6 }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                <Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{formatPolishDate(payment.paidAt, "long")}</Text>
+                <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text>
+              </View>
+              <Text style={taxContextCompact}>Okres wpłaty: {taxPeriodLabel(payment.period)}</Text>
+              {payment.source === "INITIAL_IMPORT" ? <Text style={taxContextCompact}>Potwierdzenie historyczne · data szacunkowa</Text> : null}
+              {locked ? <Text style={taxHint}>Okres zamknięty · usunięcie wpłaty niedostępne</Text> : <Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable>}
+            </View>;
+          })}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
     <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={ui.modalHeader}><Text style={ui.modalTitle}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
