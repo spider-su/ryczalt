@@ -125,7 +125,7 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   if (hasTaxRulesForYear(document.settings.taxYear)) {
     const savedTaxPeriods = document.taxSettlementSnapshots.filter((snapshot) => snapshot.rulesYear === document.settings.taxYear);
     const calculatedSettlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
-      taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
+      taxYear: document.settings.taxYear,
       jointSpouseThreshold: document.settings.jointSpouseThreshold,
       openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
       openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
