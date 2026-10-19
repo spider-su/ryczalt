@@ -13,7 +13,7 @@ describe("historical rent bootstrap", () => {
     const initial = { ...doc(), properties: [octoberProperty] };
     const range = historicalBootstrapDefaultRange("2026-10-19", octoberProperty.rentalStartDate);
     expect(range).toEqual({ startMonth: "2026-01", endMonth: "2026-09" });
-    const result = bootstrapHistoricalRentPayments({ document: initial, property: octoberProperty, ...range, today: "2026-10-19" });
+    const result = bootstrapHistoricalRentPayments({ document: initial, property: octoberProperty, startMonth: range.startMonth, endMonth: range.endMonth!, today: "2026-10-19" });
     expect(result.created.map((entry) => entry.rentalMonth)).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
     expect(rentMonthAmounts(octoberProperty, result.document.incomeEntries, "2026-09", new Date(2026, 9, 19)).remainingGrosz).toBe(0);
     expect(rentMonthAmounts(octoberProperty, result.document.incomeEntries, "2026-10", new Date(2026, 9, 19))).toMatchObject({ confirmedGrosz: 0, remainingGrosz: 300000 });
