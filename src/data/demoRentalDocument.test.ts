@@ -31,7 +31,7 @@ describe("isolated demo rental data", () => {
 
   it("uses production tax calculations with a paid previous period and tax still due this month", () => {
     const document = createDemoRentalDocument(now);
-    const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: 2026, mode: "monthly", today: "2026-09-28" });
+    const settlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments, taxYear: 2026, today: "2026-09-28" });
     expect(document.taxPayments).toHaveLength(8);
     expect(settlements.find((item) => item.period === "2026-08")?.status).toBe("paid");
     expect(settlements.find((item) => item.period === "2026-09")?.outstandingGrosz).toBeGreaterThan(0);
