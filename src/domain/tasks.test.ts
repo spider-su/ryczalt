@@ -8,9 +8,9 @@ function document(): RentalDocument {
     properties: [{ id: "p1", address: "Parkowa", ownerRent: "3000.00", paymentDay: 10,
       rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 10 }, { effectiveFrom: "2026-09", amount: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 10 }],
       leaseEndDate: "2026-12-31" }],
-    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
     settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
-      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+      reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
   };
 }
 
@@ -57,15 +57,6 @@ describe("personal assistant tasks", () => {
     expect(task.notificationAt).toEqual(new Date(2026, 8, 13, 9));
   });
 
-  it("ignores legacy bills and custom reminders while retaining rental tasks", () => {
-    const doc = document();
-    doc.recurringBills = [{ id: "power", propertyId: "p1", name: "Prąd", dueDay: 10, reminderEnabled: false, variableAmount: true, expectedAmount: "600.00" }];
-    doc.customReminders = [{ id: "r1", title: "Polisa", dueDate: "2026-10-15", recurrence: "ONCE" }];
-    const tasks = deriveTasks(doc, new Date(2026, 8, 26, 12));
-    expect(tasks.some((item) => item.id.startsWith("RECURRING_BILL:") || item.id.startsWith("CUSTOM_REMINDER:"))).toBe(false);
-    expect(tasks.some((item) => item.type === "TENANT_PAYMENT_CHECK")).toBe(true);
-  });
-
   it("uses explicit rent-rate history and does not invent historical expectations", () => {
     const doc = document();
     expect(expectedRentForMonth(doc.properties[0]!, "2026-08", new Date(2026, 8, 26))).toBe(250_000);
@@ -80,13 +71,6 @@ describe("personal assistant tasks", () => {
     doc.incomeEntries = [{ id: "sep-overpayment", propertyId: "p1", receivedAt: "2026-09-27", rentalMonth: "2026-09", amount: "10000.00", taxableAmount: "10000.00" }];
     const october = deriveTasks(doc, new Date(2026, 8, 27, 12)).find((task) => task.id === "TENANT_PAYMENT_CHECK:p1:2026-10");
     expect(october).toMatchObject({ title: "Sprawdź czynsz — Reduta 26B", expectedGrosz: 260_000, confirmedGrosz: 0, remainingGrosz: 260_000, status: "upcoming" });
-  });
-
-  it("does not recreate tasks from legacy personal-reminder completion state", () => {
-    const doc = document();
-    doc.customReminders = [{ id: "r1", title: "Sprawdź licznik", dueDate: "2026-10-15", propertyId: "p1", recurrence: "ONCE" }];
-    doc.taskStates = [{ taskId: "CUSTOM_REMINDER:r1:2026-10-15", completedAt: "2026-10-01T08:00:00.000Z" }];
-    expect(deriveTasks(doc, new Date(2026, 8, 26, 12)).some((task) => task.id.startsWith("CUSTOM_REMINDER:"))).toBe(false);
   });
 
   it("derives paid bills and taxes from their actual payment records", () => {
