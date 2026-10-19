@@ -57,12 +57,12 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingHorizontal: wideScreen ? 36 : 20, paddingTop: 24, paddingBottom: 30 }}>
       <View style={{ width: "100%", maxWidth: 760, alignSelf: "center", flex: 1 }}>
-        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.colors.primary, letterSpacing: 0.8, marginBottom: 10 }}>
+        <Text style={{ fontSize: 12, fontWeight: "700", color: theme.colors.textSecondary, letterSpacing: 0.8, marginBottom: 10 }}>
           PIERWSZY NAJEM · KROK {step + 1} Z 3
         </Text>
         <View accessibilityLabel={`Postęp konfiguracji: krok ${step + 1} z 3`} style={{ flexDirection: "row", gap: 6, marginBottom: 18 }}>
           {stepTitles.map((title, index) => (
-            <View key={title} style={{ flex: 1, height: 5, borderRadius: 4, backgroundColor: index <= step ? theme.colors.primary : theme.colors.borderSubtle }} />
+            <View key={title} style={{ flex: 1, height: 5, borderRadius: 4, backgroundColor: index <= step ? theme.colors.textPrimary : theme.colors.borderSubtle }} />
           ))}
         </View>
         {step !== 0 ? <>
@@ -71,32 +71,18 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
         </> : null}
 
       {step === 0 ? (
-        <View style={{ flex: 1, justifyContent: height > 760 ? "center" : "flex-start", gap: 18, paddingVertical: 8 }}>
-          <View style={{ backgroundColor: theme.colors.accentSoft, borderRadius: 24, padding: wideScreen ? 30 : 22, borderWidth: 1, borderColor: "#F6D4DC", gap: 16 }}>
-            <View style={{ width: 58, height: 58, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface }}>
-              <MaterialIcons name="home" size={32} color={theme.colors.primary} />
+        <View style={{ flex: 1, justifyContent: "flex-start", gap: 12, paddingVertical: 4 }}>
+          <View style={{ backgroundColor: theme.colors.surface, borderRadius: 18, padding: wideScreen ? 22 : 16, borderWidth: 1, borderColor: theme.colors.borderSubtle, gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <MaterialIcons name="home" size={25} color={theme.colors.primary} />
+              <Text style={{ flex: 1, color: theme.colors.textPrimary, fontSize: wideScreen ? 24 : 21, lineHeight: wideScreen ? 30 : 27, fontWeight: "700" }}>Dodaj pierwsze mieszkanie</Text>
             </View>
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: "800", letterSpacing: 0.8 }}>DOBRZE, ŻE ZACZYNASZ</Text>
-              <Text style={{ color: theme.colors.textPrimary, fontSize: wideScreen ? 32 : 28, lineHeight: wideScreen ? 38 : 34, fontWeight: "800", maxWidth: 560 }}>
-                Dodajmy Twoje pierwsze mieszkanie
-              </Text>
-              <Text style={{ color: theme.colors.textSecondary, fontSize: 16, lineHeight: 24, maxWidth: 590 }}>
-                Zajmie to tylko chwilę. Ustawimy najem, a potem łatwiej sprawdzisz czynsz i podatek w jednym miejscu.
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
-              {["3 krótkie kroki", "Możesz zmienić dane później", "Dane zostają na Twoim urządzeniu"].map((item) => (
-                <View key={item} style={{ backgroundColor: theme.colors.surface, borderRadius: 20, paddingVertical: 8, paddingHorizontal: 12 }}>
-                  <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontWeight: "600" }}>{item}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 14, lineHeight: 21 }}>Uzupełnij podstawowe dane. Resztę ustawisz później.</Text>
           </View>
           <View style={[ui.card, { padding: wideScreen ? 24 : 18, gap: 18 }]}>
             <View style={{ gap: 5, marginBottom: 2 }}>
               <Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Zacznij od podstaw</Text>
-              <Text style={{ color: theme.colors.textSecondary, lineHeight: 20 }}>Resztę ustawień możesz uzupełnić później.</Text>
+              <Text style={{ color: theme.colors.textSecondary, lineHeight: 20 }}>Adres i data rozpoczęcia najmu.</Text>
             </View>
             <FormField
               label="Adres mieszkania *"
@@ -180,8 +166,8 @@ export function FirstApartmentWizard({ draft, onChange, onSave, onCancel, saving
                 style={{
                   paddingVertical: 15, paddingHorizontal: 12, marginBottom: 8,
                   borderWidth: 1, borderRadius: 12,
-                  borderColor: draft.taxableTreatment === value ? theme.colors.primary : theme.colors.borderSubtle,
-                  backgroundColor: draft.taxableTreatment === value ? theme.colors.accentSoft : theme.colors.surface,
+                  borderColor: draft.taxableTreatment === value ? "#58718F" : theme.colors.borderSubtle,
+                  backgroundColor: draft.taxableTreatment === value ? "#EAF0F7" : theme.colors.surface,
                 }}
               >
                 <Text style={{ color: theme.colors.textPrimary, fontWeight: draft.taxableTreatment === value ? "700" : "500" }}>
