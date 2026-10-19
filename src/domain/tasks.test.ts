@@ -9,7 +9,7 @@ function document(): RentalDocument {
       rentSchedule: [{ effectiveFrom: "2026-07", amount: "2500.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 10 }, { effectiveFrom: "2026-09", amount: "3000.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 10 }],
       leaseEndDate: "2026-12-31" }],
     incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
-    settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false,
+    settings: { taxYear: 2026, jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
   };
 }
