@@ -253,11 +253,11 @@ export function PulpitScreen() {
     const firstApartment = document.properties.length === 0;
     if (firstApartment) return <View style={ui.page}>
       <ScrollView contentContainerStyle={welcomeContent}>
-        <View style={[welcomeInner, { minHeight: Math.max(440, height - 180) }]}>
+        <View style={[welcomeInner, { minHeight: Math.max(0, height - 190) }]}>
           <View style={welcomeHeading}>
             <Text style={welcomeEyebrow}>RYCZAŁT RENT</Text>
             <Text style={welcomeTitle}>Najem pod kontrolą</Text>
-            <Text style={welcomeSubtitle}>Wybierz, jak chcesz zacząć. Możesz skonfigurować mieszkanie lub najpierw spokojnie obejrzeć aplikację.</Text>
+            <Text style={welcomeSubtitle}>Dodaj mieszkanie lub sprawdź, jak działa aplikacja.</Text>
           </View>
           <View style={[welcomeChoices, width < 620 && welcomeChoicesNarrow]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Dodaj pierwsze mieszkanie. Trzy krótkie kroki" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment", onboarding: true })} style={[welcomeChoice, welcomePrimaryChoice, width < 620 && welcomeChoiceNarrow]}>
@@ -266,7 +266,7 @@ export function PulpitScreen() {
                 <Text style={welcomeChoiceTitle}>Dodaj mieszkanie</Text>
                 <Text style={welcomeChoiceDescription}>Ustaw adres, czynsz i podatek w 3 krótkich krokach.</Text>
               </View>
-              <View style={[welcomeAction, welcomePrimaryAction]}><Text style={welcomeActionPrimary}>Rozpocznij konfigurację</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.onAccent} /></View>
+              <View style={[welcomeAction, welcomePrimaryAction]}><Text style={welcomeActionPrimary}>Dodaj mieszkanie</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.onAccent} /></View>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Zobacz demo aplikacji" onPress={enterDemoMode} style={[welcomeChoice, width < 620 && welcomeChoiceNarrow]}>
               <View style={[welcomeIcon, welcomeDemoIcon]}><MaterialIcons name="visibility" size={29} color={theme.colors.textSecondary} /></View>
@@ -274,7 +274,7 @@ export function PulpitScreen() {
                 <Text style={welcomeChoiceTitle}>Najpierw zobacz demo</Text>
                 <Text style={welcomeChoiceDescription}>Poznaj widoki i funkcje na przykładowych danych.</Text>
               </View>
-              <View style={[welcomeAction, welcomeDemoAction]}><Text style={welcomeActionSecondary}>Otwórz wersję demo</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.primary} /></View>
+              <View style={[welcomeAction, welcomeDemoAction]}><Text style={welcomeActionSecondary}>Zobacz demo</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.primary} /></View>
             </Pressable>
           </View>
           <View style={privacyNote}>
@@ -482,23 +482,23 @@ function compactPln(amountGrosz: number) { return formatPlnSummary(amountGrosz);
 
 const setupCard = { ...ui.card, marginTop: 14 };
 const setupTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 5 };
-const welcomeContent = { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 24 };
-const welcomeInner = { width: "100%" as const, maxWidth: 980, alignSelf: "center" as const, justifyContent: "center" as const, gap: 28 };
-const welcomeHeading = { alignItems: "center" as const, gap: 9, maxWidth: 680, alignSelf: "center" as const, marginBottom: 4 };
+const welcomeContent = { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 16 };
+const welcomeInner = { width: "100%" as const, maxWidth: 980, alignSelf: "center" as const, justifyContent: "center" as const, gap: 16 };
+const welcomeHeading = { alignItems: "center" as const, gap: 6, maxWidth: 680, alignSelf: "center" as const, marginBottom: 4 };
 const welcomeEyebrow = { color: theme.colors.primary, fontSize: 12, fontWeight: "800" as const, letterSpacing: 1.1 };
 const welcomeTitle = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, textAlign: "center" as const };
 const welcomeSubtitle = { color: theme.colors.textSecondary, fontSize: 16, lineHeight: 24, textAlign: "center" as const };
 const welcomeChoices = { flexDirection: "row" as const, alignItems: "stretch" as const, gap: 18 };
 const welcomeChoicesNarrow = { flexDirection: "column" as const };
-const welcomeChoice = { ...ui.card, flex: 1, minHeight: 250, padding: 24, marginVertical: 0, justifyContent: "space-between" as const, gap: 22, borderRadius: 22 };
-const welcomeChoiceNarrow = { minHeight: 205, padding: 20 };
+const welcomeChoice = { ...ui.card, flex: 1, minHeight: 210, padding: 18, marginVertical: 0, justifyContent: "space-between" as const, gap: 12, borderRadius: 22 };
+const welcomeChoiceNarrow = { minHeight: 174, padding: 16 };
 const welcomePrimaryChoice = { borderColor: "#F2C8D1", backgroundColor: theme.colors.surface };
-const welcomeIcon = { width: 58, height: 58, borderRadius: 18, backgroundColor: theme.colors.accentSoft, alignItems: "center" as const, justifyContent: "center" as const };
+const welcomeIcon = { width: 50, height: 50, borderRadius: 15, backgroundColor: theme.colors.accentSoft, alignItems: "center" as const, justifyContent: "center" as const };
 const welcomeDemoIcon = { backgroundColor: theme.colors.background };
-const welcomeCopy = { gap: 8 };
+const welcomeCopy = { gap: 5 };
 const welcomeChoiceTitle = { color: theme.colors.textPrimary, fontSize: 21, lineHeight: 27, fontWeight: "700" as const };
 const welcomeChoiceDescription = { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22, maxWidth: 390 };
-const welcomeAction = { minHeight: 50, borderRadius: 12, paddingHorizontal: 16, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 10, backgroundColor: theme.colors.background };
+const welcomeAction = { minHeight: 46, borderRadius: 12, paddingHorizontal: 16, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 10, backgroundColor: theme.colors.background };
 const welcomePrimaryAction = { backgroundColor: theme.colors.primary };
 const welcomeDemoAction = { backgroundColor: theme.colors.background };
 const welcomeActionPrimary = { color: theme.colors.onAccent, fontWeight: "700" as const, fontSize: 14 };
