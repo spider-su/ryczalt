@@ -3,7 +3,6 @@ import { getProtectedItem, removeLocalEncryptionKey, removeProtectedItem, setPro
 import type {
   BillPayment,
   ApartmentPeriodSnapshot,
-  CustomReminder,
   AdministrationSuggestion,
   IncomeEntry,
   Property,
@@ -89,7 +88,6 @@ export const emptyDocument = (
   recurringBills: [],
   billPayments: [],
   administrationSuggestions: [],
-  customReminders: [],
   taskStates: [],
   apartmentPeriods: [],
   taxSettlementSnapshots: [],
@@ -97,7 +95,7 @@ export const emptyDocument = (
     taxYear,
     settlementMode: "monthly",
     jointSpouseThreshold: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true },
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true },
     rentReminderDelayDays: 1,
   },
 });
@@ -228,7 +226,6 @@ function validateRentalDocument(data: unknown): RentalDocument {
   const recurringBills = validateArray(normalizedData.recurringBills, validateRecurringBill, "recurringBills");
   const billPayments = validateArray(normalizedData.billPayments, validateBillPayment, "billPayments");
   const administrationSuggestions = validateArray(normalizedData.administrationSuggestions, validateAdministrationSuggestion, "administrationSuggestions");
-  const customReminders = validateArray(normalizedData.customReminders, validateCustomReminder, "customReminders");
   const taskStates = validateArray(normalizedData.taskStates, validateTaskState, "taskStates");
   const apartmentPeriods = validateArray(normalizedData.apartmentPeriods, validateApartmentPeriod, "apartmentPeriods");
   const taxSettlementSnapshots = validateArray(normalizedData.taxSettlementSnapshots, validateTaxSettlementSnapshot, "taxSettlementSnapshots");
@@ -242,7 +239,6 @@ function validateRentalDocument(data: unknown): RentalDocument {
       recurringBills,
       billPayments,
       administrationSuggestions,
-      customReminders,
       taskStates,
       apartmentPeriods,
       taxSettlementSnapshots,
@@ -337,13 +333,6 @@ function isValidIsoTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(new Date(value).getTime()) && new Date(value).toISOString() === value;
 }
 
-function validateCustomReminder(value: unknown): CustomReminder {
-  if (!isRecord(value) || !isStableId(value.id) || !isNonEmptyString(value.title) || !isNonEmptyString(value.dueDate)) throw corrupted("Custom reminder entry is invalid.");
-  const recurrence = value.recurrence;
-  if (recurrence !== "ONCE" && recurrence !== "MONTHLY" && recurrence !== "YEARLY") throw corrupted("Custom reminder recurrence is invalid.");
-  return { id: value.id, title: value.title, dueDate: value.dueDate, recurrence, ...(optionalString(value.propertyId) ? { propertyId: value.propertyId } : {}), ...(optionalString(value.note) ? { note: value.note } : {}) };
-}
-
 function validateTaskState(value: unknown): TaskState {
   if (!isRecord(value) || !isNonEmptyString(value.taskId)) throw corrupted("Task state entry is invalid.");
   return { taskId: value.taskId, ...(optionalString(value.snoozedUntil) ? { snoozedUntil: value.snoozedUntil } : {}), ...(optionalString(value.dismissedAt) ? { dismissedAt: value.dismissedAt } : {}), ...(optionalString(value.completedAt) ? { completedAt: value.completedAt } : {}) };
@@ -371,7 +360,7 @@ function validateBillPayment(value: unknown): BillPayment {
 
 function validateReminderCategories(value: unknown): RentalDocument["settings"]["reminderCategories"] {
   if (!isRecord(value)) throw corrupted("Notification settings are invalid.");
-  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills, custom: value.custom };
+  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills };
   if (Object.values(categories).some((enabled) => typeof enabled !== "boolean")) throw corrupted("Notification settings are invalid.");
   return categories as RentalDocument["settings"]["reminderCategories"];
 }
