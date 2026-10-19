@@ -69,7 +69,7 @@ const validDocument: RentalDocument = {
   taskStates: [],
   apartmentPeriods: [],
   taxSettlementSnapshots: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
+  settings: { taxYear: 2026, jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
 };
 
 describe("localRentalStore", () => {
