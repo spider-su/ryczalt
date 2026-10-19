@@ -15,7 +15,7 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
-import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
+import { formatPolishCount, formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "../domain/rentalPresentation";
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
@@ -318,7 +318,7 @@ export function TaxScreen() {
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={ui.modalHeader}><Text style={ui.modalTitle}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
-          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ? formatPolishDate(`${settlement.period}-01`, "month") : ""}</Text>
+          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ? formatPolishMonth(settlement.period) : ""}</Text>
           <Text style={fieldLabel}>Kwota wpłaty</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
           
           <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź wpłatę"}</Text></Pressable>
