@@ -127,8 +127,8 @@ describe("rental validation and operations", () => {
       taxPayments: [],
       recurringBills: [],
       billPayments: [],
-      administrationSuggestions: [], customReminders: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
-      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+      administrationSuggestions: [], taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
     };
     expect(() => validateRentalDocumentShape(document)).toThrow();
   });
@@ -136,9 +136,9 @@ describe("rental validation and operations", () => {
   it("rejects unsupported tax years, invalid rent effective periods, and malformed task state", () => {
     const valid: RentalDocument = {
       schemaVersion: 1, properties: [{ ...property, rentSchedule: [{ effectiveFrom: "2026-09", amount: "0.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] }],
-      incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [], apartmentPeriods: [], taxSettlementSnapshots: [],
+      incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], apartmentPeriods: [], taxSettlementSnapshots: [],
       taskStates: [{ taskId: "CUSTOM_REMINDER:r1:2026-10-15", snoozedUntil: "2026-09-27T08:00:00.000Z" }],
-      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+      settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
     };
     expect(() => validateRentalDocumentShape(valid)).not.toThrow();
     expect(() => validateRentalDocumentShape({ ...valid, settings: { ...valid.settings, taxYear: 2027 } })).toThrow(/Tax year/);
