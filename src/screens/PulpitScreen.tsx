@@ -92,7 +92,8 @@ export function PulpitScreen() {
     || (lifecycleForMonth(property, selectedMonth) === "ACTIVE" && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth)));
   const monthAmounts = activeProperties.map((property) => {
     const snapshot = document.apartmentPeriods?.find((item) => item.propertyId === property.id && item.month === selectedMonth);
-    if (!snapshot) return rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
+    // Only completed months can use frozen snapshots. The active month must reflect live receipts.
+    if (!snapshot || selectedMonth >= currentMonth) return rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
     const expectedGrosz = snapshot.expectedKnown && snapshot.expectedAmount !== undefined ? moneyToGrosz(snapshot.expectedAmount) : null;
     const confirmedGrosz = moneyToGrosz(snapshot.confirmedAmount);
     return { expectedGrosz, confirmedGrosz, remainingGrosz: expectedGrosz === null ? null : Math.max(0, expectedGrosz - confirmedGrosz), unallocatedGrosz: 0 };
@@ -104,8 +105,11 @@ export function PulpitScreen() {
   }, 0);
   const receivedRent = expectedRent - remainingRent;
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
-  const rentFullyConfirmed = rentExpectationKnown && expectedRent > 0 && remainingRent === 0;
-  const rentConfirmationPending = !rentExpectationKnown || remainingRent > 0;
+  const rentFullyConfirmed = rentExpectationKnown && expectedRent > 0 && remainingRent === 0 && activeProperties.every((property) => {
+    if (selectedMonth < currentMonth) return true;
+    return document.incomeEntries.some((entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === selectedMonth);
+  });
+  const rentConfirmationPending = !rentFullyConfirmed;
   const currentPeriodKey = settlementPeriodForMonth(selectedMonth);
   const taxSummary = currentPeriodKey ? taxSummaryForPeriod(settlements, currentPeriodKey) : { current: null, previousOutstanding: { count: 0, totalGrosz: 0 } };
   const currentPeriod = taxSummary.current;
