@@ -68,11 +68,10 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
   return {
     schemaVersion: 1, properties, incomeEntries, taxPayments, recurringBills: [], billPayments: [], apartmentPeriods: [], taxSettlementSnapshots: [],
     administrationSuggestions: [],
-    customReminders: [{ id: "demo-reminder-inspection", title: "Przegląd mieszkania", propertyId: "demo-piotrkowska", dueDate: monthDay(monthShift(currentMonth, 1), 12), note: "Umów dogodny termin", recurrence: "ONCE" }],
     taskStates: [],
     settings: {
       taxYear: supportedYear, settlementMode: "monthly", jointSpouseThreshold: false,
-      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1,
+      reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1,
       taxRecipientName: "Urząd Skarbowy Kraków", taxMicroAccount: "12 1010 1270 0000 0000 0000 0000",
     },
   };
