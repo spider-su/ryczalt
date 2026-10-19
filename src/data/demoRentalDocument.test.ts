@@ -25,7 +25,7 @@ describe("isolated demo rental data", () => {
   it("persists normal-mode edits through the normal repository callback", async () => {
     const document = createDemoRentalDocument(now);
     const persist = vi.fn(async () => undefined);
-    await applyRentalDocumentChange(document, (current) => ({ ...current, customReminders: [] }), false, persist);
+    await applyRentalDocumentChange(document, (current) => ({ ...current, taskStates: [] }), false, persist);
     expect(persist).toHaveBeenCalledOnce();
   });
 
