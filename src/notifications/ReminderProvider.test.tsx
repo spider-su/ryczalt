@@ -29,6 +29,10 @@ vi.mock("../data/localRentalStore", () => ({
   saveRentalDocument: (...args: unknown[]) => runtime.save(...args),
 }));
 
+vi.mock("expo-crypto", () => ({
+  randomUUID: vi.fn(() => "00000000-0000-4000-8000-000000000001"),
+}));
+
 vi.mock("expo-notifications", () => ({
   setNotificationHandler: vi.fn(),
   SchedulableTriggerInputTypes: { DATE: "date" },
