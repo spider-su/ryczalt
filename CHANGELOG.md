@@ -20,7 +20,7 @@ This file records delivered changes for the first public schema-1 release. Pre-r
 - Pulpit prioritizes monthly profit (ZYSK), then rent and tax; redundant aggregate expected-rent text is hidden for a single active apartment.
 - Rent, bill and tax flows remain manual-confirmation only; expected amounts never become confirmed facts automatically.
 - Tax periods are monthly only for the POC.
-- User-created personal/custom reminders are removed from the product surface and notification routing.
+- User-created personal/custom reminders are removed completely from the product, persisted schema, validation and notification routing.
 
 ### Fixed
 
