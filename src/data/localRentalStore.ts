@@ -1,5 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getProtectedItem, isEncryptedLocalValue, removeLocalEncryptionKey, removeProtectedItem, setProtectedItem } from "./secureLocalStorage";
+import { getProtectedItem, removeLocalEncryptionKey, removeProtectedItem, setProtectedItem } from "./secureLocalStorage";
 
 import type {
   BillPayment,
@@ -26,8 +25,6 @@ export const RENTAL_DOCUMENT_SCHEMA_VERSION = 1;
 /** Stable namespace; the current document schema version is stored in its JSON. */
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v2";
 export const RENTAL_DOCUMENT_BACKUP_KEY = `${RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
-export const LEGACY_RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
-export const LEGACY_RENTAL_DOCUMENT_BACKUP_KEY = `${LEGACY_RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
 export const DEFAULT_TAX_YEAR = Number(todayInPoland().slice(0, 4));
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
@@ -105,10 +102,6 @@ export const emptyDocument = (
   },
 });
 
-export async function loadRentalDocument(): Promise<RentalDocument> {
-  return (await loadRentalDocumentWithStatus()).document;
-}
-
 export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoadResult> {
   let raw: string | null;
   try {
@@ -122,19 +115,6 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
       const document = parseRentalDocument(backupRaw);
       return { document, recoveredFromBackup: true };
     }
-
-    // One-time namespace migration.
-    const legacyRaw = await AsyncStorage.getItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
-    if (legacyRaw !== null) {
-      try {
-        const legacyDocument = parseRentalDocument(legacyRaw);
-        await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(legacyDocument));
-        await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(legacyDocument));
-        return { document: legacyDocument, recoveredFromBackup: false };
-      } catch {
-        // Never classify an older namespace as corrupted current data and never delete it.
-      }
-    }
     return { document: emptyDocument(), recoveredFromBackup: false };
   }
   let document: RentalDocument;
@@ -144,23 +124,7 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
     if (primaryError instanceof RentalStoreError && primaryError.code === "UNSUPPORTED_VERSION") throw primaryError;
     return recoverFromBackup(primaryError);
   }
-  // A valid pre-encryption document is upgraded in place only after validation succeeds.
-  if (!isEncryptedLocalValue(raw)) {
-    await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(document));
-    await migratePlaintextRecoveryCopy();
-  }
   return { document, recoveredFromBackup: false };
-}
-
-async function migratePlaintextRecoveryCopy(): Promise<void> {
-  try {
-    const backupRaw = await getProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
-    if (backupRaw === null || isEncryptedLocalValue(backupRaw)) return;
-    const backup = parseRentalDocument(backupRaw);
-    await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(backup));
-  } catch {
-    // A bad recovery copy is retained for deliberate recovery; it must not block the valid primary.
-  }
 }
 
 export async function saveRentalDocument(
@@ -188,8 +152,6 @@ export async function readRawRentalDocument(): Promise<string | null> {
 export async function resetRentalDocument(): Promise<void> {
   await removeProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
   await removeProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY);
-  await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_BACKUP_KEY);
-  await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
   await removeLocalEncryptionKey();
 }
 
