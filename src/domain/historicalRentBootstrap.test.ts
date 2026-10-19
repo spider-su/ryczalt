@@ -8,6 +8,19 @@ const doc = (): RentalDocument => ({ schemaVersion: 1, properties: [], incomeEnt
 const property = { id: "p1", address: "Parkowa 1", ownerRent: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, rentalStartDate: "2026-03-12", paymentDay: 5, rentSchedule: [{ effectiveFrom: "2026-03", amount: "2500.00", mediaAmount: "500.00", mediaPaidByTenant: true, taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 }] };
 
 describe("historical rent bootstrap", () => {
+  it("initializes every completed month but leaves October rent and tax pending", () => {
+    const octoberProperty = { ...property, rentalStartDate: "2026-01-01", rentSchedule: [{ ...property.rentSchedule[0]!, effectiveFrom: "2026-01" }] };
+    const initial = { ...doc(), properties: [octoberProperty] };
+    const range = historicalBootstrapDefaultRange("2026-10-19", octoberProperty.rentalStartDate);
+    expect(range).toEqual({ startMonth: "2026-01", endMonth: "2026-09" });
+    const result = bootstrapHistoricalRentPayments({ document: initial, property: octoberProperty, startMonth: range.startMonth, endMonth: range.endMonth!, today: "2026-10-19" });
+    expect(result.created.map((entry) => entry.rentalMonth)).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
+    expect(rentMonthAmounts(octoberProperty, result.document.incomeEntries, "2026-09", new Date(2026, 9, 19)).remainingGrosz).toBe(0);
+    expect(rentMonthAmounts(octoberProperty, result.document.incomeEntries, "2026-10", new Date(2026, 9, 19))).toMatchObject({ confirmedGrosz: 0, remainingGrosz: 300000 });
+    expect(result.document.taxPayments.some((payment) => payment.period === "2026-10")).toBe(false);
+    expect(bootstrapHistoricalRentPayments({ document: result.document, property: octoberProperty, ...range, today: "2026-10-19" }).created).toHaveLength(0);
+  });
+
   it("defaults to the rental start month through the last completed month", () => {
     expect(historicalBootstrapDefaultRange("2026-09-28", property.rentalStartDate)).toEqual({ startMonth: "2026-03", endMonth: "2026-08" });
     expect(historicalBootstrapDefaultRange("2026-01-02", property.rentalStartDate).endMonth).toBeNull();
