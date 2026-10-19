@@ -137,7 +137,7 @@ describe("rental validation and operations", () => {
     const valid: RentalDocument = {
       schemaVersion: 1, properties: [{ ...property, rentSchedule: [{ effectiveFrom: "2026-09", amount: "0.00", mediaAmount: "0.00", mediaPaidByTenant: false, taxableTreatment: "OWNER_RENT", paymentDay: 5 }] }],
       incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], apartmentPeriods: [], taxSettlementSnapshots: [],
-      taskStates: [{ taskId: "CUSTOM_REMINDER:r1:2026-10-15", snoozedUntil: "2026-09-27T08:00:00.000Z" }],
+      taskStates: [{ taskId: "RENTAL_AGREEMENT_END:p1:2026-10-15", snoozedUntil: "2026-09-27T08:00:00.000Z" }],
       settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
     };
     expect(() => validateRentalDocumentShape(valid)).not.toThrow();
