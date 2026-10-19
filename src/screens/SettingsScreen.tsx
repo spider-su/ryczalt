@@ -39,7 +39,7 @@ import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLi
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 import { apartmentTermsForMonth } from "../domain/apartmentTerms";
-import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
+import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderGroups, settingsReminderGroupsHasMore, settingsReminderGroupTitle } from "../domain/settingsPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
   address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
@@ -575,8 +575,14 @@ export function SettingsScreen() {
           ["rent", "Wpłaty czynszu"], ["bills", "Opłaty"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"],
         ] as const).map(([category, label]) => <View key={category} style={[notificationRow, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={{ ...rowTitle, flex: 1 }}>{label}</Text><Switch disabled={settingsNotificationsUnavailable(permission)} value={settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission)} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission), disabled: settingsNotificationsUnavailable(permission) }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
-        {reminderPlan.length ? settingsReminderList(reminderPlan, showAllReminders).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
-        {settingsReminderHasMore(reminderPlan, showAllReminders) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllReminders }} onPress={() => setShowAllReminders(true)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż wszystkie</Text></Pressable> : null}
+        {reminderPlan.length ? settingsReminderGroups(reminderPlan, showAllReminders).map((group) => <View key={group.key} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.borderSubtle, gap: 4 }}>
+          <Text style={{ ...rowTitle, fontSize: 14 }}>{formatPolishDate(group.date)} · {settingsReminderGroupTitle(group.type)}</Text>
+          {group.tasks.length === 1
+            ? <Text style={muted}>{group.tasks[0]!.title}</Text>
+            : <Text style={muted}>{group.tasks.length} przypomnienia · {group.tasks.map((task) => task.title.split(" — ").slice(1).join(" — ") || task.title).join(", ")}</Text>}
+        </View>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
+        {settingsReminderGroupsHasMore(reminderPlan, showAllReminders) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllReminders }} onPress={() => setShowAllReminders(true)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż wszystkie</Text></Pressable> : null}
+        {showAllReminders && settingsReminderGroups(reminderPlan, true).length > 3 ? <Pressable accessibilityRole="button" onPress={() => setShowAllReminders(false)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż mniej</Text></Pressable> : null}
         </> : null}
         {activeSection === "payment" ? <>
         <Text style={muted}>Wpisz własny numer mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
