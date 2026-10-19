@@ -8,7 +8,7 @@ export type NotificationIntent =
 
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const rentalMonth = (value: unknown): value is string => nonEmptyString(value) && isRentalMonth(value);
-const taxPeriod = (value: unknown): value is string => nonEmptyString(value) && /^\d{4}-(0[1-9]|1[0-2]|Q[1-4])$/.test(value);
+const taxPeriod = rentalMonth;
 
 export function notificationDataToIntent(data: Record<string, unknown>): NotificationIntent | null {
   if (data.category === "rent" && nonEmptyString(data.propertyId) && rentalMonth(data.period)) {
@@ -27,7 +27,5 @@ export function notificationDataToIntent(data: Record<string, unknown>): Notific
   }
   if (data.category === "agreement" && nonEmptyString(data.propertyId))
     return { screen: "Ustawienia", params: { propertyId: data.propertyId } };
-  if (data.category === "custom" && nonEmptyString(data.taskId))
-    return { screen: "Pulpit", params: { screen: "Przegląd", params: { taskId: data.taskId } } };
   return null;
 }
