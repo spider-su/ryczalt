@@ -59,7 +59,6 @@ Do not implement during the POC unless user evidence changes the priority:
 - contextual anomaly checks (unexpected amount, possible duplicate, unusual period/date) rather than an analytics dashboard;
 - lightweight annual landlord summary, with PIT-28 export considered separately above;
 - document attachments only if users demonstrate a real need; avoid document-management scope;
-- quarterly settlement dead-code cleanup unless it creates a correctness or maintenance blocker.
 
 ## Product boundary
 
