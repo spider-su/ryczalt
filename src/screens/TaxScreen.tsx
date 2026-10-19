@@ -86,7 +86,7 @@ export function TaxScreen() {
     if (!document || (!period && !params?.openPaymentConfirmation)) return;
     const year = period ? Number(period.slice(0, 4)) : Number(selectedPeriod.slice(0, 4));
     const part = period?.slice(5) ?? selectedPeriod.slice(5);
-    const requested = part.startsWith("Q") ? `${year}-${part}` : settlementPeriodForMonth(`${year}-${part.padStart(2, "0")}`) ?? selectedPeriod;
+    const requested = settlementPeriodForMonth(`${year}-${part.padStart(2, "0")}`) ?? selectedPeriod;
     const latest = currentTaxPeriod(now);
     const targetPeriod = requested > latest ? latest : requested < earliestPeriod ? earliestPeriod : requested;
     setSelectedPeriod(targetPeriod);
@@ -232,7 +232,7 @@ export function TaxScreen() {
   return <View style={ui.page}>
     <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
       <PeriodSelector value={taxPeriodLabel(selectedPeriod)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
-        previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode)}
+        previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now)}
         onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, now, earliestPeriod))}
         onNext={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, 1, now, earliestPeriod))} />
       {!settlement || !Number.isInteger(taxYear) ? null : <>
