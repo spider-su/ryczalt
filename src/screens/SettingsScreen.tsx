@@ -498,8 +498,7 @@ export function SettingsScreen() {
         {activeSection === null ? <>
         <Text style={ui.pageTitle}>Ustawienia</Text>
         {settingsSections.filter((section) => section.id !== 'properties').map((section) => {
-          const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
-            : section.id === "tax" ? `Ryczałt · miesięcznie · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
+          const summary = section.id === "tax" ? `Ryczałt · miesięcznie · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
                 : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax", "bills"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax" | "bills"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
