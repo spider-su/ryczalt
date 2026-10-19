@@ -1,12 +1,6 @@
 import type { RentalDocument, IncomeEntry, Property, TaxPayment } from "../model/rental";
 import { calculateSettlements, settlementPeriodForMonth, SUPPORTED_TAX_YEARS, todayInPoland } from "../domain/ryczaltTax";
 
-function monthShift(month: string, offset: number) {
-  const [year, number] = month.split("-").map(Number);
-  const date = new Date(year!, number! - 1 + offset, 1, 12);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function monthDay(month: string, day: number) {
   const [year, number] = month.split("-").map(Number);
   const lastDay = new Date(year!, number!, 0).getDate();
