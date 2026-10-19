@@ -11,15 +11,13 @@ export function closeRentalMonth(document: RentalDocument, month: string, now = 
   if (!isRentalMonth(month) || month >= localMonth(now)) throw new Error("Only a completed month can be closed");
   const taxYear = Number(month.slice(0, 4));
   if (!hasTaxRulesForYear(taxYear)) throw new Error(`Tax rules for ${taxYear} are not available`);
-  if (document.settings.settlementMode !== "monthly") throw new Error("Quarterly tax periods are read-only in this version");
-  const apartmentPeriods = [...(document.apartmentPeriods ?? [])];
-  const taxSettlementSnapshots: TaxSettlementSnapshot[] = document.taxSettlementSnapshots ?? [];
+  const apartmentPeriods = [...document.apartmentPeriods];
+  const taxSettlementSnapshots: TaxSettlementSnapshot[] = [...document.taxSettlementSnapshots];
   const closedAt = now.toISOString();
   const calculatedTax = calculateSettlements({
     entries: document.incomeEntries,
     payments: document.taxPayments,
     taxYear,
-    mode: "monthly",
     jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: taxYear === document.settings.taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
     openingTaxPaidGrosz: taxYear === document.settings.taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
@@ -57,15 +55,13 @@ export function closeRentalMonth(document: RentalDocument, month: string, now = 
 
 /** Recalculate only saved settlements impacted by a newly recorded tax payment. */
 export function refreshSavedTaxSettlementsAfterPayment(document: RentalDocument, firstAffectedPeriod: string, now = new Date()): RentalDocument {
-  if (document.settings.settlementMode !== "monthly") return document;
   const year = Number(firstAffectedPeriod.slice(0, 4));
-  const saved = document.taxSettlementSnapshots ?? [];
+  const saved = document.taxSettlementSnapshots;
   if (!saved.some((snapshot) => snapshot.rulesYear === year && snapshot.period >= firstAffectedPeriod)) return document;
   const calculated = calculateSettlements({
     entries: document.incomeEntries,
     payments: document.taxPayments,
     taxYear: year,
-    mode: "monthly",
     jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: document.settings.taxYear === year && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
     openingTaxPaidGrosz: document.settings.taxYear === year && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
@@ -88,7 +84,7 @@ export function taxSettlementFromSnapshot(snapshot: TaxSettlementSnapshot, today
   const status: Settlement["status"] = obligationGrosz === 0 ? "no-tax" : outstandingGrosz === 0 ? "paid" : today > snapshot.dueDate ? "overdue" : "due";
   return {
     period: snapshot.period,
-    rulesYear: snapshot.appliedRulesYear ?? snapshot.rulesYear,
+    rulesYear: snapshot.appliedRulesYear,
     revenueGrosz: moneyToGrosz(snapshot.revenue),
     taxableBaseGrosz: moneyToGrosz(snapshot.taxableBase),
     cumulativeRevenueGrosz: moneyToGrosz(snapshot.cumulativeRevenue),
