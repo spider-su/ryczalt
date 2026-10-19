@@ -578,7 +578,7 @@ export function SettingsScreen() {
         {reminderPlan.length ? settingsReminderGroups(reminderPlan, showAllReminders).map((group) => <View key={group.key} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.borderSubtle, gap: 4 }}>
           <Text style={{ ...rowTitle, fontSize: 14 }}>{formatPolishDate(group.date)} · {settingsReminderGroupTitle(group.type)}</Text>
           {group.tasks.length === 1
-            ? <Text style={muted}>{group.tasks[0].title}</Text>
+            ? <Text style={muted}>{group.tasks[0]!.title}</Text>
             : <Text style={muted}>{group.tasks.length} przypomnienia · {group.tasks.map((task) => task.title.split(" — ").slice(1).join(" — ") || task.title).join(", ")}</Text>}
         </View>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
         {settingsReminderGroupsHasMore(reminderPlan, showAllReminders) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllReminders }} onPress={() => setShowAllReminders(true)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż wszystkie</Text></Pressable> : null}
