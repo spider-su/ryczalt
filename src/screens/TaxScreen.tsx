@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth, taxRulesAreProvisional, taxRulesYearFor } from "../domain/ryczaltTax";
-import { isFullPaymentAmount, isNonnegativeMoney, isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
+import { isFullPaymentAmount, isNonnegativeMoney, isPositiveMoney } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { removeTaxPayment, upsertTaxPayment } from "../domain/taxPayment";
@@ -15,7 +15,7 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
-import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
+import { formatPolishCount, formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "../domain/rentalPresentation";
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
@@ -191,8 +191,8 @@ export function TaxScreen() {
       return;
     }
     const amount = paymentDraft.amount.trim().replace(",", ".");
-    if (!isPositiveMoney(amount) || !isValidCalendarDate(paymentDraft.paidAt)) {
-      Alert.alert("Sprawdź dane wpłaty", "Kwota musi być dodatnia (maks. 2 miejsca po przecinku), a data rzeczywista w formacie RRRR-MM-DD.");
+    if (!isPositiveMoney(amount)) {
+      Alert.alert("Sprawdź dane wpłaty", "Kwota musi być dodatnia (maks. 2 miejsca po przecinku).");
       return;
     }
     if (!settlement) return;
@@ -200,7 +200,7 @@ export function TaxScreen() {
       Alert.alert("Potwierdź pełną wpłatę", "Można potwierdzić tylko całą pozostałą kwotę podatku.");
       return;
     }
-    const next: TaxPayment = { id: createId("tax"), period: settlement.period, paidAt: paymentDraft.paidAt, amount };
+    const next: TaxPayment = { id: createId("tax"), period: settlement.period, paidAt: todayIsoDate(), amount };
     setSaving(true);
     try {
       await update((current) => refreshSavedTaxSettlementsAfterPayment(upsertTaxPayment(current, next), settlement.period));
@@ -335,10 +335,10 @@ export function TaxScreen() {
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={ui.modalHeader}><Text style={ui.modalTitle}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
-          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ?? ""}</Text>
-          <Text style={fieldLabel}>Pełna pozostała kwota podatku (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
-          <Text style={fieldLabel}>Data wpłaty (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data wpłaty" value={paymentDraft.paidAt} onChangeText={(paidAt) => setPaymentDraft((current) => ({ ...current, paidAt }))} placeholder="2026-10-20" style={inputStyle} />
-          <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź wykonaną wpłatę"}</Text></Pressable>
+          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ? formatPolishMonth(settlement.period) : ""}</Text>
+          <Text style={fieldLabel}>Kwota wpłaty</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
+          
+          <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź wpłatę"}</Text></Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>
