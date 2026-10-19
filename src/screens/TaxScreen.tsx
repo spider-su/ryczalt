@@ -119,8 +119,7 @@ export function TaxScreen() {
           if (!hasPaymentThisYear && (priorRevenue > 0 || hasPriorRent)) setHistoryReviewOpen(true);
           else setModalOpen(true);
         };
-        const unconfirmedRentCount =           ? unconfirmedRentCountForMonth(document, targetPeriod)
-          : 0;
+        const unconfirmedRentCount = unconfirmedRentCountForMonth(document, targetPeriod);
         if (unconfirmedRentCount > 0) {
           Alert.alert(
             "Nie wszystkie czynsze są potwierdzone",
@@ -141,8 +140,7 @@ export function TaxScreen() {
   const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
-  const unconfirmedRentCount =     ? unconfirmedRentCountForMonth(document, selectedPeriod)
-    : 0;
+  const unconfirmedRentCount = unconfirmedRentCountForMonth(document, selectedPeriod);
   const openPayment = () => {
     if (unconfirmedRentCount > 0) return;
     setPaymentDraft({ amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
