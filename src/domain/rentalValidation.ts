@@ -206,7 +206,7 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Tax payment IDs must be unique.");
     taxIds.add(payment.id);
     if (
-      !isSettlementPeriod(payment.period) ||
+      !isRentalMonth(payment.period) ||
       !isValidCalendarDate(payment.paidAt) ||
       !isPositiveMoney(payment.amount) ||
       (payment.source !== undefined && payment.source !== "MANUAL" && payment.source !== "INITIAL_IMPORT")
