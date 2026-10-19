@@ -65,7 +65,7 @@ function documentFixture(): RentalDocument {
     incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [],
     taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
     settings: { taxYear: now.getFullYear(), jointSpouseThreshold: false,
-      reminderCategories: { rent: true, agreements: true, tax: true, bills: false, custom: false }, rentReminderDelayDays: 0 },
+      reminderCategories: { rent: true, agreements: true, tax: true, bills: false }, rentReminderDelayDays: 0 },
   };
 }
 
