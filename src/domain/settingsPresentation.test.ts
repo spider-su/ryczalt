@@ -53,9 +53,9 @@ describe("grouped reminder preview", () => {
     const d = task("d", 6);
     const groups = settingsReminderGroups([d, b, c, a], true);
     expect(groups).toHaveLength(3);
-    expect(groups[0].tasks.map(({ id }) => id)).toEqual(["a", "b"]);
-    expect(groups[1].type).toBe("TAX_PAYMENT");
-    expect(groups[2].tasks[0].id).toBe("d");
+    expect(groups[0]!.tasks.map(({ id }) => id)).toEqual(["a", "b"]);
+    expect(groups[1]!.type).toBe("TAX_PAYMENT");
+    expect(groups[2]!.tasks[0]!.id).toBe("d");
   });
   it("limits by groups rather than individual reminders", () => {
     const tasks = [task("a", 1), task("b", 1), task("c", 2), task("d", 3), task("e", 4)];
