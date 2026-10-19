@@ -497,7 +497,7 @@ export function SettingsScreen() {
       <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
         {activeSection === null ? <>
         <Text style={ui.pageTitle}>Ustawienia</Text>
-        {settingsSections.map((section) => {
+        {settingsSections.filter((section) => section.id !== 'properties').map((section) => {
           const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
             : section.id === "tax" ? `Ryczałt · miesięcznie · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
               : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
