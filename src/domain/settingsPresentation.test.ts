@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTask } from "./tasks";
 import { isValidTaxMicroAccount } from "./rentalValidation";
-import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "./settingsPresentation";
+import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList, settingsReminderGroups, settingsReminderGroupsHasMore } from "./settingsPresentation";
 
 const task = (id: string, day: number): AssistantTask => ({
   id, type: "RENTAL_AGREEMENT_END", title: id, detail: "", dueAt: new Date(2026, 8, day), notificationAt: new Date(2026, 8, day),
@@ -42,5 +42,25 @@ describe("settings presentation", () => {
     expect(settingsBackupStatus.capabilities).toContain("plik JSON");
     expect(settingsBackupStatus.uninstall).toContain("może usunąć");
     expect(settingsBackupStatus.network).toContain("nie synchronizuje");
+  });
+});
+
+describe("grouped reminder preview", () => {
+  it("combines same local date and type, but keeps other dates and types separate", () => {
+    const a = task("a", 5);
+    const b = task("b", 5);
+    const c = { ...task("c", 5), type: "TAX_PAYMENT" as const };
+    const d = task("d", 6);
+    const groups = settingsReminderGroups([d, b, c, a], true);
+    expect(groups).toHaveLength(3);
+    expect(groups[0].tasks.map(({ id }) => id)).toEqual(["a", "b"]);
+    expect(groups[1].type).toBe("TAX_PAYMENT");
+    expect(groups[2].tasks[0].id).toBe("d");
+  });
+  it("limits by groups rather than individual reminders", () => {
+    const tasks = [task("a", 1), task("b", 1), task("c", 2), task("d", 3), task("e", 4)];
+    expect(settingsReminderGroups(tasks)).toHaveLength(3);
+    expect(settingsReminderGroupsHasMore(tasks)).toBe(true);
+    expect(settingsReminderGroupsHasMore(tasks, true)).toBe(false);
   });
 });
