@@ -81,8 +81,8 @@ describe("tax presentation", () => {
   });
 
   it("navigates localized months and periods across year boundaries", () => {
-    expect(shiftTaxPeriod("2026-12", 1, "monthly")).toBe("2027-01");
-    expect(shiftTaxPeriod("2027-01", -1, "monthly")).toBe("2026-12");
+    expect(shiftTaxPeriod("2026-12", 1)).toBe("2027-01");
+    expect(shiftTaxPeriod("2027-01", -1)).toBe("2026-12");
     expect(taxPeriodLabel("2026-09")).toBe(formatPolishMonth("2026-09"));
   });
 
