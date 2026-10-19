@@ -7,7 +7,7 @@ import { currentTaxPeriod, previousOutstandingTax, remainingTaxThresholdGrosz, s
 
 const income = [{ id: "i", propertyId: "p", receivedAt: "2026-09-01", amount: "17900.00", taxableAmount: "17900.00" }];
 function settle(payments: { id: string; period: string; paidAt: string; amount: string }[] = [], today = "2026-09-28") {
-  return calculateSettlements({ entries: income, payments, taxYear: 2026, mode: "monthly", today })[8]!;
+  return calculateSettlements({ entries: income, payments, taxYear: 2026, today })[8]!;
 }
 
 describe("tax presentation", () => {
@@ -19,7 +19,7 @@ describe("tax presentation", () => {
     const paid = taxPaymentDisplay(settle([{ id: "p", period: "2026-09", paidAt: "2026-09-28", amount: "1522.00" }]));
     expect(paid).toMatchObject({ kind: "paid", obligationGrosz: due.obligationGrosz, paidGrosz: due.obligationGrosz, remainingGrosz: 0, viaCredit: false });
     expect(taxPaymentDisplay(settle([], "2026-11-01"))).toMatchObject({ kind: "overdue" });
-    const noTax = calculateSettlements({ entries: [], payments: [], taxYear: 2026, mode: "monthly", today: "2026-09-28" })[8]!;
+    const noTax = calculateSettlements({ entries: [], payments: [], taxYear: 2026, today: "2026-09-28" })[8]!;
     expect(taxPaymentDisplay(noTax)).toMatchObject({ kind: "no-tax", obligationGrosz: 0, paidGrosz: 0, remainingGrosz: 0 });
   });
 
@@ -30,7 +30,7 @@ describe("tax presentation", () => {
         { id: "feb", propertyId: "p", receivedAt: "2026-02-01", amount: "1000.00", taxableAmount: "1000.00" },
       ],
       payments: [{ id: "feb-payment", period: "2026-02", paidAt: "2026-03-10", amount: "85.00" }],
-      taxYear: 2026, mode: "monthly", today: "2026-03-15",
+      taxYear: 2026, today: "2026-03-15",
     });
     expect(settlements[0]).toMatchObject({ allocatedPaidGrosz: 8_500, outstandingGrosz: 0 });
     expect(settlements[1]).toMatchObject({ paidGrosz: 8_500, allocatedPaidGrosz: 0, outstandingGrosz: 8_500 });
@@ -42,7 +42,7 @@ describe("tax presentation", () => {
       entries: ["2026-01", "2026-02", "2026-09"].map((month, index) => ({
         id: `i${index}`, propertyId: "p", receivedAt: `${month}-01`, amount: "1000.00", taxableAmount: "1000.00",
       })),
-      payments: [], taxYear: 2026, mode: "monthly", today: "2026-10-01",
+      payments: [], taxYear: 2026, today: "2026-10-01",
     });
     const current = settlements[8]!;
     const older = previousOutstandingTax(settlements, current.period);
@@ -56,7 +56,7 @@ describe("tax presentation", () => {
       id: `pulpit-${index}`, propertyId: "p", receivedAt: `${month}-01`, amount: "1000.00", taxableAmount: "1000.00",
     }));
     const project = (months: string[], payments: { id: string; period: string; paidAt: string; amount: string }[] = []) => {
-      const settlements = calculateSettlements({ entries: incomeFor(months), payments, taxYear: 2026, mode: "monthly", today: "2026-10-01" });
+      const settlements = calculateSettlements({ entries: incomeFor(months), payments, taxYear: 2026, today: "2026-10-01" });
       return taxSummaryForPeriod(settlements, "2026-09");
     };
 
@@ -83,28 +83,25 @@ describe("tax presentation", () => {
   it("navigates localized months and periods across year boundaries", () => {
     expect(shiftTaxPeriod("2026-12", 1, "monthly")).toBe("2027-01");
     expect(shiftTaxPeriod("2027-01", -1, "monthly")).toBe("2026-12");
-    expect(taxPeriodLabel("2026-09", "monthly")).toBe(formatPolishMonth("2026-09"));
-    expect(shiftTaxPeriod("2026-Q4", 1, "quarterly")).toBe("2027-Q1");
-    expect(shiftTaxPeriod("2027-Q1", -1, "quarterly")).toBe("2026-Q4");
+    expect(taxPeriodLabel("2026-09")).toBe(formatPolishMonth("2026-09"));
   });
 
   it("limits manual period navigation to tracked months through the current period", () => {
     const now = new Date(2026, 8, 28, 12);
     expect(currentTaxPeriod(now)).toBe("2026-09");
-    expect(shiftTaxPeriodWithinRange("2026-09", 1, "monthly", now, "2026-03")).toBe("2026-09");
-    expect(shiftTaxPeriodWithinRange("2026-08", 1, "monthly", now, "2026-03")).toBe("2026-09");
-    expect(taxPeriodsForYear(2026, "monthly", now, "2026-03")).toEqual(["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
-    expect(taxPeriodsForYear(2025, "monthly", now)).toHaveLength(12);
-    expect(taxPeriodsForYear(2025, "monthly", now).at(-1)).toBe("2025-12");
-    expect(taxPeriodsForYear(2027, "monthly", now)).toEqual([]);
-    expect(taxPeriodsForYear(2026, "quarterly", now).at(-1)).toBe("2026-Q3");
+    expect(shiftTaxPeriodWithinRange("2026-09", 1, now, "2026-03")).toBe("2026-09");
+    expect(shiftTaxPeriodWithinRange("2026-08", 1, now, "2026-03")).toBe("2026-09");
+    expect(taxPeriodsForYear(2026, now, "2026-03")).toEqual(["2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
+    expect(taxPeriodsForYear(2025, now)).toHaveLength(12);
+    expect(taxPeriodsForYear(2025, now).at(-1)).toBe("2025-12");
+    expect(taxPeriodsForYear(2027, now)).toEqual([]);
   });
 
   it("does not offer empty historical periods when tracking starts this year", () => {
     const now = new Date(2026, 8, 28, 12);
     const earliestTrackedPeriod = "2026-01";
-    expect(taxPeriodsForYear(2025, "monthly", now, earliestTrackedPeriod)).toEqual([]);
-    expect(shiftTaxPeriodWithinRange("2026-01", -1, "monthly", now, earliestTrackedPeriod)).toBe("2026-01");
+    expect(taxPeriodsForYear(2025, now, earliestTrackedPeriod)).toEqual([]);
+    expect(shiftTaxPeriodWithinRange("2026-01", -1, now, earliestTrackedPeriod)).toBe("2026-01");
   });
 
   it("shows the transfer hint and one compact calculation explanation", () => {
@@ -112,8 +109,7 @@ describe("tax presentation", () => {
     expect(TAX_CALCULATION_EXPLANATION).toContain("potwierdzonych wpływów");
     expect(TAX_CALCULATION_EXPLANATION).toContain("nie uwzględnia indywidualnych odliczeń");
     expect(TAX_PAYMENT_ALLOCATION_HINT).toContain("najstarszej nierozliczonej należności");
-    expect(taxPeriodLabel("2026-09", "monthly")).toBe("wrzesień 2026");
-    expect(taxPeriodLabel("2026-Q3", "quarterly")).toBe("III kwartał 2026");
+    expect(taxPeriodLabel("2026-09")).toBe("wrzesień 2026");
   });
 
   it("calculates remaining progress against the active single or spouse threshold", () => {
