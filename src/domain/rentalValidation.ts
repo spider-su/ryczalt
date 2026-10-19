@@ -236,13 +236,8 @@ export function validateRentalDocumentShape(
     if ((!billIds.has(payment.billId) && payment.billId !== APARTMENT_MEDIA_BILL_ID) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
       throw new RentalValidationError("Bill payment is invalid.");
   }
-  const customIds = new Set<string>();
-  for (const reminder of document.customReminders) {
-    if (customIds.has(reminder.id) || !reminder.title.trim() || !isValidCalendarDate(reminder.dueDate) || (reminder.propertyId && !propertyIds.has(reminder.propertyId)) || !["ONCE", "MONTHLY", "YEARLY"].includes(reminder.recurrence)) throw new RentalValidationError("Custom reminder is invalid.");
-    customIds.add(reminder.id);
-  }
   const stateIds = new Set<string>();
-  const validTaskId = /^(TENANT_PAYMENT_CHECK|TAX_PAYMENT|RECURRING_BILL|RENTAL_AGREEMENT_END|CUSTOM_REMINDER):[a-z0-9][a-z0-9._:-]*$/i;
+  const validTaskId = /^(TENANT_PAYMENT_CHECK|TAX_PAYMENT|RECURRING_BILL|RENTAL_AGREEMENT_END):[a-z0-9][a-z0-9._:-]*$/i;
   for (const state of document.taskStates) {
     if (!validTaskId.test(state.taskId) || stateIds.has(state.taskId) || [state.snoozedUntil, state.dismissedAt, state.completedAt].some((value) => value !== undefined && (typeof value !== "string" || Number.isNaN(new Date(value).getTime()) || new Date(value).toISOString() !== value))) throw new RentalValidationError("Task state is invalid.");
     stateIds.add(state.taskId);
