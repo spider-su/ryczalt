@@ -62,9 +62,9 @@ function documentFixture(): RentalDocument {
   return {
     schemaVersion: 1,
     properties: [{ id: "p-1", address: "Testowa", ownerRent: "3000.00", paymentDay: nextDue.getDate(), leaseEndDate }],
-    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [], customReminders: [],
+    incomeEntries: [], taxPayments: [], recurringBills: [], billPayments: [], administrationSuggestions: [],
     taskStates: [], apartmentPeriods: [], taxSettlementSnapshots: [],
-    settings: { taxYear: now.getFullYear(), settlementMode: "monthly", jointSpouseThreshold: false,
+    settings: { taxYear: now.getFullYear(), jointSpouseThreshold: false,
       reminderCategories: { rent: true, agreements: true, tax: true, bills: false, custom: false }, rentReminderDelayDays: 0 },
   };
 }
