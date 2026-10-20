@@ -23,6 +23,18 @@ describe("bulk rent confirmation", () => {
     expect(shiftRentalMonth("2026-01", -1)).toBe("2025-12");
   });
 
+  it("confirms only the difference after rent rises, preserving the original receipt", () => {
+    const increased: Property = { ...apartments[0]!, ownerRent: "3710.00",
+      rentSchedule: [{ ...apartments[0]!.rentSchedule![0]!, amount: "3710.00" }] };
+    const pending = bulkRentItems([increased], priorEntries, "2026-09", now);
+    expect(pending).toMatchObject([{ propertyId: "paid", amountGrosz: 10_000 }]);
+    const additional = makeBulkRentEntries({ properties: [increased], priorEntries, selectedPropertyIds: ["paid"],
+      rentalMonth: "2026-09", now, createId: () => "difference" });
+    expect(additional).toMatchObject([{ amount: "100.00", taxableAmount: "100.00", rentalMonth: "2026-09" }]);
+    expect(priorEntries[0]!.amount).toBe("3610.00");
+    expect(bulkRentItems([increased], [...priorEntries, ...additional], "2026-09", now)).toEqual([]);
+  });
+
   it("selects all by default, supports deselect/select all, and recalculates amount", () => {
     const items = bulkRentItems(apartments, priorEntries, "2026-09", now);
     const all = defaultBulkSelection(items);
