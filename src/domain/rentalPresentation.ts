@@ -32,8 +32,9 @@ export type RentDisplayState =
   | { kind: "unpaid"; remainingGrosz: number }
   | { kind: "paid"; expectedGrosz: number };
 
-export function rentDisplayState(expectedGrosz: number | null, remainingGrosz: number | null): RentDisplayState {
+export function rentDisplayState(expectedGrosz: number | null, remainingGrosz: number | null, receiptConfirmed = true): RentDisplayState {
   if (expectedGrosz === null || remainingGrosz === null) return { kind: "unknown" };
+  if (!receiptConfirmed) return { kind: "unpaid", remainingGrosz: Math.max(remainingGrosz, expectedGrosz) };
   if (remainingGrosz === 0) return { kind: "paid", expectedGrosz };
   return { kind: "unpaid", remainingGrosz };
 }
