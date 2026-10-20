@@ -21,6 +21,32 @@ describe("historical rent bootstrap", () => {
     expect(bootstrapHistoricalRentPayments({ document: result.document, property: octoberProperty, startMonth: range.startMonth, endMonth: range.endMonth!, today: "2026-10-19" }).created).toHaveLength(0);
   });
 
+  it("preconfirms historical apartment media but never current-month media", () => {
+    const initial = doc();
+    initial.properties = [property];
+    const result = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-09", today: "2026-10-19" });
+    expect(result.document.billPayments.filter((payment) => payment.billId === "apartment-media")
+      .map((payment) => [payment.period, payment.amount])).toEqual([
+        ["2026-03", "500.00"], ["2026-04", "500.00"], ["2026-05", "500.00"],
+        ["2026-06", "500.00"], ["2026-07", "500.00"], ["2026-08", "500.00"], ["2026-09", "500.00"],
+      ]);
+    const repeated = bootstrapHistoricalRentPayments({ document: result.document, property, startMonth: "2026-03", endMonth: "2026-09", today: "2026-10-19" });
+    expect(repeated.document.billPayments).toHaveLength(7);
+    expect(repeated.document.billPayments.some((payment) => payment.period === "2026-10")).toBe(false);
+  });
+
+  it("recalculates generated media for a second apartment and preserves manual confirmation", () => {
+    const second = { ...property, id: "second", address: "Second" };
+    const initial = { ...doc(), properties: [property, second] };
+    const first = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-03", today: "2026-10-19" });
+    const combined = bootstrapHistoricalRentPayments({ document: first.document, property: second, startMonth: "2026-03", endMonth: "2026-03", today: "2026-10-19" });
+    expect(combined.document.billPayments).toMatchObject([{ id: "initial-media-2026-03", amount: "1000.00" }]);
+    const manual = { id: "manual", billId: "apartment-media", period: "2026-04", paidAt: "2026-04-12", amount: "500.00" };
+    const next = bootstrapHistoricalRentPayments({ document: { ...combined.document, billPayments: [...combined.document.billPayments, manual] }, property: second, startMonth: "2026-04", endMonth: "2026-04", today: "2026-10-19" });
+    expect(next.document.billPayments.find((item) => item.id === "manual")).toEqual(manual);
+    expect(next.document.billPayments.filter((item) => item.period === "2026-04")).toHaveLength(1);
+  });
+
   it("defaults to the rental start month through the last completed month", () => {
     expect(historicalBootstrapDefaultRange("2026-09-28", property.rentalStartDate)).toEqual({ startMonth: "2026-03", endMonth: "2026-08" });
     expect(historicalBootstrapDefaultRange("2026-01-02", property.rentalStartDate).endMonth).toBeNull();
