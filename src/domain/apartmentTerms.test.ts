@@ -57,6 +57,16 @@ describe("apartment terms with confirmed rent", () => {
     })).toBe(false);
   });
 
+  it("defers changes when utilities were approved even without a rent receipt", () => {
+    const raised = { amount: "1000.00", mediaAmount: "70.00", mediaPaidByTenant: true,
+      taxableTreatment: "OWNER_RENT" as const, paymentDay: 5 };
+    expect(termsChangeMustStartNextMonth(property, [], "2026-10", "2026-10", raised, true)).toBe(true);
+    expect(termsChangeMustStartNextMonth(property, [], "2026-10", "2026-11", raised, true)).toBe(false);
+    expect(termsChangeMustStartNextMonth(property, [], "2026-10", "2026-10", raised, false)).toBe(false);
+    expect(termsChangeMustStartNextMonth(property, [], "2026-10", "2026-10",
+      { ...raised, mediaAmount: "0.00" }, true)).toBe(false);
+  });
+
   it("requires changed terms to start next month after a receipt is confirmed", () => {
     const changed = {
       amount: "1100.00",
