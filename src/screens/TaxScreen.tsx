@@ -20,6 +20,7 @@ import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "..
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
 import { PeriodSelector } from "../components/PeriodSelector";
+import { TaxCalculationSettings } from "../components/TaxCalculationSettings";
 import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
@@ -51,6 +52,7 @@ export function TaxScreen() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [annualOpen, setAnnualOpen] = useState(false);
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
+  const [taxSettingsOpen, setTaxSettingsOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
   const openPayments = () => navigation.navigate("Pulpit", { screen: "Wpłaty" });
   const navigateReturn = (tab: string) => tab === "Pulpit"
@@ -230,7 +232,18 @@ export function TaxScreen() {
   };
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
+    <ScrollView key={taxSettingsOpen ? "tax-settings" : "tax-calculation"} contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
+      {taxSettingsOpen ? <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Wróć do podatku" onPress={() => setTaxSettingsOpen(false)} style={{ minHeight: 44, justifyContent: "center" }}>
+          <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>‹ Podatek · ${taxPeriodLabel(selectedPeriod)}</Text>
+        </Pressable>
+        <Text style={ui.pageTitle}>Ustawienia podatku</Text>
+        <TaxCalculationSettings />
+      </> : <>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ustawienia podatku" onPress={() => setTaxSettingsOpen(true)} style={{ alignSelf: "flex-end", minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <MaterialIcons name="settings" size={19} color={theme.colors.primary} />
+        <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>Ustawienia podatku</Text>
+      </Pressable>
       <PeriodSelector value={taxPeriodLabel(selectedPeriod)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
         previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now)}
         onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, now, earliestPeriod))}
@@ -354,7 +367,8 @@ export function TaxScreen() {
           <PaymentDetail label="Termin płatności" value={taxPaymentDetails.dueDate ? formatPolishDate(taxPaymentDetails.dueDate, "long") : undefined} onCopy={() => void copyDetail(taxPaymentDetails.dueDate, "Termin płatności")} />
           {missingTaxDetails.length ? <Pressable accessibilityRole="button" onPress={() => { setPaymentDetailsOpen(false); navigation.navigate("Ustawienia", { settingsSection: "payment" }); }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 12 }}>Skonfiguruj lub popraw: {missingTaxDetails.join(", ")} w Ustawieniach ›</Text></Pressable> : null}
           <Text style={{ ...muted, marginTop: 16 }}>Tytuł ani identyfikator przelewu nie są skonfigurowane w aplikacji. Kod QR nie jest generowany; sprawdź wymagane dane w banku i rachunek przed zleceniem przelewu.</Text>
-        </ScrollView>
+          </>}
+    </ScrollView>
       </SafeAreaView>
     </Modal>
   </View>;
