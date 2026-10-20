@@ -89,9 +89,6 @@ export function SettingsScreen() {
   const [taxAdvancedOpen, setTaxAdvancedOpen] = useState(false);
   const [dataInfoOpen, setDataInfoOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
-  const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
-  const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
-  const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
@@ -397,23 +394,6 @@ export function SettingsScreen() {
       [{ text: "Anuluj", style: "cancel" }, { text: lifecycle === "PAUSED" ? "Wstrzymaj" : "Archiwizuj", style: lifecycle === "ARCHIVED" ? "destructive" : "default", onPress: apply }]);
   };
   const setRentReminderDelay = (days: number) => update((current) => ({ ...current, settings: { ...current.settings, rentReminderDelayDays: days } })).catch(() => undefined);
-  const confirmHistoricalBootstrap = async () => {
-    if (!bootstrapProperty || !bootstrapRange) return;
-    const today = todayIsoDate();
-    setSaving(true);
-    try {
-      let created = 0;
-      await update((current) => {
-        const result = bootstrapHistoricalRentPayments({ document: current, property: bootstrapProperty, ...bootstrapRange, today });
-        created = result.created.length;
-        return result.document;
-      });
-      setBootstrapProperty(null);
-      setBootstrapRange(null);
-      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat czynszu oraz potwierdzenia zapłaty podatku za te okresy.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
-    } catch { /* The provider reports persistence errors. */ }
-    finally { setSaving(false); }
-  };
   const field = (
     label: string,
     key: PropertyDraftTextKey,
@@ -780,31 +760,7 @@ export function SettingsScreen() {
           </>}
         </SafeAreaView>
       </Modal>
-      <Modal visible={Boolean(bootstrapProperty && bootstrapRange)} animationType="slide" onRequestClose={() => { setBootstrapProperty(null); setBootstrapRange(null); }}>
-        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-          <View style={modalHeader}><Text style={modalTitle}>Wpłaty początkowe</Text><Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }}><Text style={action}>Pomiń</Text></Pressable></View>
-          {bootstrapProperty && bootstrapRange ? <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={muted}>Wstępnie uzupełnimy czynsz za zakończone miesiące od daty rozpoczęcia najmu. Zaimportowane okresy oznaczymy jako opłacone, również wyliczony za nie podatek.</Text>
-            <View style={[ui.card, { marginTop: 16 }]}>
-              <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{bootstrapProperty.address}</Text>
-              <Text style={muted}>{bootstrapRange.startMonth} – {bootstrapRange.endMonth}</Text>
-              <Text style={muted}>{formatPolishCount(bootstrapMonthCount(bootstrapRange.startMonth, bootstrapRange.endMonth), ["miesiąc", "miesiące", "miesięcy"])} · kwoty z warunków najmu obowiązujących w danym miesiącu</Text>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: bootstrapRangeOpen }} onPress={() => setBootstrapRangeOpen((open) => !open)} style={{ paddingVertical: 12 }}><Text style={action}>{bootstrapRangeOpen ? "− Zmień okres" : "+ Zmień okres"}</Text></Pressable>
-            {bootstrapRangeOpen ? <View style={{ gap: 12, marginBottom: 16 }}>
-              {(["startMonth", "endMonth"] as const).map((key) => <View key={key} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={muted}>{key === "startMonth" ? "Od" : "Do"}</Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, -1) : range)}><Text style={action}>‹</Text></Pressable><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bootstrapRange[key]}</Text><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, 1) : range)}><Text style={action}>›</Text></Pressable></View>
-              </View>)}
-            </View> : null}
-            <View style={[neutralBanner, { marginVertical: 12 }]}>
-              <Text style={muted}>Potwierdź tylko te okresy, w których czynsz wpłynął i podatek został zapłacony. Za każdy zaimportowany okres aplikacja zapisze pełną obliczoną kwotę podatku jako opłaconą.</Text>
-            </View>
-            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź czynsze i zapłacony podatek"}</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
-          </ScrollView> : null}
-        </SafeAreaView>
-      </Modal>
+
 
     </View>
   );
@@ -813,28 +769,6 @@ export function SettingsScreen() {
 function updatedRentSchedule(property: Property | null, rate: NonNullable<Property["rentSchedule"]>[number]) {
   const existing = property?.rentSchedule ?? [];
   return [...existing.filter((item) => item.effectiveFrom !== rate.effectiveFrom), rate].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
-}
-
-function shiftMonthValue(month: string, delta: number) {
-  const [year, part] = month.split("-").map(Number);
-  const date = new Date(year!, part! - 1 + delta, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function bootstrapMonthCount(start: string, end: string) {
-  const [startYear, startMonth] = start.split("-").map(Number);
-  const [endYear, endMonth] = end.split("-").map(Number);
-  return Math.max(0, (endYear! - startYear!) * 12 + endMonth! - startMonth! + 1);
-}
-
-function shiftBootstrapRange(range: { startMonth: string; endMonth: string }, property: Property, key: "startMonth" | "endMonth", delta: number) {
-  const today = todayIsoDate();
-  const yearStart = `${today.slice(0, 4)}-01`;
-  const lastCompleted = shiftMonthValue(today.slice(0, 7), -1);
-  const minimum = property.rentalStartDate && property.rentalStartDate.slice(0, 7) > yearStart ? property.rentalStartDate.slice(0, 7) : yearStart;
-  const candidate = shiftMonthValue(range[key], delta);
-  if (key === "startMonth") return { ...range, startMonth: candidate < minimum ? minimum : candidate > range.endMonth ? range.endMonth : candidate };
-  return { ...range, endMonth: candidate > lastCompleted ? lastCompleted : candidate < range.startMonth ? range.startMonth : candidate };
 }
 
 function tenantDraftTotal(draft: PropertyDraft) {

@@ -105,10 +105,14 @@ export function PulpitScreen() {
   }, 0);
   const receivedRent = expectedRent - remainingRent;
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
-  const rentFullyConfirmed = rentExpectationKnown && expectedRent > 0 && remainingRent === 0 && activeProperties.every((property) => {
-    if (selectedMonth < currentMonth) return true;
-    return document.incomeEntries.some((entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === selectedMonth);
+  const monthStates = activeProperties.map((property, index) => {
+    const amount = monthAmounts[index]!;
+    const hasReceipt = selectedMonth < currentMonth || document.incomeEntries.some(
+      (entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === selectedMonth,
+    );
+    return rentDisplayState(amount.expectedGrosz, amount.remainingGrosz, hasReceipt);
   });
+  const rentFullyConfirmed = expectedRent > 0 && monthStates.length > 0 && monthStates.every((state) => state.kind === "paid");
   const rentConfirmationPending = !rentFullyConfirmed;
   const currentPeriodKey = settlementPeriodForMonth(selectedMonth);
   const taxSummary = currentPeriodKey ? taxSummaryForPeriod(settlements, currentPeriodKey) : { current: null, previousOutstanding: { count: 0, totalGrosz: 0 } };
@@ -316,7 +320,7 @@ export function PulpitScreen() {
       </View> : null}
 
       <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Wpłaty")} style={sectionHeaderAction}><Text style={[action, { color: theme.colors.selectedNavigation }]}>Historia wpłat</Text><MaterialIcons name="chevron-right" size={18} color={theme.colors.selectedNavigation} /></Pressable></View>
-      {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
+      {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Mieszkaniach lub dodaj mieszkanie." : "Dodaj mieszkanie przez ikonę Mieszkania, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz Mieszkania</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
         <Pressable accessibilityRole={rentFullyConfirmed ? "button" : undefined}
           accessibilityLabel={rentFullyConfirmed ? `Czynsz ${compactPln(receivedRent)}. Potwierdzone. ${rentDetailsExpanded ? "Ukryj mieszkania" : "Pokaż mieszkania"}` : undefined}
           accessibilityState={rentFullyConfirmed ? { expanded: rentDetailsExpanded } : undefined}
@@ -335,8 +339,8 @@ export function PulpitScreen() {
           </>}
         </Pressable>
         {(!rentFullyConfirmed || rentDetailsExpanded) && activeProperties.map((property, index) => {
-        const amount = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
-        const paymentState = rentDisplayState(amount.expectedGrosz, amount.remainingGrosz);
+        const amount = monthAmounts[index]!;
+        const paymentState = monthStates[index]!;
         const paymentDay = effectivePaymentDay(property, selectedMonth);
         const overdueDays = paymentState.kind !== "paid" && paymentState.kind !== "unknown" && paymentDay ? daysOverdue(selectedMonth, paymentDay, now) : 0;
         const dueDate = paymentDay ? rentDueIso(selectedMonth, paymentDay) : undefined;

@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, Platform, Pressable, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme, theme } from './src/theme/theme';
 import { IncomeScreen } from './src/screens/IncomeScreen';
@@ -36,7 +36,6 @@ function PulpitFlowScreen() {
 }
 function RentalApp() {
   const { mode } = useTheme();
-  const [, setActiveDestination] = useState('Pulpit');
   const { document, isDemoMode, exitDemoMode, loadError, recoveredFromBackup, dismissRecoveryNotice, retryLoad, copyRawData, resetLocalData } = useRentalData();
   useEffect(() => {
     if (!recoveredFromBackup || Platform.OS === 'web') return;
@@ -83,7 +82,7 @@ function RentalApp() {
         {([{ icon: 'calculator-outline', label: 'Podatek', route: 'Podatek' }, { icon: 'business-outline', label: 'Mieszkania', route: 'Ustawienia', params: { settingsSection: 'properties' } }, { icon: 'settings-outline', label: 'Ustawienia', route: 'Ustawienia' }] as const).map((item) => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} hitSlop={4} onPress={() => navigationRef.isReady() && (navigationRef as any).navigate(item.route, 'params' in item ? item.params : undefined)} style={{ width: 46, height: 48, alignItems: 'center', justifyContent: 'center' }}><Ionicons name={item.icon} size={22} color={theme.colors.textPrimary} /></Pressable>)}
       </View>
     </View>
-    <Tabs.Navigator screenListeners={{ state: (event) => { const state = event.data.state; if (state) setActiveDestination(state.routes[state.index]?.name ?? 'Pulpit'); } }} screenOptions={({ route }) => ({
+    <Tabs.Navigator screenOptions={({ route }) => ({
       headerShown: false,
       headerStyle: { backgroundColor: theme.colors.background },
       headerTintColor: theme.colors.textPrimary,
