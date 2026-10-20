@@ -1,3 +1,4 @@
+import * as Crypto from "expo-crypto";
 import {
   createContext,
   useCallback,
@@ -159,7 +160,7 @@ export function useRentalData() {
 }
 
 export function createId(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${Crypto.randomUUID()}`;
 }
 
 export function todayIsoDate() {

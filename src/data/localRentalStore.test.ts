@@ -4,11 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RENTAL_DOCUMENT_BACKUP_KEY,
   RENTAL_DOCUMENT_STORAGE_KEY,
-  LEGACY_RENTAL_DOCUMENT_STORAGE_KEY,
   RentalStoreError,
   createRentalBackup,
   emptyDocument,
-  loadRentalDocument,
   loadRentalDocumentWithStatus,
   parseRentalBackup,
   readRawRentalDocument,
@@ -30,7 +28,6 @@ vi.mock("./secureLocalStorage", () => ({
   setProtectedItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
   removeProtectedItem: (key: string) => AsyncStorage.removeItem(key),
   removeLocalEncryptionKey: vi.fn(),
-  isEncryptedLocalValue: (value: string | null) => value?.startsWith("ryczalt-encrypted:v1:") ?? false,
 }));
 
 const storage = vi.mocked(AsyncStorage);
@@ -69,11 +66,10 @@ const validDocument: RentalDocument = {
   recurringBills: [],
   billPayments: [],
   administrationSuggestions: [],
-  customReminders: [],
   taskStates: [],
   apartmentPeriods: [],
   taxSettlementSnapshots: [],
-  settings: { taxYear: 2026, settlementMode: "monthly", jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1 },
+  settings: { taxYear: 2026, jointSpouseThreshold: false, reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1 },
 };
 
 describe("localRentalStore", () => {
@@ -85,31 +81,19 @@ describe("localRentalStore", () => {
   it("returns an empty versioned document when storage is empty", async () => {
     storage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
 
-    await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
-  });
-
-  it("migrates a valid legacy namespace without deleting the source", async () => {
-    storage.getItem
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(JSON.stringify(validDocument));
-    storage.setItem.mockResolvedValue();
-
-    await expect(loadRentalDocument()).resolves.toEqual(validDocument);
-    expect(storage.setItem).toHaveBeenCalledWith(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(validDocument));
-    expect(storage.removeItem).not.toHaveBeenCalledWith(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
+    await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: emptyDocument() });
   });
 
   it("loads a valid document without changing decimal-string amounts", async () => {
     storage.getItem.mockResolvedValueOnce(JSON.stringify(validDocument));
 
-    await expect(loadRentalDocument()).resolves.toEqual(validDocument);
+    await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: validDocument });
   });
 
   it("round-trips optional opening balances without adding income or tax payment rows", async () => {
     const withOpening = { ...validDocument, settings: { ...validDocument.settings, openingTaxableRevenue: "21600.00", openingTaxPaid: "1836.00" } };
     storage.getItem.mockResolvedValueOnce(JSON.stringify(withOpening));
-    await expect(loadRentalDocument()).resolves.toEqual(withOpening);
+    await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: withOpening });
     expect(withOpening.incomeEntries).toHaveLength(validDocument.incomeEntries.length);
     expect(withOpening.taxPayments).toHaveLength(validDocument.taxPayments.length);
   });
@@ -121,7 +105,7 @@ describe("localRentalStore", () => {
 
   it("keeps the corruption error when both primary and backup are corrupted", async () => {
     storage.getItem.mockResolvedValueOnce("{broken primary").mockResolvedValueOnce("{broken backup");
-    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
   });
 
   it("round-trips a populated current-schema fixture", async () => {
@@ -130,7 +114,7 @@ describe("localRentalStore", () => {
     storage.setItem.mockResolvedValueOnce();
     await saveRentalDocument(current);
     storage.getItem.mockResolvedValueOnce(JSON.stringify(current));
-    await expect(loadRentalDocument()).resolves.toEqual(current);
+    await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: current });
   });
 
   it("round-trips a portable backup without changing the rental document", () => {
@@ -162,7 +146,7 @@ describe("localRentalStore", () => {
   it("reports invalid JSON as corrupted data", async () => {
     storage.getItem.mockResolvedValueOnce("{not-json");
 
-    await expect(loadRentalDocument()).rejects.toMatchObject({
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({
       code: "CORRUPTED_DATA",
     } satisfies Partial<RentalStoreError>);
   });
@@ -176,7 +160,7 @@ describe("localRentalStore", () => {
     await resetRentalDocument();
     expect(storage.removeItem).toHaveBeenCalledWith(RENTAL_DOCUMENT_STORAGE_KEY);
     storage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-    await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
+    await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: emptyDocument() });
   });
 
   it("resets valid local data to the normal empty-document startup state", async () => {
@@ -185,7 +169,7 @@ describe("localRentalStore", () => {
     expect(storage.removeItem).toHaveBeenNthCalledWith(1, RENTAL_DOCUMENT_BACKUP_KEY);
     expect(storage.removeItem).toHaveBeenNthCalledWith(2, RENTAL_DOCUMENT_STORAGE_KEY);
     storage.getItem.mockResolvedValueOnce(null);
-    await expect(loadRentalDocument()).resolves.toEqual(emptyDocument());
+    await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: emptyDocument() });
   });
 
   it("rejects unsupported schema versions", async () => {
@@ -193,14 +177,14 @@ describe("localRentalStore", () => {
       JSON.stringify({ ...validDocument, schemaVersion: 99 }),
     );
 
-    await expect(loadRentalDocument()).rejects.toMatchObject({
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({
       code: "UNSUPPORTED_VERSION",
     } satisfies Partial<RentalStoreError>);
   });
 
   it("does not recover a backup over an unsupported primary schema", async () => {
     storage.getItem.mockResolvedValueOnce(JSON.stringify({ ...validDocument, schemaVersion: 99 })).mockResolvedValueOnce(JSON.stringify(validDocument));
-    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "UNSUPPORTED_VERSION" });
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({ code: "UNSUPPORTED_VERSION" });
   });
 
   it("rejects impossible dates, invalid property references, and duplicate income IDs", async () => {
@@ -221,7 +205,7 @@ describe("localRentalStore", () => {
       ],
     };
     storage.getItem.mockResolvedValueOnce(JSON.stringify(invalid));
-    await expect(loadRentalDocument()).rejects.toMatchObject({
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({
       code: "CORRUPTED_DATA",
     } satisfies Partial<RentalStoreError>);
   });
@@ -231,16 +215,15 @@ describe("localRentalStore", () => {
     ["rental month", (doc: RentalDocument) => { doc.incomeEntries[0]!.rentalMonth = "2026-13"; }],
     ["agreement end date", (doc: RentalDocument) => { doc.properties[0]!.leaseEndDate = "2026-02-30"; }],
     ["rent effective month", (doc: RentalDocument) => { doc.properties[0]!.rentSchedule = [{ effectiveFrom: "2026-9", amount: "1.00" }]; }],
-    ["tax payment period", (doc: RentalDocument) => { doc.taxPayments[0]!.period = "2026-Q5"; }],
+    ["tax payment period", (doc: RentalDocument) => { doc.taxPayments[0]!.period = "2026-Q3"; }],
     ["tax payment date", (doc: RentalDocument) => { doc.taxPayments[0]!.paidAt = "2026-10-20T00:00:00Z"; }],
-    ["reminder due date", (doc: RentalDocument) => { doc.customReminders = [{ id: "r1", title: "Termin", dueDate: "2026-02-30", recurrence: "ONCE" }]; }],
     ["bill payment period", (doc: RentalDocument) => { doc.recurringBills = [{ id: "b1", propertyId: "property-1", name: "Prąd", reminderEnabled: false }]; doc.billPayments = [{ id: "bp1", billId: "b1", period: "2026-13", paidAt: "2026-09-10", amount: "1.00" }]; }],
     ["bill payment date", (doc: RentalDocument) => { doc.recurringBills = [{ id: "b1", propertyId: "property-1", name: "Prąd", reminderEnabled: false }]; doc.billPayments = [{ id: "bp1", billId: "b1", period: "2026-09", paidAt: "2026-09-31", amount: "1.00" }]; }],
   ])("rejects malformed stored %s", async (_field, corrupt) => {
     const invalid = structuredClone(validDocument);
     corrupt(invalid);
     storage.getItem.mockResolvedValueOnce(JSON.stringify(invalid));
-    await expect(loadRentalDocument()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({ code: "CORRUPTED_DATA" });
   });
 
   it("rejects taxable amounts above the amount received", async () => {
@@ -255,7 +238,7 @@ describe("localRentalStore", () => {
       ],
     };
     storage.getItem.mockResolvedValueOnce(JSON.stringify(invalid));
-    await expect(loadRentalDocument()).rejects.toMatchObject({
+    await expect(loadRentalDocumentWithStatus()).rejects.toMatchObject({
       code: "CORRUPTED_DATA",
     } satisfies Partial<RentalStoreError>);
   });

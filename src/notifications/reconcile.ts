@@ -1,4 +1,4 @@
-import type { ReturnTypeTaskNotification } from "../domain/tasks";
+import type { TaskNotification } from "../domain/tasks";
 
 export type ScheduledReminder = { identifier: string; reminderKey: string; signature: string };
 
@@ -32,10 +32,10 @@ export function createSerializedReconciler<T>(getLatest: () => T, reconcile: (de
 }
 
 export async function reconcileReminderSchedule(
-  plan: ReturnTypeTaskNotification[],
+  plan: TaskNotification[],
   scheduled: ScheduledReminder[],
   cancel: (identifier: string) => Promise<void>,
-  schedule: (reminder: ReturnTypeTaskNotification) => Promise<void>,
+  schedule: (reminder: TaskNotification) => Promise<void>,
 ): Promise<void> {
   const desired = normalizeReminderPlan(plan);
   const desiredByKey = new Map(desired.map((item) => [`ryczalt:${item.key}`, item]));
@@ -64,8 +64,8 @@ export async function reconcileReminderSchedule(
 }
 
 /** Validates logical identities before any OS mutation and collapses exact duplicates. */
-export function normalizeReminderPlan(plan: ReturnTypeTaskNotification[]): ReturnTypeTaskNotification[] {
-  const byKey = new Map<string, ReturnTypeTaskNotification>();
+export function normalizeReminderPlan(plan: TaskNotification[]): TaskNotification[] {
+  const byKey = new Map<string, TaskNotification>();
   let invalidKeyCount = 0;
   let conflictingDuplicateCount = 0;
 
@@ -93,7 +93,7 @@ export function normalizeReminderPlan(plan: ReturnTypeTaskNotification[]): Retur
   );
 }
 
-function sameReminderPayload(left: ReturnTypeTaskNotification, right: ReturnTypeTaskNotification): boolean {
+function sameReminderPayload(left: TaskNotification, right: TaskNotification): boolean {
   return left.title === right.title
     && left.body === right.body
     && left.fireAt.getTime() === right.fireAt.getTime()

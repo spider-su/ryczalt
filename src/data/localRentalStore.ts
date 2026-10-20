@@ -1,10 +1,8 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getProtectedItem, isEncryptedLocalValue, removeLocalEncryptionKey, removeProtectedItem, setProtectedItem } from "./secureLocalStorage";
+import { getProtectedItem, removeLocalEncryptionKey, removeProtectedItem, setProtectedItem } from "./secureLocalStorage";
 
 import type {
   BillPayment,
   ApartmentPeriodSnapshot,
-  CustomReminder,
   AdministrationSuggestion,
   IncomeEntry,
   Property,
@@ -26,8 +24,6 @@ export const RENTAL_DOCUMENT_SCHEMA_VERSION = 1;
 /** Stable namespace; the current document schema version is stored in its JSON. */
 export const RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v2";
 export const RENTAL_DOCUMENT_BACKUP_KEY = `${RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
-export const LEGACY_RENTAL_DOCUMENT_STORAGE_KEY = "pl.ryczalt.rental.localDocument.v1";
-export const LEGACY_RENTAL_DOCUMENT_BACKUP_KEY = `${LEGACY_RENTAL_DOCUMENT_STORAGE_KEY}.prev`;
 export const DEFAULT_TAX_YEAR = Number(todayInPoland().slice(0, 4));
 
 type RentalStoreErrorCode = "CORRUPTED_DATA" | "UNSUPPORTED_VERSION";
@@ -92,22 +88,16 @@ export const emptyDocument = (
   recurringBills: [],
   billPayments: [],
   administrationSuggestions: [],
-  customReminders: [],
   taskStates: [],
   apartmentPeriods: [],
   taxSettlementSnapshots: [],
   settings: {
     taxYear,
-    settlementMode: "monthly",
     jointSpouseThreshold: false,
-    reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true },
+    reminderCategories: { rent: true, agreements: true, tax: true, bills: true },
     rentReminderDelayDays: 1,
   },
 });
-
-export async function loadRentalDocument(): Promise<RentalDocument> {
-  return (await loadRentalDocumentWithStatus()).document;
-}
 
 export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoadResult> {
   let raw: string | null;
@@ -122,19 +112,6 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
       const document = parseRentalDocument(backupRaw);
       return { document, recoveredFromBackup: true };
     }
-
-    // One-time namespace migration.
-    const legacyRaw = await AsyncStorage.getItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
-    if (legacyRaw !== null) {
-      try {
-        const legacyDocument = parseRentalDocument(legacyRaw);
-        await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(legacyDocument));
-        await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(legacyDocument));
-        return { document: legacyDocument, recoveredFromBackup: false };
-      } catch {
-        // Never classify an older namespace as corrupted current data and never delete it.
-      }
-    }
     return { document: emptyDocument(), recoveredFromBackup: false };
   }
   let document: RentalDocument;
@@ -144,23 +121,7 @@ export async function loadRentalDocumentWithStatus(): Promise<RentalDocumentLoad
     if (primaryError instanceof RentalStoreError && primaryError.code === "UNSUPPORTED_VERSION") throw primaryError;
     return recoverFromBackup(primaryError);
   }
-  // A valid pre-encryption document is upgraded in place only after validation succeeds.
-  if (!isEncryptedLocalValue(raw)) {
-    await setProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY, JSON.stringify(document));
-    await migratePlaintextRecoveryCopy();
-  }
   return { document, recoveredFromBackup: false };
-}
-
-async function migratePlaintextRecoveryCopy(): Promise<void> {
-  try {
-    const backupRaw = await getProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
-    if (backupRaw === null || isEncryptedLocalValue(backupRaw)) return;
-    const backup = parseRentalDocument(backupRaw);
-    await setProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY, JSON.stringify(backup));
-  } catch {
-    // A bad recovery copy is retained for deliberate recovery; it must not block the valid primary.
-  }
 }
 
 export async function saveRentalDocument(
@@ -188,8 +149,6 @@ export async function readRawRentalDocument(): Promise<string | null> {
 export async function resetRentalDocument(): Promise<void> {
   await removeProtectedItem(RENTAL_DOCUMENT_BACKUP_KEY);
   await removeProtectedItem(RENTAL_DOCUMENT_STORAGE_KEY);
-  await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_BACKUP_KEY);
-  await AsyncStorage.removeItem(LEGACY_RENTAL_DOCUMENT_STORAGE_KEY);
   await removeLocalEncryptionKey();
 }
 
@@ -239,12 +198,10 @@ function validateRentalDocument(data: unknown): RentalDocument {
     throw corrupted("Local rental settings are invalid.");
   }
   const taxYear = settings.taxYear;
-  const settlementMode = settings.settlementMode;
   const jointSpouseThreshold = settings.jointSpouseThreshold;
   const reminderCategories = validateReminderCategories(settings.reminderCategories);
   const rentReminderDelayDays = typeof settings.rentReminderDelayDays === "number" ? settings.rentReminderDelayDays : NaN;
   if (
-    settlementMode !== "monthly" ||
     typeof jointSpouseThreshold !== "boolean" ||
     !Number.isInteger(rentReminderDelayDays) || rentReminderDelayDays < 0 || rentReminderDelayDays > 30
   ) throw corrupted("Local tax settings are invalid.");
@@ -266,7 +223,6 @@ function validateRentalDocument(data: unknown): RentalDocument {
   const recurringBills = validateArray(normalizedData.recurringBills, validateRecurringBill, "recurringBills");
   const billPayments = validateArray(normalizedData.billPayments, validateBillPayment, "billPayments");
   const administrationSuggestions = validateArray(normalizedData.administrationSuggestions, validateAdministrationSuggestion, "administrationSuggestions");
-  const customReminders = validateArray(normalizedData.customReminders, validateCustomReminder, "customReminders");
   const taskStates = validateArray(normalizedData.taskStates, validateTaskState, "taskStates");
   const apartmentPeriods = validateArray(normalizedData.apartmentPeriods, validateApartmentPeriod, "apartmentPeriods");
   const taxSettlementSnapshots = validateArray(normalizedData.taxSettlementSnapshots, validateTaxSettlementSnapshot, "taxSettlementSnapshots");
@@ -280,12 +236,11 @@ function validateRentalDocument(data: unknown): RentalDocument {
       recurringBills,
       billPayments,
       administrationSuggestions,
-      customReminders,
       taskStates,
       apartmentPeriods,
       taxSettlementSnapshots,
       settings: {
-        taxYear, settlementMode, jointSpouseThreshold, reminderCategories, rentReminderDelayDays,
+        taxYear, jointSpouseThreshold, reminderCategories, rentReminderDelayDays,
         ...(optionalString(settings.taxRecipientName) ? { taxRecipientName: settings.taxRecipientName } : {}),
         ...(optionalString(settings.taxMicroAccount) ? { taxMicroAccount: settings.taxMicroAccount } : {}),
         ...(optionalDecimal(settings.openingTaxableRevenue, "openingTaxableRevenue") ? { openingTaxableRevenue: settings.openingTaxableRevenue } : {}),
@@ -367,19 +322,12 @@ function validateApartmentPeriod(value: unknown): ApartmentPeriodSnapshot {
 }
 
 function validateTaxSettlementSnapshot(value: unknown): TaxSettlementSnapshot {
-  if (!isRecord(value) || typeof value.period !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value.period) || !["revenue", "taxableBase", "cumulativeRevenue", "cumulativeTax", "obligation", "paid", "allocatedPaid", "creditApplied", "outstanding", "overpaid"].every((key) => isDecimalString(value[key])) || typeof value.dueDate !== "string" || !isValidCalendarDate(value.dueDate) || !Number.isInteger(value.rulesYear) || (value.appliedRulesYear !== undefined && (!Number.isInteger(value.appliedRulesYear) || (value.appliedRulesYear as number) < 2025 || (value.appliedRulesYear as number) > Number(value.period.slice(0, 4)))) || !Array.isArray(value.receiptIds) || !value.receiptIds.every(isStableId) || !Array.isArray(value.taxPaymentIds) || !value.taxPaymentIds.every(isStableId) || !isValidIsoTimestamp(value.savedAt)) throw corrupted("Tax settlement snapshot is invalid.");
-  return { period: value.period, revenue: value.revenue as string, taxableBase: value.taxableBase as string, cumulativeRevenue: value.cumulativeRevenue as string, cumulativeTax: value.cumulativeTax as string, obligation: value.obligation as string, paid: value.paid as string, allocatedPaid: value.allocatedPaid as string, creditApplied: value.creditApplied as string, outstanding: value.outstanding as string, overpaid: value.overpaid as string, dueDate: value.dueDate as string, rulesYear: value.rulesYear as number, ...(Number.isInteger(value.appliedRulesYear) ? { appliedRulesYear: value.appliedRulesYear as number } : {}), receiptIds: value.receiptIds, taxPaymentIds: value.taxPaymentIds, savedAt: value.savedAt as string };
+  if (!isRecord(value) || typeof value.period !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value.period) || !["revenue", "taxableBase", "cumulativeRevenue", "cumulativeTax", "obligation", "paid", "allocatedPaid", "creditApplied", "outstanding", "overpaid"].every((key) => isDecimalString(value[key])) || typeof value.dueDate !== "string" || !isValidCalendarDate(value.dueDate) || !Number.isInteger(value.rulesYear) || (!Number.isInteger(value.appliedRulesYear) || (value.appliedRulesYear as number) < 2025 || (value.appliedRulesYear as number) > Number(value.period.slice(0, 4))) || !Array.isArray(value.receiptIds) || !value.receiptIds.every(isStableId) || !Array.isArray(value.taxPaymentIds) || !value.taxPaymentIds.every(isStableId) || !isValidIsoTimestamp(value.savedAt)) throw corrupted("Tax settlement snapshot is invalid.");
+  return { period: value.period, revenue: value.revenue as string, taxableBase: value.taxableBase as string, cumulativeRevenue: value.cumulativeRevenue as string, cumulativeTax: value.cumulativeTax as string, obligation: value.obligation as string, paid: value.paid as string, allocatedPaid: value.allocatedPaid as string, creditApplied: value.creditApplied as string, outstanding: value.outstanding as string, overpaid: value.overpaid as string, dueDate: value.dueDate as string, rulesYear: value.rulesYear as number, appliedRulesYear: value.appliedRulesYear as number, receiptIds: value.receiptIds, taxPaymentIds: value.taxPaymentIds, savedAt: value.savedAt as string };
 }
 
 function isValidIsoTimestamp(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(new Date(value).getTime()) && new Date(value).toISOString() === value;
-}
-
-function validateCustomReminder(value: unknown): CustomReminder {
-  if (!isRecord(value) || !isStableId(value.id) || !isNonEmptyString(value.title) || !isNonEmptyString(value.dueDate)) throw corrupted("Custom reminder entry is invalid.");
-  const recurrence = value.recurrence;
-  if (recurrence !== "ONCE" && recurrence !== "MONTHLY" && recurrence !== "YEARLY") throw corrupted("Custom reminder recurrence is invalid.");
-  return { id: value.id, title: value.title, dueDate: value.dueDate, recurrence, ...(optionalString(value.propertyId) ? { propertyId: value.propertyId } : {}), ...(optionalString(value.note) ? { note: value.note } : {}) };
 }
 
 function validateTaskState(value: unknown): TaskState {
@@ -409,7 +357,7 @@ function validateBillPayment(value: unknown): BillPayment {
 
 function validateReminderCategories(value: unknown): RentalDocument["settings"]["reminderCategories"] {
   if (!isRecord(value)) throw corrupted("Notification settings are invalid.");
-  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills, custom: value.custom };
+  const categories = { rent: value.rent, agreements: value.agreements, tax: value.tax, bills: value.bills };
   if (Object.values(categories).some((enabled) => typeof enabled !== "boolean")) throw corrupted("Notification settings are invalid.");
   return categories as RentalDocument["settings"]["reminderCategories"];
 }

@@ -65,9 +65,6 @@ export function removePropertyData(document: RentalDocument, propertyId: string)
     properties: document.properties.filter((property) => property.id !== propertyId),
     recurringBills: document.recurringBills.filter((bill) => bill.propertyId !== propertyId),
     billPayments: document.billPayments.filter((payment) => !billIds.has(payment.billId)),
-    customReminders: document.customReminders.map((reminder) => reminder.propertyId === propertyId
-      ? { ...reminder, propertyId: undefined }
-      : reminder),
     taskStates: document.taskStates.filter((state) =>
       !state.taskId.startsWith(`TENANT_PAYMENT_CHECK:${propertyId}:`) &&
       !state.taskId.startsWith(`RENTAL_AGREEMENT_END:${propertyId}:`) &&

@@ -4,7 +4,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
 import { calculateTaxYear, formatPln, formatPlnAmount, hasTaxRulesForYear, moneyToGrosz, settlementPeriodForMonth, taxRulesAreProvisional, taxRulesYearFor } from "../domain/ryczaltTax";
-import { isFullPaymentAmount, isNonnegativeMoney, isPositiveMoney, isValidCalendarDate } from "../domain/rentalValidation";
+import { isFullPaymentAmount, isNonnegativeMoney, isPositiveMoney } from "../domain/rentalValidation";
 import * as Clipboard from "expo-clipboard";
 import { missingPaymentDetails } from "../domain/paymentDetails";
 import { removeTaxPayment, upsertTaxPayment } from "../domain/taxPayment";
@@ -15,11 +15,12 @@ import { PaymentDetail } from "../components/PaymentDetail";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { taxPaymentPrompt } from "../domain/rentalPresentation";
-import { formatPolishCount, formatPolishDate } from "../domain/presentationFormat";
+import { formatPolishCount, formatPolishDate, formatPolishMonth } from "../domain/presentationFormat";
 import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "../domain/rentalPresentation";
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
 import { PeriodSelector } from "../components/PeriodSelector";
+import { TaxCalculationSettings } from "../components/TaxCalculationSettings";
 import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
@@ -51,6 +52,7 @@ export function TaxScreen() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [annualOpen, setAnnualOpen] = useState(false);
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
+  const [taxSettingsOpen, setTaxSettingsOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
   const openPayments = () => navigation.navigate("Pulpit", { screen: "Wpłaty" });
   const navigateReturn = (tab: string) => tab === "Pulpit"
@@ -65,18 +67,16 @@ export function TaxScreen() {
       navigateReturn(tab);
     }
   };
-  const settlementMode = document?.settings.settlementMode ?? "monthly";
   const now = new Date();
   const currentYearStart = `${now.getFullYear()}-01`;
   const earliestMonth = document ? earliestDashboardMonth(document.properties, document.incomeEntries, now, currentYearStart) : currentYearStart;
-  const earliestPeriod = document ? settlementPeriodForMonth(earliestMonth, settlementMode) ?? currentYearStart : currentYearStart;
+  const earliestPeriod = document ? settlementPeriodForMonth(earliestMonth) ?? currentYearStart : currentYearStart;
   const taxYear = Number(selectedPeriod.slice(0, 4));
   const persistedTaxSnapshot = document?.taxSettlementSnapshots?.find((snapshot) => snapshot.period === selectedPeriod);
   const calculation = useMemo(() => document && hasTaxRulesForYear(taxYear) ? calculateTaxYear({
     entries: document.incomeEntries,
     payments: document.taxPayments,
     taxYear,
-    mode: document.settings.settlementMode,
     jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: document.settings.taxYear === taxYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
     openingTaxPaidGrosz: document.settings.taxYear === taxYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
@@ -88,8 +88,8 @@ export function TaxScreen() {
     if (!document || (!period && !params?.openPaymentConfirmation)) return;
     const year = period ? Number(period.slice(0, 4)) : Number(selectedPeriod.slice(0, 4));
     const part = period?.slice(5) ?? selectedPeriod.slice(5);
-    const requested = part.startsWith("Q") ? `${year}-${part}` : settlementPeriodForMonth(`${year}-${part.padStart(2, "0")}`, document.settings.settlementMode) ?? selectedPeriod;
-    const latest = currentTaxPeriod(now, document.settings.settlementMode);
+    const requested = settlementPeriodForMonth(`${year}-${part.padStart(2, "0")}`) ?? selectedPeriod;
+    const latest = currentTaxPeriod(now);
     const targetPeriod = requested > latest ? latest : requested < earliestPeriod ? earliestPeriod : requested;
     setSelectedPeriod(targetPeriod);
     if (params?.openPaymentConfirmation) {
@@ -98,7 +98,7 @@ export function TaxScreen() {
       const snapshot = document.taxSettlementSnapshots?.find((item) => item.period === targetPeriod);
       const targetCalculation = hasTaxRulesForYear(targetYear) ? calculateTaxYear({
         entries: document.incomeEntries, payments: document.taxPayments, taxYear: targetYear,
-        mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
+        jointSpouseThreshold: document.settings.jointSpouseThreshold,
         openingTaxableRevenueGrosz: document.settings.taxYear === targetYear && document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
         openingTaxPaidGrosz: document.settings.taxYear === targetYear && document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
       }) : undefined;
@@ -121,9 +121,7 @@ export function TaxScreen() {
           if (!hasPaymentThisYear && (priorRevenue > 0 || hasPriorRent)) setHistoryReviewOpen(true);
           else setModalOpen(true);
         };
-        const unconfirmedRentCount = document.settings.settlementMode === "monthly"
-          ? unconfirmedRentCountForMonth(document, targetPeriod)
-          : 0;
+        const unconfirmedRentCount = unconfirmedRentCountForMonth(document, targetPeriod);
         if (unconfirmedRentCount > 0) {
           Alert.alert(
             "Nie wszystkie czynsze są potwierdzone",
@@ -141,19 +139,17 @@ export function TaxScreen() {
     ? <View style={{ padding: 24 }}><Text accessibilityRole="alert" style={{ color: theme.colors.danger }}>{error}</Text></View>
     : <ActivityIndicator style={{ flex: 1 }} />;
   const settlement = persistedTaxSnapshot ? taxSettlementFromSnapshot(persistedTaxSnapshot, todayIsoDate()) : settlements.find((item) => item.period === selectedPeriod);
-  const payments = settlement ? document.taxPayments.filter((item) => item.period === settlement.period).sort((a, b) => b.paidAt.localeCompare(a.paidAt)) : [];
+  const payments = document.taxPayments.slice().sort((a, b) => b.paidAt.localeCompare(a.paidAt) || b.period.localeCompare(a.period));
   const paymentPrompt = settlement ? taxPaymentPrompt(settlement.outstandingGrosz, settlement.overpaidGrosz, settlement.obligationGrosz) : null;
   const paymentDisplay = settlement ? taxPaymentDisplay(settlement) : null;
-  const unconfirmedRentCount = settlementMode === "monthly"
-    ? unconfirmedRentCountForMonth(document, selectedPeriod)
-    : 0;
+  const unconfirmedRentCount = unconfirmedRentCountForMonth(document, selectedPeriod);
   const openPayment = () => {
     if (unconfirmedRentCount > 0) return;
     setPaymentDraft({ amount: decimalFromGrosz(settlement?.outstandingGrosz ?? 0), paidAt: todayIsoDate() });
     setModalOpen(true);
   };
   const priorPeriods = settlements.filter((item) => item.period < selectedPeriod);
-  const priorSnapshots = new Map((document.taxSettlementSnapshots ?? []).filter((item) => item.rulesYear === taxYear && item.period < selectedPeriod).map((item) => [item.period, item]));
+  const priorSnapshots = new Map(document.taxSettlementSnapshots.filter((item) => item.rulesYear === taxYear && item.period < selectedPeriod).map((item) => [item.period, item]));
   const priorRevenueGrosz = (calculation?.openingBalance.taxableRevenueGrosz ?? 0) + priorPeriods.reduce((sum, item) => sum + item.revenueGrosz, 0);
   const priorObligationGrosz = priorPeriods.reduce((sum, item) => sum + moneyToGrosz(priorSnapshots.get(item.period)?.obligation ?? decimalFromGrosz(item.obligationGrosz)), 0);
   const priorPaidGrosz = (calculation?.openingBalance.paidTaxGrosz ?? 0) + document.taxPayments.filter((item) => item.period < selectedPeriod && item.period.startsWith(`${taxYear}-`)).reduce((sum, item) => sum + moneyToGrosz(item.amount), 0);
@@ -197,8 +193,8 @@ export function TaxScreen() {
       return;
     }
     const amount = paymentDraft.amount.trim().replace(",", ".");
-    if (!isPositiveMoney(amount) || !isValidCalendarDate(paymentDraft.paidAt)) {
-      Alert.alert("Sprawdź dane wpłaty", "Kwota musi być dodatnia (maks. 2 miejsca po przecinku), a data rzeczywista w formacie RRRR-MM-DD.");
+    if (!isPositiveMoney(amount)) {
+      Alert.alert("Sprawdź dane wpłaty", "Kwota musi być dodatnia (maks. 2 miejsca po przecinku).");
       return;
     }
     if (!settlement) return;
@@ -206,7 +202,7 @@ export function TaxScreen() {
       Alert.alert("Potwierdź pełną wpłatę", "Można potwierdzić tylko całą pozostałą kwotę podatku.");
       return;
     }
-    const next: TaxPayment = { id: createId("tax"), period: settlement.period, paidAt: paymentDraft.paidAt, amount };
+    const next: TaxPayment = { id: createId("tax"), period: settlement.period, paidAt: todayIsoDate(), amount };
     setSaving(true);
     try {
       await update((current) => refreshSavedTaxSettlementsAfterPayment(upsertTaxPayment(current, next), settlement.period));
@@ -236,11 +232,22 @@ export function TaxScreen() {
   };
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
-      <PeriodSelector value={taxPeriodLabel(selectedPeriod, document.settings.settlementMode)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
-        previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now, document.settings.settlementMode)}
-        onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, document.settings.settlementMode, now, earliestPeriod))}
-        onNext={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, 1, document.settings.settlementMode, now, earliestPeriod))} />
+    <ScrollView key={taxSettingsOpen ? "tax-settings" : "tax-calculation"} contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
+      {taxSettingsOpen ? <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Wróć do podatku" onPress={() => setTaxSettingsOpen(false)} style={{ minHeight: 44, justifyContent: "center" }}>
+          <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>‹ Podatek · ${taxPeriodLabel(selectedPeriod)}</Text>
+        </Pressable>
+        <Text style={ui.pageTitle}>Ustawienia podatku</Text>
+        <TaxCalculationSettings />
+      </> : <>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ustawienia podatku" onPress={() => setTaxSettingsOpen(true)} style={{ alignSelf: "flex-end", minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <MaterialIcons name="settings" size={19} color={theme.colors.primary} />
+        <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>Ustawienia podatku</Text>
+      </Pressable>
+      <PeriodSelector value={taxPeriodLabel(selectedPeriod)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
+        previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now)}
+        onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, now, earliestPeriod))}
+        onNext={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, 1, now, earliestPeriod))} />
       {!settlement || !Number.isInteger(taxYear) ? null : <>
         {taxRulesAreProvisional(taxYear) ? <View accessibilityRole="alert" style={[ui.card, { marginTop: 10, borderColor: theme.colors.warning }]}><Text style={{ color: theme.colors.warning, fontWeight: "700" }}>Stawki na {taxYear} nie zostały jeszcze potwierdzone. Obliczenie wykorzystuje zasady z {taxRulesYearFor(taxYear)}. Sprawdź przed zapłatą.</Text></View> : null}
         <View style={[ui.card, taxHeroCard]}>
@@ -283,32 +290,50 @@ export function TaxScreen() {
           {annualThreshold > 0 ? <ProgressBar fraction={annualProgress.fraction} quiet accessibilityLabel="Wykorzystanie progu stawki 12,5%" /> : null}
           {annualOpen && annualThreshold > 0 ? <Text style={thresholdRemaining}>Do progu stawki 12,5%: {formatPln(remainingThreshold)}</Text> : null}
         </View>
-        {payments.length ? <View style={compactSection}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: paymentHistoryOpen }} accessibilityLabel={`Historia płatności, ${payments.length}`} onPress={() => setPaymentHistoryOpen((open) => !open)} style={disclosureRow}>
-            <Text style={disclosureTitle}>Historia płatności ({payments.length})</Text>
-            <MaterialIcons name={paymentHistoryOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
-          </Pressable>
-          {paymentHistoryOpen ? <>
-            <Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności.</Text>
-            {payments.map((payment) => <View key={payment.id} style={paymentHistoryRow}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}><Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{formatPolishDate(payment.paidAt, "long")}{payment.source === "INITIAL_IMPORT" ? " · data szacunkowa" : ""}</Text><Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text></View>
-              {payment.source === "INITIAL_IMPORT" ? <Text style={taxContextCompact}>Potwierdzono zapłatę podczas uzupełniania historii; dokładna data nie była znana.</Text> : null}
-              {persistedTaxSnapshot ? <Text style={taxHint}>Okres zamknięty · usunięcie wpłaty niedostępne</Text> : <Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable>}
-            </View>)}
-          </> : null}
-        </View> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Historia wpłat, ${payments.length}`} onPress={() => setPaymentHistoryOpen(true)} style={[compactSection, disclosureRow]}>
+          <View style={{ flex: 1 }}>
+            <Text style={disclosureTitle}>Historia wpłat</Text>
+            <Text style={disclosureSummary}>Wszystkie wpłaty podatkowe · {payments.length}</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
+        </Pressable>
       </>}
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
       <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek?</Text><MaterialIcons name={infoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></View></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
+      </>}
     </ScrollView>
+    <Modal visible={paymentHistoryOpen} animationType="slide" onRequestClose={() => setPaymentHistoryOpen(false)}>
+      <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <View style={ui.modalHeader}>
+          <Text style={ui.modalTitle}>Historia wpłat podatku</Text>
+          <Text accessibilityRole="button" onPress={() => setPaymentHistoryOpen(false)} style={action}>Zamknij</Text>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <Text style={taxHint}>Wpłaty rozliczamy od najstarszej nieopłaconej należności. Okres przypisania wpłaty nie musi odpowiadać miesiącowi jej wykonania.</Text>
+          {payments.length === 0 ? <Text style={[taxContext, { marginTop: 16 }]}>Brak zapisanych wpłat podatku.</Text> : null}
+          {payments.map((payment) => {
+            const locked = document.taxSettlementSnapshots.some((snapshot) => snapshot.period === payment.period);
+            return <View key={payment.id} style={[compactSection, { padding: 16, gap: 6 }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                <Text style={{ color: theme.colors.textPrimary, flex: 1 }}>{formatPolishDate(payment.paidAt, "long")}</Text>
+                <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{formatPlnAmount(payment.amount)}</Text>
+              </View>
+              <Text style={taxContextCompact}>Okres wpłaty: {taxPeriodLabel(payment.period)}</Text>
+              {payment.source === "INITIAL_IMPORT" ? <Text style={taxContextCompact}>Potwierdzenie historyczne · data szacunkowa</Text> : null}
+              {locked ? <Text style={taxHint}>Okres zamknięty · usunięcie wpłaty niedostępne</Text> : <Pressable accessibilityRole="button" onPress={() => deletePayment(payment)} style={secondaryPaymentAction}><Text style={[secondaryPaymentActionText, { color: theme.colors.danger }]}>Usuń</Text></Pressable>}
+            </View>;
+          })}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
     <Modal visible={historyReviewOpen} animationType="slide" onRequestClose={closeConfirmationFlow}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={ui.modalHeader}><Text style={ui.modalTitle}>Sprawdź podatek od początku roku</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <Text style={taxContext}>Zanim potwierdzisz pierwszą wpłatę w aplikacji, sprawdź wcześniejsze wpływy i rozliczenia. Kwoty podatku pochodzą z wyliczenia dla wpływów zapisanych w aplikacji. Jeśli brakuje wcześniejszych wpływów, dodaj je lub popraw w Historii wpłat przed kontynuacją.</Text>
           <View style={[ui.card, { marginTop: 16, padding: 16, gap: 8 }]}>
-            <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Od początku {taxYear}, przed okresem {taxPeriodLabel(selectedPeriod, document.settings.settlementMode)}</Text>
+            <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>Od początku {taxYear}, przed okresem {taxPeriodLabel(selectedPeriod)}</Text>
             <Text style={taxContext}>Przychód opodatkowany: {formatPln(priorRevenueGrosz)}</Text>
             <Text style={taxContext}>Wyliczony podatek: {formatPln(priorObligationGrosz)}</Text>
             <Text style={taxContext}>Zapisane wpłaty podatku: {formatPln(priorPaidGrosz)}</Text>
@@ -324,10 +349,10 @@ export function TaxScreen() {
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
         <View style={ui.modalHeader}><Text style={ui.modalTitle}>Potwierdź wykonaną wpłatę</Text><Text accessibilityRole="button" onPress={closeConfirmationFlow} style={action}>Zamknij</Text></View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20 }}>
-          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ?? ""}</Text>
-          <Text style={fieldLabel}>Pełna pozostała kwota podatku (zł)</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
-          <Text style={fieldLabel}>Data wpłaty (RRRR-MM-DD)</Text><TextInput accessibilityLabel="Data wpłaty" value={paymentDraft.paidAt} onChangeText={(paidAt) => setPaymentDraft((current) => ({ ...current, paidAt }))} placeholder="2026-10-20" style={inputStyle} />
-          <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź wykonaną wpłatę"}</Text></Pressable>
+          <Text style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>Okres rozliczenia</Text><Text style={{ color: theme.colors.textPrimary, marginBottom: 18 }}>{settlement?.period ? formatPolishMonth(settlement.period) : ""}</Text>
+          <Text style={fieldLabel}>Kwota wpłaty</Text><Text accessibilityLabel="Pełna pozostała kwota podatku" style={[inputStyle, { paddingTop: 14 }]}>{isNonnegativeMoney(paymentDraft.amount) ? formatPlnAmount(paymentDraft.amount) : "—"}</Text>
+          
+          <Pressable accessibilityRole="button" disabled={saving} onPress={() => void savePayment()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź wpłatę"}</Text></Pressable>
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -336,7 +361,7 @@ export function TaxScreen() {
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: theme.colors.divider, flexDirection: "row", justifyContent: "space-between" }}><Text style={{ color: theme.colors.textPrimary, fontSize: 19, fontWeight: "700" }}>Dane przelewu</Text><Text accessibilityRole="button" onPress={() => setPaymentDetailsOpen(false)} style={action}>Zamknij</Text></View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           <PaymentDetail label="Symbol formularza płatności" value="PPE" onCopy={() => void copyDetail("PPE", "Symbol formularza")} />
-          <PaymentDetail label="Okres rozliczenia" value={settlement ? taxPeriodLabel(settlement.period, document.settings.settlementMode) : undefined} onCopy={() => void copyDetail(settlement ? taxPeriodLabel(settlement.period, document.settings.settlementMode) : undefined, "Okres rozliczenia")} />
+          <PaymentDetail label="Okres rozliczenia" value={settlement ? taxPeriodLabel(settlement.period) : undefined} onCopy={() => void copyDetail(settlement ? taxPeriodLabel(settlement.period) : undefined, "Okres rozliczenia")} />
           <PaymentDetail label="Odbiorca" value={taxPaymentDetails.recipientName} onCopy={() => void copyDetail(taxPaymentDetails.recipientName, "Odbiorca")} />
           <PaymentDetail label="Mikrorachunek podatkowy" value={taxPaymentDetails.bankAccount} onCopy={() => void copyDetail(taxPaymentDetails.bankAccount, "Mikrorachunek")} />
           <PaymentDetail label="Kwota do zapłaty" value={settlement && settlement.outstandingGrosz > 0 ? formatPln(settlement.outstandingGrosz) : "Brak kwoty do zapłaty"} onCopy={() => void copyDetail(settlement?.outstandingGrosz ? taxPaymentDetails.amount : undefined, "Kwota")} />

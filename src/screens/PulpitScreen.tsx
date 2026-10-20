@@ -82,17 +82,18 @@ export function PulpitScreen() {
   const selectedTaxSnapshot = document.taxSettlementSnapshots?.find((snapshot) => snapshot.period === selectedMonth);
   const taxCalculation = !selectedTaxSnapshot && hasTaxRulesForYear(selectedYear) ? calculateTaxYear({
     entries: document.incomeEntries, payments: document.taxPayments, taxYear: selectedYear,
-    mode: document.settings.settlementMode, jointSpouseThreshold: document.settings.jointSpouseThreshold,
+    jointSpouseThreshold: document.settings.jointSpouseThreshold,
     openingTaxableRevenueGrosz: openingRevenue, openingTaxPaidGrosz: openingTaxPaid,
   }) : undefined;
   const settlements = selectedTaxSnapshot
     ? document.taxSettlementSnapshots!.filter((snapshot) => snapshot.rulesYear === selectedYear && snapshot.period <= selectedMonth).map((snapshot) => taxSettlementFromSnapshot(snapshot, todayIsoDate()))
     : taxCalculation?.settlements ?? [];
-  const activeProperties = document.properties.filter((property) => (document.apartmentPeriods ?? []).some((snapshot) => snapshot.propertyId === property.id && snapshot.month === selectedMonth)
+  const activeProperties = document.properties.filter((property) => document.apartmentPeriods.some((snapshot) => snapshot.propertyId === property.id && snapshot.month === selectedMonth)
     || (lifecycleForMonth(property, selectedMonth) === "ACTIVE" && (!property.rentalStartDate || property.rentalStartDate.slice(0, 7) <= selectedMonth)));
   const monthAmounts = activeProperties.map((property) => {
     const snapshot = document.apartmentPeriods?.find((item) => item.propertyId === property.id && item.month === selectedMonth);
-    if (!snapshot) return rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
+    // Only completed months can use frozen snapshots. The active month must reflect live receipts.
+    if (!snapshot || selectedMonth >= currentMonth) return rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
     const expectedGrosz = snapshot.expectedKnown && snapshot.expectedAmount !== undefined ? moneyToGrosz(snapshot.expectedAmount) : null;
     const confirmedGrosz = moneyToGrosz(snapshot.confirmedAmount);
     return { expectedGrosz, confirmedGrosz, remainingGrosz: expectedGrosz === null ? null : Math.max(0, expectedGrosz - confirmedGrosz), unallocatedGrosz: 0 };
@@ -104,9 +105,16 @@ export function PulpitScreen() {
   }, 0);
   const receivedRent = expectedRent - remainingRent;
   const rentProgress = dashboardProgress(receivedRent, expectedRent);
-  const rentFullyConfirmed = rentExpectationKnown && expectedRent > 0 && remainingRent === 0;
-  const rentConfirmationPending = !rentExpectationKnown || remainingRent > 0;
-  const currentPeriodKey = settlementPeriodForMonth(selectedMonth, document.settings.settlementMode);
+  const monthStates = activeProperties.map((property, index) => {
+    const amount = monthAmounts[index]!;
+    const hasReceipt = selectedMonth < currentMonth || document.incomeEntries.some(
+      (entry) => entry.propertyId === property.id && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === selectedMonth,
+    );
+    return rentDisplayState(amount.expectedGrosz, amount.remainingGrosz, hasReceipt);
+  });
+  const rentFullyConfirmed = expectedRent > 0 && monthStates.length > 0 && monthStates.every((state) => state.kind === "paid");
+  const rentConfirmationPending = !rentFullyConfirmed;
+  const currentPeriodKey = settlementPeriodForMonth(selectedMonth);
   const taxSummary = currentPeriodKey ? taxSummaryForPeriod(settlements, currentPeriodKey) : { current: null, previousOutstanding: { count: 0, totalGrosz: 0 } };
   const currentPeriod = taxSummary.current;
   const projectedOlderPeriods = new Set(settlements.filter((item) => currentPeriodKey && item.period < currentPeriodKey && item.outstandingGrosz > 0).map((item) => item.period));
@@ -253,11 +261,11 @@ export function PulpitScreen() {
     const firstApartment = document.properties.length === 0;
     if (firstApartment) return <View style={ui.page}>
       <ScrollView contentContainerStyle={welcomeContent}>
-        <View style={[welcomeInner, { minHeight: Math.max(440, height - 180) }]}>
+        <View style={[welcomeInner, { minHeight: Math.max(0, height - 190) }]}>
           <View style={welcomeHeading}>
             <Text style={welcomeEyebrow}>RYCZAŁT RENT</Text>
             <Text style={welcomeTitle}>Najem pod kontrolą</Text>
-            <Text style={welcomeSubtitle}>Wybierz, jak chcesz zacząć. Możesz skonfigurować mieszkanie lub najpierw spokojnie obejrzeć aplikację.</Text>
+            <Text style={welcomeSubtitle}>Dodaj mieszkanie lub sprawdź, jak działa aplikacja.</Text>
           </View>
           <View style={[welcomeChoices, width < 620 && welcomeChoicesNarrow]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Dodaj pierwsze mieszkanie. Trzy krótkie kroki" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment", onboarding: true })} style={[welcomeChoice, welcomePrimaryChoice, width < 620 && welcomeChoiceNarrow]}>
@@ -266,7 +274,7 @@ export function PulpitScreen() {
                 <Text style={welcomeChoiceTitle}>Dodaj mieszkanie</Text>
                 <Text style={welcomeChoiceDescription}>Ustaw adres, czynsz i podatek w 3 krótkich krokach.</Text>
               </View>
-              <View style={[welcomeAction, welcomePrimaryAction]}><Text style={welcomeActionPrimary}>Rozpocznij konfigurację</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.onAccent} /></View>
+              <View style={[welcomeAction, welcomePrimaryAction]}><Text style={welcomeActionPrimary}>Dodaj mieszkanie</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.onAccent} /></View>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Zobacz demo aplikacji" onPress={enterDemoMode} style={[welcomeChoice, width < 620 && welcomeChoiceNarrow]}>
               <View style={[welcomeIcon, welcomeDemoIcon]}><MaterialIcons name="visibility" size={29} color={theme.colors.textSecondary} /></View>
@@ -274,7 +282,7 @@ export function PulpitScreen() {
                 <Text style={welcomeChoiceTitle}>Najpierw zobacz demo</Text>
                 <Text style={welcomeChoiceDescription}>Poznaj widoki i funkcje na przykładowych danych.</Text>
               </View>
-              <View style={[welcomeAction, welcomeDemoAction]}><Text style={welcomeActionSecondary}>Otwórz wersję demo</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.primary} /></View>
+              <View style={[welcomeAction, welcomeDemoAction]}><Text style={welcomeActionSecondary}>Zobacz demo</Text><MaterialIcons name="arrow-forward" size={19} color={theme.colors.primary} /></View>
             </Pressable>
           </View>
           <View style={privacyNote}>
@@ -312,7 +320,7 @@ export function PulpitScreen() {
       </View> : null}
 
       <View style={sectionHeader}><Text style={dashboardSectionTitle}>Mieszkania</Text><Pressable accessibilityRole="button" accessibilityLabel="Historia wpłat" onPress={() => navigation.navigate("Wpłaty")} style={sectionHeaderAction}><Text style={[action, { color: theme.colors.selectedNavigation }]}>Historia wpłat</Text><MaterialIcons name="chevron-right" size={18} color={theme.colors.selectedNavigation} /></Pressable></View>
-      {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Ustawieniach lub dodaj mieszkanie." : "Dodaj mieszkanie w Ustawieniach, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz ustawienia mieszkań</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
+      {!activeProperties.length ? <View style={emptyRow}><Text style={emptyText}>{document.properties.length ? "Brak aktywnych mieszkań. Wznów najem w Mieszkaniach lub dodaj mieszkanie." : "Dodaj mieszkanie przez ikonę Mieszkania, aby zobaczyć czynsz i terminy."}</Text><Pressable accessibilityRole="button" onPress={() => navigation.navigate("Ustawienia", { setupAction: "apartment" })}><Text style={action}>Otwórz Mieszkania</Text></Pressable></View> : <View style={[ui.card, apartmentListCard]}>
         <Pressable accessibilityRole={rentFullyConfirmed ? "button" : undefined}
           accessibilityLabel={rentFullyConfirmed ? `Czynsz ${compactPln(receivedRent)}. Potwierdzone. ${rentDetailsExpanded ? "Ukryj mieszkania" : "Pokaż mieszkania"}` : undefined}
           accessibilityState={rentFullyConfirmed ? { expanded: rentDetailsExpanded } : undefined}
@@ -331,8 +339,8 @@ export function PulpitScreen() {
           </>}
         </Pressable>
         {(!rentFullyConfirmed || rentDetailsExpanded) && activeProperties.map((property, index) => {
-        const amount = rentMonthAmounts(property, document.incomeEntries, selectedMonth, now, monthDistance(selectedMonth, now));
-        const paymentState = rentDisplayState(amount.expectedGrosz, amount.remainingGrosz);
+        const amount = monthAmounts[index]!;
+        const paymentState = monthStates[index]!;
         const paymentDay = effectivePaymentDay(property, selectedMonth);
         const overdueDays = paymentState.kind !== "paid" && paymentState.kind !== "unknown" && paymentDay ? daysOverdue(selectedMonth, paymentDay, now) : 0;
         const dueDate = paymentDay ? rentDueIso(selectedMonth, paymentDay) : undefined;
@@ -356,7 +364,7 @@ export function PulpitScreen() {
           <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{apartmentChargesKnown ? compactPln(apartmentMediaTotal) : "—"}</Text>
           <Text style={[paymentActionStatus, mediaPayment && paymentActionStatusPaid]} numberOfLines={2}>{!apartmentChargesKnown ? "Uzupełnij kwoty w mieszkaniach" : apartmentMediaTotal === 0 ? "Brak opłat" : mediaPayment ? "✓ Potwierdzone" : "Do potwierdzenia"}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !currentPeriod || currentPeriod.outstandingGrosz <= 0 || rentConfirmationPending }} accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${rentConfirmationPending ? "Najpierw potwierdź wszystkie czynsze" : currentPeriod.status === "paid" ? "Potwierdzone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} disabled={!currentPeriod || currentPeriod.outstandingGrosz <= 0 || rentConfirmationPending} onPress={() => currentPeriod && navigation.navigate("Podatek", { period: currentPeriod.period, openPaymentConfirmation: true, returnTo: "Pulpit" })} style={[ui.card, paymentActionCard, rentConfirmationPending && currentPeriod?.outstandingGrosz ? { opacity: 0.62 } : null]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={currentPeriod ? `Podatek ${compactPln(currentPeriod.obligationGrosz)}. ${rentConfirmationPending ? "Najpierw potwierdź wszystkie czynsze" : currentPeriod.status === "paid" ? "Potwierdzone" : currentPeriod.status === "no-tax" ? "Brak podatku" : `Termin ${formatPolishDate(currentPeriod.dueDate)}`}` : "Podatek"} onPress={() => navigation.navigate("Podatek", currentPeriod ? { period: currentPeriod.period } : undefined)} style={[ui.card, paymentActionCard, rentConfirmationPending && currentPeriod?.outstandingGrosz ? { opacity: 0.62 } : null]}>
           <View style={paymentActionHeading}><MaterialIcons name="account-balance" size={16} color={theme.colors.textSecondary} /><Text style={summaryEyebrow}>PODATEK</Text></View>
           <Text style={paymentActionAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{currentPeriod ? compactPln(currentPeriod.obligationGrosz) : "—"}</Text>
           <Text style={[paymentActionStatus, currentPeriod?.status === "paid" && paymentActionStatusPaid]} numberOfLines={2}>{rentConfirmationPending && currentPeriod?.outstandingGrosz ? "Najpierw potwierdź czynsze" : currentPeriod?.status === "paid" ? "✓ Potwierdzone" : currentPeriod?.status === "no-tax" ? "Brak do zapłaty" : currentPeriod?.status === "overdue" ? `Termin minął · ${formatPolishDate(currentPeriod.dueDate)}` : currentPeriod ? `Termin ${formatPolishDate(currentPeriod.dueDate)}` : `Brak danych dla ${selectedYear}`}</Text>
@@ -482,23 +490,23 @@ function compactPln(amountGrosz: number) { return formatPlnSummary(amountGrosz);
 
 const setupCard = { ...ui.card, marginTop: 14 };
 const setupTitle = { color: theme.colors.textPrimary, fontSize: 16, fontWeight: "700" as const, marginTop: 5 };
-const welcomeContent = { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 24 };
-const welcomeInner = { width: "100%" as const, maxWidth: 980, alignSelf: "center" as const, justifyContent: "center" as const, gap: 28 };
-const welcomeHeading = { alignItems: "center" as const, gap: 9, maxWidth: 680, alignSelf: "center" as const, marginBottom: 4 };
+const welcomeContent = { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 16 };
+const welcomeInner = { width: "100%" as const, maxWidth: 980, alignSelf: "center" as const, justifyContent: "center" as const, gap: 16 };
+const welcomeHeading = { alignItems: "center" as const, gap: 6, maxWidth: 680, alignSelf: "center" as const, marginBottom: 4 };
 const welcomeEyebrow = { color: theme.colors.primary, fontSize: 12, fontWeight: "800" as const, letterSpacing: 1.1 };
 const welcomeTitle = { color: theme.colors.textPrimary, fontSize: 32, lineHeight: 38, fontWeight: "800" as const, textAlign: "center" as const };
 const welcomeSubtitle = { color: theme.colors.textSecondary, fontSize: 16, lineHeight: 24, textAlign: "center" as const };
 const welcomeChoices = { flexDirection: "row" as const, alignItems: "stretch" as const, gap: 18 };
 const welcomeChoicesNarrow = { flexDirection: "column" as const };
-const welcomeChoice = { ...ui.card, flex: 1, minHeight: 250, padding: 24, marginVertical: 0, justifyContent: "space-between" as const, gap: 22, borderRadius: 22 };
-const welcomeChoiceNarrow = { minHeight: 205, padding: 20 };
+const welcomeChoice = { ...ui.card, flex: 1, minHeight: 210, padding: 18, marginVertical: 0, justifyContent: "space-between" as const, gap: 12, borderRadius: 22 };
+const welcomeChoiceNarrow = { minHeight: 174, padding: 16 };
 const welcomePrimaryChoice = { borderColor: "#F2C8D1", backgroundColor: theme.colors.surface };
-const welcomeIcon = { width: 58, height: 58, borderRadius: 18, backgroundColor: theme.colors.accentSoft, alignItems: "center" as const, justifyContent: "center" as const };
+const welcomeIcon = { width: 50, height: 50, borderRadius: 15, backgroundColor: theme.colors.accentSoft, alignItems: "center" as const, justifyContent: "center" as const };
 const welcomeDemoIcon = { backgroundColor: theme.colors.background };
-const welcomeCopy = { gap: 8 };
+const welcomeCopy = { gap: 5 };
 const welcomeChoiceTitle = { color: theme.colors.textPrimary, fontSize: 21, lineHeight: 27, fontWeight: "700" as const };
 const welcomeChoiceDescription = { color: theme.colors.textSecondary, fontSize: 15, lineHeight: 22, maxWidth: 390 };
-const welcomeAction = { minHeight: 50, borderRadius: 12, paddingHorizontal: 16, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 10, backgroundColor: theme.colors.background };
+const welcomeAction = { minHeight: 46, borderRadius: 12, paddingHorizontal: 16, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 10, backgroundColor: theme.colors.background };
 const welcomePrimaryAction = { backgroundColor: theme.colors.primary };
 const welcomeDemoAction = { backgroundColor: theme.colors.background };
 const welcomeActionPrimary = { color: theme.colors.onAccent, fontWeight: "700" as const, fontSize: 14 };

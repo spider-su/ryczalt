@@ -2,10 +2,9 @@ import { createNavigationContainerRef, NavigationContainer } from '@react-naviga
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, Pressable, Text, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Platform, Pressable, Text, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { ThemeProvider, useTheme, theme } from './src/theme/theme';
 import { IncomeScreen } from './src/screens/IncomeScreen';
@@ -17,7 +16,7 @@ import { ReminderProvider } from './src/notifications/ReminderProvider';
 import { notificationDataToIntent } from './src/navigation/notificationIntent';
 import { useRentalData } from './src/data/RentalDataProvider';
 import { LocalDataRecoveryScreen } from './src/screens/LocalDataRecoveryScreen';
-import { appSafeAreaEdges, tabBarSafeAreaStyle } from './src/navigation/safeAreaLayout';
+import { appSafeAreaEdges } from './src/navigation/safeAreaLayout';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LoadingState } from './src/components/LoadingState';
 
@@ -37,7 +36,6 @@ function PulpitFlowScreen() {
 }
 function RentalApp() {
   const { mode } = useTheme();
-  const insets = useSafeAreaInsets();
   const { document, isDemoMode, exitDemoMode, loadError, recoveredFromBackup, dismissRecoveryNotice, retryLoad, copyRawData, resetLocalData } = useRentalData();
   useEffect(() => {
     if (!recoveredFromBackup || Platform.OS === 'web') return;
@@ -78,13 +76,19 @@ function RentalApp() {
       <Pressable accessibilityRole="button" accessibilityLabel="Wyjdź z demo" onPress={exitDemoMode} hitSlop={8}><Text style={{ color: theme.colors.primary, fontSize: 12, fontWeight: '700' }}>Wyjdź z demo</Text></Pressable>
     </View> : null}
     <NavigationContainer ref={navigationRef}><View style={{ flex: 1 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 52 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Wróć na Pulpit" onPress={() => navigationRef.isReady() && navigationRef.navigate('Pulpit' as never)}><Text style={{ color: theme.colors.textPrimary, fontWeight: '700', fontSize: 21 }}>Ryczałt</Text></Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {([{ icon: 'calculator-outline', label: 'Podatek', route: 'Podatek' }, { icon: 'business-outline', label: 'Mieszkania', route: 'Ustawienia', params: { settingsSection: 'properties' } }, { icon: 'settings-outline', label: 'Ustawienia', route: 'Ustawienia' }] as const).map((item) => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} hitSlop={4} onPress={() => navigationRef.isReady() && (navigationRef as any).navigate(item.route, 'params' in item ? item.params : undefined)} style={{ width: 46, height: 48, alignItems: 'center', justifyContent: 'center' }}><Ionicons name={item.icon} size={22} color={theme.colors.textPrimary} /></Pressable>)}
+      </View>
+    </View>
     <Tabs.Navigator screenOptions={({ route }) => ({
       headerShown: false,
       headerStyle: { backgroundColor: theme.colors.background },
       headerTintColor: theme.colors.textPrimary,
       tabBarActiveTintColor: theme.colors.selectedNavigation,
       tabBarInactiveTintColor: theme.colors.inactiveNavigation,
-      tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.borderSubtle, borderTopWidth: 1, paddingTop: 6, ...tabBarSafeAreaStyle(insets.bottom), elevation: 0 },
+      tabBarStyle: { display: 'none' },
       tabBarLabel: ({ focused, color }) => <Text style={{ color, fontSize: 11, fontWeight: focused ? '700' : '500', marginTop: 1 }}>{route.name}</Text>,
       tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
     })}>

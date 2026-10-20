@@ -15,15 +15,13 @@ import {
 import { createRentalBackup, parseRentalBackup } from "../data/localRentalStore";
 import { pickRentalBackupContents, saveRentalBackupFile } from "../data/rentalBackupFile";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { PeriodSelector } from "../components/PeriodSelector";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import type { Property, RentalDocument } from "../model/rental";
+import { APARTMENT_MEDIA_BILL_ID, type Property, type RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidTaxMicroAccount } from "../domain/rentalValidation";
-import { hasTaxRulesForYear } from "../domain/ryczaltTax";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
 import type { SetupAction } from "../domain/setupProgress";
@@ -38,8 +36,8 @@ import { defaultFirstApartmentDraftValues } from "../domain/firstApartmentOnboar
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
-import { apartmentTermsForMonth } from "../domain/apartmentTerms";
-import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderHasMore, settingsReminderList } from "../domain/settingsPresentation";
+import { apartmentTermsForMonth, termsChangeMustStartNextMonth } from "../domain/apartmentTerms";
+import { SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderGroups, settingsReminderGroupsHasMore, settingsReminderGroupTitle } from "../domain/settingsPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
   address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
@@ -85,13 +83,8 @@ export function SettingsScreen() {
   const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
   const [showAdvancedProperty, setShowAdvancedProperty] = useState(false);
   const [showArchivedProperties, setShowArchivedProperties] = useState(false);
-  const [taxEligibilityOpen, setTaxEligibilityOpen] = useState(SETTINGS_TAX_LEGAL_DEFAULT_OPEN);
-  const [taxAdvancedOpen, setTaxAdvancedOpen] = useState(false);
   const [dataInfoOpen, setDataInfoOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
-  const [bootstrapProperty, setBootstrapProperty] = useState<Property | null>(null);
-  const [bootstrapRange, setBootstrapRange] = useState<{ startMonth: string; endMonth: string } | null>(null);
-  const [bootstrapRangeOpen, setBootstrapRangeOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [wizardMode, setWizardMode] = useState(false);
   const [draft, setDraft] = useState<PropertyDraft>(() => newPropertyDraft());
@@ -101,19 +94,14 @@ export function SettingsScreen() {
   const [testNotificationBusy, setTestNotificationBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [taxAccount, setTaxAccount] = useState("");
-  const [openingRevenueDraft, setOpeningRevenueDraft] = useState("");
-  const [openingTaxPaidDraft, setOpeningTaxPaidDraft] = useState("");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
   const showNotificationTest = isDemoMode || __DEV__;
-  const hasAnyTaxSnapshots = Boolean(document?.taxSettlementSnapshots?.length);
 
   useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
 
   useEffect(() => {
     if (!document) return;
     setTaxAccount((document.settings.taxMicroAccount ?? "").replace(/^PL/i, "").replace(/\D/g, ""));
-    setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
-    setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
     const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"]; billId?: string; period?: string } | undefined;
     if (params?.billId) navigation.navigate("Pulpit", { screen: "Przegląd", params: { billId: params.billId, period: params.period } });
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
@@ -324,12 +312,22 @@ export function SettingsScreen() {
       Alert.alert("Nieprawidłowy adres", "Adres dostawcy prądu musi używać HTTPS.");
       return;
     }
-    const rentSchedule = ownerRent ? updatedRentSchedule(editing, {
-      effectiveFrom: !editing && startDate ? startDate.slice(0, 7) : effectiveFrom,
+    const proposedTerms = {
       amount: ownerRent, mediaAmount, mediaPaidByTenant: draft.mediaPaidByTenant,
       taxableTreatment: draft.taxableTreatment, paymentDay: paymentDay ?? 5,
+    };
+    const currentMediaConfirmed = document.billPayments.some(
+      (payment) => payment.billId === APARTMENT_MEDIA_BILL_ID && payment.period === currentMonth,
+    );
+    const deferApprovedMonth = editing && ownerRent && termsChangeMustStartNextMonth(
+      editing, document.incomeEntries, currentMonth, effectiveFrom, proposedTerms, currentMediaConfirmed,
+    );
+    const actualEffectiveFrom = deferApprovedMonth ? shiftMonthValue(currentMonth, 1) : effectiveFrom;
+    const rentSchedule = ownerRent ? updatedRentSchedule(editing, {
+      effectiveFrom: !editing && startDate ? startDate.slice(0, 7) : actualEffectiveFrom,
+      ...proposedTerms,
     }) : editing?.rentSchedule;
-    const effectiveNow = effectiveFrom <= currentMonth;
+    const effectiveNow = actualEffectiveFrom <= currentMonth;
     const property: Property = {
       id: editing?.id ?? createId("property"),
       address,
@@ -353,25 +351,26 @@ export function SettingsScreen() {
     };
     setSaving(true);
     try {
-      await update((current) => ({
-        ...current,
-        administrationSuggestions: administrationName
-          ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
-          : current.administrationSuggestions,
-        properties: editing
-          ? current.properties.map((item) =>
-              item.id === editing.id ? property : item,
-            )
-          : [...current.properties, property],
-      }));
-      if (!editing) {
-        const today = todayIsoDate();
+      const today = todayIsoDate();
+      await update((current) => {
+        const saved = {
+          ...current,
+          administrationSuggestions: administrationName
+            ? mergeAdministrationSuggestions(current.administrationSuggestions, { name: administrationName, ...(administrationUrl ? { url: administrationUrl } : {}) })
+            : current.administrationSuggestions,
+          properties: editing
+            ? current.properties.map((item) => item.id === editing.id ? property : item)
+            : [...current.properties, property],
+        };
+        if (editing || !ownerRent) return saved;
         const range = historicalBootstrapDefaultRange(today, draft.rentalStartDate || undefined);
-        if (range.endMonth && range.startMonth <= range.endMonth && ownerRent) {
-          setBootstrapProperty(property);
-          setBootstrapRange({ startMonth: range.startMonth, endMonth: range.endMonth });
-        }
-      }
+        if (!range.endMonth || range.startMonth > range.endMonth) return saved;
+        // Initialize historical months in the same atomic document update as the apartment.
+        // The current month is intentionally excluded by bootstrapHistoricalRentPayments.
+        return bootstrapHistoricalRentPayments({
+          document: saved, property, startMonth: range.startMonth, endMonth: range.endMonth, today,
+        }).document;
+      });
       const returnToPulpit = wizardMode && !editing;
       setEditing(null);
       setSetupFocus(null);
@@ -396,23 +395,6 @@ export function SettingsScreen() {
       [{ text: "Anuluj", style: "cancel" }, { text: lifecycle === "PAUSED" ? "Wstrzymaj" : "Archiwizuj", style: lifecycle === "ARCHIVED" ? "destructive" : "default", onPress: apply }]);
   };
   const setRentReminderDelay = (days: number) => update((current) => ({ ...current, settings: { ...current.settings, rentReminderDelayDays: days } })).catch(() => undefined);
-  const confirmHistoricalBootstrap = async () => {
-    if (!bootstrapProperty || !bootstrapRange) return;
-    const today = todayIsoDate();
-    setSaving(true);
-    try {
-      let created = 0;
-      await update((current) => {
-        const result = bootstrapHistoricalRentPayments({ document: current, property: bootstrapProperty, ...bootstrapRange, today });
-        created = result.created.length;
-        return result.document;
-      });
-      setBootstrapProperty(null);
-      setBootstrapRange(null);
-      Alert.alert("Wpłaty początkowe", created ? `Dodano ${created} potwierdzonych wpłat czynszu oraz potwierdzenia zapłaty podatku za te okresy.` : "W wybranym okresie nie dodano wpłat — istniejące miesiące zostały pominięte.");
-    } catch { /* The provider reports persistence errors. */ }
-    finally { setSaving(false); }
-  };
   const field = (
     label: string,
     key: PropertyDraftTextKey,
@@ -444,17 +426,6 @@ export function SettingsScreen() {
       ...current,
       settings: change(current.settings),
     })).catch(() => undefined);
-  };
-  const saveOpeningBalances = () => {
-    if (document?.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)) {
-      Alert.alert("Rok ma zamknięte okresy", "Stan początkowy jest częścią zapisanych rozliczeń. Nie można go zmienić po zamknięciu miesiąca."); return;
-    }
-    const revenue = openingRevenueDraft.trim().replace(",", ".");
-    const paid = openingTaxPaidDraft.trim().replace(",", ".");
-    if ((revenue && !isNonnegativeMoney(revenue)) || (paid && !isNonnegativeMoney(paid))) {
-      Alert.alert("Nieprawidłowa kwota", "Wpisz kwoty równe lub większe od zera."); return;
-    }
-    updateTaxSettings((settings) => ({ ...settings, openingTaxableRevenue: revenue || undefined, openingTaxPaid: paid || undefined }));
   };
   const saveTaxPaymentSettings = async () => {
     const account = taxAccount.replace(/\D/g, "");
@@ -494,13 +465,11 @@ export function SettingsScreen() {
 
   return (
       <View style={ui.page}>
-      <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
+      <ScrollView key={activeSection ?? "settings-home"} contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
         {activeSection === null ? <>
         <Text style={ui.pageTitle}>Ustawienia</Text>
-        {settingsSections.map((section) => {
-          const summary = section.id === "properties" ? formatPolishCount(document.properties.length, ["mieszkanie", "mieszkania", "mieszkań"])
-            : section.id === "tax" ? `Ryczałt · ${document.settings.settlementMode === "monthly" ? "miesięcznie" : "kwartalnie"} · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
-              : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
+        {settingsSections.filter((section) => section.id !== 'properties').map((section) => {
+          const summary = section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
                 : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax", "bills"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax" | "bills"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={ui.settingsRow}>
@@ -510,35 +479,6 @@ export function SettingsScreen() {
         </> : <>
         <Pressable accessibilityRole="button" onPress={() => setActiveSection(null)} style={settingsBack}><Text style={action}>‹ Ustawienia</Text></Pressable>
         <Text style={ui.pageTitle}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
-        {activeSection === "tax" ? <>
-        <PeriodSelector value={String(document.settings.taxYear)} valueLabel={`Rok podatkowy ${document.settings.taxYear}`} previousLabel="Poprzedni rok podatkowy" nextLabel="Następny rok podatkowy"
-          previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= new Date().getFullYear()}
-          onPrevious={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}
-          onNext={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} />
-        {!hasTaxRulesForYear(document.settings.taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.warning, marginTop: 8 }}>Możesz wybrać ten rok kalendarzowy, ale reguły podatkowe nie są jeszcze zweryfikowane i wyliczenie pozostanie niedostępne.</Text> : null}
-        <Text style={sectionTitle}>Próg podatkowy</Text>
-        <View style={notificationRow}><Text style={{ ...rowTitle, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch disabled={hasAnyTaxSnapshots} value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
-          if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
-          Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
-            { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
-          ]);
-        }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold, disabled: hasAnyTaxSnapshots }} /></View>
-        {hasAnyTaxSnapshots ? <Text style={muted}>Limit progu jest zablokowany po zapisaniu rozliczeń, aby nie zmienić pozostałych okresów roku.</Text> : null}
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxEligibilityOpen }} onPress={() => setTaxEligibilityOpen((open) => !open)} style={disclosureRow}><Text style={disclosureTitle}>ⓘ Kiedy mogę użyć tego limitu? {taxEligibilityOpen ? "⌃" : "›"}</Text></Pressable>
-        {taxEligibilityOpen ? <Text style={legalText}>Wyższy limit 200 000 zł stosuj wyłącznie przy wspólności majątkowej i wyborze opodatkowania całości przychodów z najmu przez jednego małżonka, po złożeniu wymaganego oświadczenia w terminie.</Text> : null}
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxAdvancedOpen }} onPress={() => setTaxAdvancedOpen((open) => !open)} style={[disclosureRow, { marginTop: 18 }]}>
-          <View style={{ flex: 1 }}><Text style={disclosureTitle}>Dane początkowe</Text><Text style={muted}>Tylko jeśli zaczynasz śledzenie w trakcie roku.</Text></View>
-          <MaterialIcons name={taxAdvancedOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
-        </Pressable>
-        {taxAdvancedOpen ? <View style={[ui.compactCard, { marginTop: 4 }]}>
-          <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w {document.settings.taxYear}. Kwoty wpływają na roczny próg bez przypisywania różnicy do nieznanego miesiąca.</Text>
-          <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
-          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-          <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
-          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-          <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz dane początkowe</Text></Pressable>
-        </View> : null}
-        </> : null}
         {activeSection === "notifications" ? <>
         {settingsNotificationsUnavailable(permission)
           ? <View accessibilityRole="summary" style={neutralBanner}><Text style={muted}>Powiadomienia lokalne są dostępne w aplikacji mobilnej.</Text></View>
@@ -575,8 +515,14 @@ export function SettingsScreen() {
           ["rent", "Wpłaty czynszu"], ["bills", "Opłaty"], ["agreements", "Kończące się umowy"], ["tax", "Podatek"],
         ] as const).map(([category, label]) => <View key={category} style={[notificationRow, settingsNotificationsUnavailable(permission) && disabledControl]}><Text style={{ ...rowTitle, flex: 1 }}>{label}</Text><Switch disabled={settingsNotificationsUnavailable(permission)} value={settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission)} onValueChange={() => toggleReminderCategory(category)} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel={label} accessibilityState={{ checked: settingsNotificationSwitchValue(document.settings.reminderCategories[category], permission), disabled: settingsNotificationsUnavailable(permission) }} /></View>)}
         <Text style={fieldLabel}>Najbliższe przypomnienia</Text>
-        {reminderPlan.length ? settingsReminderList(reminderPlan, showAllReminders).map((task) => <Text key={task.id} style={muted}>{formatPolishDate(task.dueAt)} · {task.title}</Text>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
-        {settingsReminderHasMore(reminderPlan, showAllReminders) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllReminders }} onPress={() => setShowAllReminders(true)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż wszystkie</Text></Pressable> : null}
+        {reminderPlan.length ? settingsReminderGroups(reminderPlan, showAllReminders).map((group) => <View key={group.key} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.borderSubtle, gap: 4 }}>
+          <Text style={{ ...rowTitle, fontSize: 14 }}>{formatPolishDate(group.date)} · {settingsReminderGroupTitle(group.type)}</Text>
+          {group.tasks.length === 1
+            ? <Text style={muted}>{group.tasks[0]!.title}</Text>
+            : <Text style={muted}>{group.tasks.length} przypomnienia · {group.tasks.map((task) => task.title.split(" — ").slice(1).join(" — ") || task.title).join(", ")}</Text>}
+        </View>) : <Text style={muted}>Brak nadchodzących przypomnień.</Text>}
+        {settingsReminderGroupsHasMore(reminderPlan, showAllReminders) ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showAllReminders }} onPress={() => setShowAllReminders(true)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż wszystkie</Text></Pressable> : null}
+        {showAllReminders && settingsReminderGroups(reminderPlan, true).length > 3 ? <Pressable accessibilityRole="button" onPress={() => setShowAllReminders(false)} style={{ paddingVertical: 10 }}><Text style={action}>Pokaż mniej</Text></Pressable> : null}
         </> : null}
         {activeSection === "payment" ? <>
         <Text style={muted}>Wpisz własny numer mikrorachunku. Aplikacja nie tworzy numeru rachunku ani przelewu.</Text>
@@ -774,31 +720,7 @@ export function SettingsScreen() {
           </>}
         </SafeAreaView>
       </Modal>
-      <Modal visible={Boolean(bootstrapProperty && bootstrapRange)} animationType="slide" onRequestClose={() => { setBootstrapProperty(null); setBootstrapRange(null); }}>
-        <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
-          <View style={modalHeader}><Text style={modalTitle}>Wpłaty początkowe</Text><Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }}><Text style={action}>Pomiń</Text></Pressable></View>
-          {bootstrapProperty && bootstrapRange ? <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={muted}>Wstępnie uzupełnimy czynsz za zakończone miesiące od daty rozpoczęcia najmu. Zaimportowane okresy oznaczymy jako opłacone, również wyliczony za nie podatek.</Text>
-            <View style={[ui.card, { marginTop: 16 }]}>
-              <Text style={{ color: theme.colors.textPrimary, fontWeight: "700" }}>{bootstrapProperty.address}</Text>
-              <Text style={muted}>{bootstrapRange.startMonth} – {bootstrapRange.endMonth}</Text>
-              <Text style={muted}>{formatPolishCount(bootstrapMonthCount(bootstrapRange.startMonth, bootstrapRange.endMonth), ["miesiąc", "miesiące", "miesięcy"])} · kwoty z warunków najmu obowiązujących w danym miesiącu</Text>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: bootstrapRangeOpen }} onPress={() => setBootstrapRangeOpen((open) => !open)} style={{ paddingVertical: 12 }}><Text style={action}>{bootstrapRangeOpen ? "− Zmień okres" : "+ Zmień okres"}</Text></Pressable>
-            {bootstrapRangeOpen ? <View style={{ gap: 12, marginBottom: 16 }}>
-              {(["startMonth", "endMonth"] as const).map((key) => <View key={key} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={muted}>{key === "startMonth" ? "Od" : "Do"}</Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, -1) : range)}><Text style={action}>‹</Text></Pressable><Text style={{ color: theme.colors.textPrimary, fontWeight: "600" }}>{bootstrapRange[key]}</Text><Pressable accessibilityRole="button" onPress={() => setBootstrapRange((range) => range ? shiftBootstrapRange(range, bootstrapProperty, key, 1) : range)}><Text style={action}>›</Text></Pressable></View>
-              </View>)}
-            </View> : null}
-            <View style={[neutralBanner, { marginVertical: 12 }]}>
-              <Text style={muted}>Potwierdź tylko te okresy, w których czynsz wpłynął i podatek został zapłacony. Za każdy zaimportowany okres aplikacja zapisze pełną obliczoną kwotę podatku jako opłaconą.</Text>
-            </View>
-            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void confirmHistoricalBootstrap()} style={[primaryButton, saving && { opacity: 0.6 }]}><Text style={primaryText}>{saving ? "Zapisywanie…" : "Potwierdź czynsze i zapłacony podatek"}</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => { setBootstrapProperty(null); setBootstrapRange(null); }} style={secondaryButton}><Text style={modeText}>Pomiń ten krok</Text></Pressable>
-          </ScrollView> : null}
-        </SafeAreaView>
-      </Modal>
+
 
     </View>
   );
@@ -810,25 +732,9 @@ function updatedRentSchedule(property: Property | null, rate: NonNullable<Proper
 }
 
 function shiftMonthValue(month: string, delta: number) {
-  const [year, part] = month.split("-").map(Number);
-  const date = new Date(year!, part! - 1 + delta, 1);
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(year!, monthNumber! - 1 + delta, 1);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function bootstrapMonthCount(start: string, end: string) {
-  const [startYear, startMonth] = start.split("-").map(Number);
-  const [endYear, endMonth] = end.split("-").map(Number);
-  return Math.max(0, (endYear! - startYear!) * 12 + endMonth! - startMonth! + 1);
-}
-
-function shiftBootstrapRange(range: { startMonth: string; endMonth: string }, property: Property, key: "startMonth" | "endMonth", delta: number) {
-  const today = todayIsoDate();
-  const yearStart = `${today.slice(0, 4)}-01`;
-  const lastCompleted = shiftMonthValue(today.slice(0, 7), -1);
-  const minimum = property.rentalStartDate && property.rentalStartDate.slice(0, 7) > yearStart ? property.rentalStartDate.slice(0, 7) : yearStart;
-  const candidate = shiftMonthValue(range[key], delta);
-  if (key === "startMonth") return { ...range, startMonth: candidate < minimum ? minimum : candidate > range.endMonth ? range.endMonth : candidate };
-  return { ...range, endMonth: candidate > lastCompleted ? lastCompleted : candidate < range.startMonth ? range.startMonth : candidate };
 }
 
 function tenantDraftTotal(draft: PropertyDraft) {

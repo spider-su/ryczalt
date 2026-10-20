@@ -206,7 +206,7 @@ export function validateRentalDocumentShape(
       throw new RentalValidationError("Tax payment IDs must be unique.");
     taxIds.add(payment.id);
     if (
-      !isSettlementPeriod(payment.period) ||
+      !isRentalMonth(payment.period) ||
       !isValidCalendarDate(payment.paidAt) ||
       !isPositiveMoney(payment.amount) ||
       (payment.source !== undefined && payment.source !== "MANUAL" && payment.source !== "INITIAL_IMPORT")
@@ -236,26 +236,21 @@ export function validateRentalDocumentShape(
     if ((!billIds.has(payment.billId) && payment.billId !== APARTMENT_MEDIA_BILL_ID) || !isRentalMonth(payment.period) || !isValidCalendarDate(payment.paidAt) || !isPositiveMoney(payment.amount))
       throw new RentalValidationError("Bill payment is invalid.");
   }
-  const customIds = new Set<string>();
-  for (const reminder of document.customReminders) {
-    if (customIds.has(reminder.id) || !reminder.title.trim() || !isValidCalendarDate(reminder.dueDate) || (reminder.propertyId && !propertyIds.has(reminder.propertyId)) || !["ONCE", "MONTHLY", "YEARLY"].includes(reminder.recurrence)) throw new RentalValidationError("Custom reminder is invalid.");
-    customIds.add(reminder.id);
-  }
   const stateIds = new Set<string>();
-  const validTaskId = /^(TENANT_PAYMENT_CHECK|TAX_PAYMENT|RECURRING_BILL|RENTAL_AGREEMENT_END|CUSTOM_REMINDER):[a-z0-9][a-z0-9._:-]*$/i;
+  const validTaskId = /^(TENANT_PAYMENT_CHECK|TAX_PAYMENT|RECURRING_BILL|RENTAL_AGREEMENT_END):[a-z0-9][a-z0-9._:-]*$/i;
   for (const state of document.taskStates) {
     if (!validTaskId.test(state.taskId) || stateIds.has(state.taskId) || [state.snoozedUntil, state.dismissedAt, state.completedAt].some((value) => value !== undefined && (typeof value !== "string" || Number.isNaN(new Date(value).getTime()) || new Date(value).toISOString() !== value))) throw new RentalValidationError("Task state is invalid.");
     stateIds.add(state.taskId);
   }
   const apartmentPeriodIds = new Set<string>();
-  for (const snapshot of document.apartmentPeriods ?? []) {
+  for (const snapshot of document.apartmentPeriods) {
     const id = `${snapshot.propertyId}:${snapshot.month}`;
     if (!propertyIds.has(snapshot.propertyId) || !isRentalMonth(snapshot.month) || apartmentPeriodIds.has(id) || (snapshot.ownerRent !== undefined && !isNonnegativeMoney(snapshot.ownerRent)) || (snapshot.expectedAmount !== undefined && !isNonnegativeMoney(snapshot.expectedAmount)) || typeof snapshot.expectedKnown !== "boolean" || !isNonnegativeMoney(snapshot.confirmedAmount) || !isNonnegativeMoney(snapshot.taxableAmount) || !isValidCalendarDate(snapshot.closedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId))) throw new RentalValidationError("Apartment period snapshot is invalid.");
     apartmentPeriodIds.add(id);
   }
   const taxSnapshotPeriods = new Set<string>();
-  for (const snapshot of document.taxSettlementSnapshots ?? []) {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(snapshot.period) || taxSnapshotPeriods.has(snapshot.period) || ![snapshot.revenue, snapshot.taxableBase, snapshot.cumulativeRevenue, snapshot.cumulativeTax, snapshot.obligation, snapshot.paid, snapshot.allocatedPaid, snapshot.creditApplied, snapshot.outstanding, snapshot.overpaid].every(isNonnegativeMoney) || !isValidCalendarDate(snapshot.dueDate) || !Number.isInteger(snapshot.rulesYear) || !isValidCalendarDate(snapshot.savedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId)) || !snapshot.taxPaymentIds.every((paymentId) => taxIds.has(paymentId))) throw new RentalValidationError("Tax settlement snapshot is invalid.");
+  for (const snapshot of document.taxSettlementSnapshots) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(snapshot.period) || taxSnapshotPeriods.has(snapshot.period) || ![snapshot.revenue, snapshot.taxableBase, snapshot.cumulativeRevenue, snapshot.cumulativeTax, snapshot.obligation, snapshot.paid, snapshot.allocatedPaid, snapshot.creditApplied, snapshot.outstanding, snapshot.overpaid].every(isNonnegativeMoney) || !isValidCalendarDate(snapshot.dueDate) || !Number.isInteger(snapshot.rulesYear) || !Number.isInteger(snapshot.appliedRulesYear) || snapshot.appliedRulesYear < 2025 || snapshot.appliedRulesYear > Number(snapshot.period.slice(0, 4)) || !isValidCalendarDate(snapshot.savedAt.slice(0, 10)) || !snapshot.receiptIds.every((receiptId) => incomeIds.has(receiptId)) || !snapshot.taxPaymentIds.every((paymentId) => taxIds.has(paymentId))) throw new RentalValidationError("Tax settlement snapshot is invalid.");
     taxSnapshotPeriods.add(snapshot.period);
   }
   if (document.settings.taxMicroAccount && !isValidPolishBankAccount(document.settings.taxMicroAccount))
@@ -263,6 +258,3 @@ export function validateRentalDocumentShape(
   return document;
 }
 
-function isSettlementPeriod(value: string): boolean {
-  return isRentalMonth(value) || /^\d{4}-Q[1-4]$/.test(value);
-}

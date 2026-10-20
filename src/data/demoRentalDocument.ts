@@ -1,12 +1,6 @@
 import type { RentalDocument, IncomeEntry, Property, TaxPayment } from "../model/rental";
 import { calculateSettlements, settlementPeriodForMonth, SUPPORTED_TAX_YEARS, todayInPoland } from "../domain/ryczaltTax";
 
-function monthShift(month: string, offset: number) {
-  const [year, number] = month.split("-").map(Number);
-  const date = new Date(year!, number! - 1 + offset, 1, 12);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function monthDay(month: string, day: number) {
   const [year, number] = month.split("-").map(Number);
   const lastDay = new Date(year!, number!, 0).getDate();
@@ -56,23 +50,22 @@ export function createDemoRentalDocument(now = new Date()): RentalDocument {
       };
     });
   });
-  const settlements = calculateSettlements({ entries: incomeEntries, payments: [], taxYear: supportedYear, mode: "monthly", today });
+  const settlements = calculateSettlements({ entries: incomeEntries, payments: [], taxYear: supportedYear, today });
   const taxPayments: TaxPayment[] = settlements
     .filter((settlement) => settlement.obligationGrosz > 0 && settlement.dueDate <= today)
     .map((settlement) => ({
       id: `demo-tax-${settlement.period}`,
-      period: settlementPeriodForMonth(settlement.period, "monthly")!,
+      period: settlementPeriodForMonth(settlement.period)!,
       paidAt: settlement.dueDate,
       amount: (settlement.obligationGrosz / 100).toFixed(2),
     }));
   return {
     schemaVersion: 1, properties, incomeEntries, taxPayments, recurringBills: [], billPayments: [], apartmentPeriods: [], taxSettlementSnapshots: [],
     administrationSuggestions: [],
-    customReminders: [{ id: "demo-reminder-inspection", title: "Przegląd mieszkania", propertyId: "demo-piotrkowska", dueDate: monthDay(monthShift(currentMonth, 1), 12), note: "Umów dogodny termin", recurrence: "ONCE" }],
     taskStates: [],
     settings: {
-      taxYear: supportedYear, settlementMode: "monthly", jointSpouseThreshold: false,
-      reminderCategories: { rent: true, agreements: true, tax: true, bills: true, custom: true }, rentReminderDelayDays: 1,
+      taxYear: supportedYear, jointSpouseThreshold: false,
+      reminderCategories: { rent: true, agreements: true, tax: true, bills: true }, rentReminderDelayDays: 1,
       taxRecipientName: "Urząd Skarbowy Kraków", taxMicroAccount: "12 1010 1270 0000 0000 0000 0000",
     },
   };

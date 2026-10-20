@@ -21,14 +21,14 @@ The public [web tax calculator](https://ryczalt.smart-box.workers.dev/) is a sep
 - [ ] Main typecheck, lint, unit tests, Expo Doctor, Web export and Android prebuild green.
 - [ ] EAS Android production workflow green; downloadable artifact and build ID recorded against the exact main SHA.
 - [ ] Clean Android emulator happy path, correction/recalculation, and restart persistence pass.
-- [ ] Legacy local document loads; damaged-storage recovery behaves safely.
+- [ ] Current schema-1 document validation and damaged-storage recovery behave safely.
 - [ ] Export → clear app data/uninstall → reinstall → import round-trip verified, including tax and reminder results.
 - [ ] Physical Android rent, bill and tax notification permission, channel, delivery, tap routing, restart/reboot, revoke/regrant and duplicate checks pass.
 - [ ] Tax calculation, overpayment carry-forward, exact-year selection, provisional fallback warning and deadline tests pass.
 - [x] PR #38 removed bills and custom reminders; recurring-bill payment tracking and due reminders are now restored by the current product request. Custom reminders remain out of scope.
 - [ ] Product, notification, data, tax and public-calculator documentation agrees on the POC scope, calculation boundaries and limitations.
 - [ ] Privacy policy is completed and publicly hosted; Google Play Data safety and Apple App Privacy declarations are reviewed against exact release builds; candidate-specific evidence is recorded in [privacy release evidence](docs/PRIVACY_RELEASE_EVIDENCE.md).
-- [ ] Native local-data encryption migration, recovery, export/import and Android backup policy are validated on release builds; browser storage limitation is disclosed.
+- [ ] Native local-data encryption, recovery, export/import and Android backup policy are validated on release builds; browser storage limitation is disclosed.
 
 Only after all gates pass: set one consistent POC RC version in package/app metadata, create the release tag, and record SHA, artifact/build ID, test evidence, and known limitations. Do not create a release tag while any CI or acceptance gate is red or unverified.
 
@@ -59,7 +59,6 @@ Do not implement during the POC unless user evidence changes the priority:
 - contextual anomaly checks (unexpected amount, possible duplicate, unusual period/date) rather than an analytics dashboard;
 - lightweight annual landlord summary, with PIT-28 export considered separately above;
 - document attachments only if users demonstrate a real need; avoid document-management scope;
-- quarterly settlement dead-code cleanup unless it creates a correctness or maintenance blocker.
 
 ## Product boundary
 

@@ -1,5 +1,5 @@
-/** The app frame owns only the top inset; the tab navigator owns the bottom inset. */
-export const appSafeAreaEdges = ["top"] as const;
+/** Hidden tab bars cannot consume the bottom inset; the app frame owns both edges. */
+export const appSafeAreaEdges = ["top", "bottom"] as const;
 /** Standalone loading/recovery screens have no navigator to consume the bottom inset. */
 export const fallbackSafeAreaEdges = ["top", "bottom"] as const;
 export const modalSafeAreaEdges = ["top", "bottom"] as const;

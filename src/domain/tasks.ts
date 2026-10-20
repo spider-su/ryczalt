@@ -34,7 +34,6 @@ export type TaskNotification = {
   fireAt: Date;
   data: { category: "rent" | "tax" | "bill" | "agreement"; propertyId?: string; billId?: string; period?: string; taskId?: string; taskIds?: string[] };
 };
-export type ReturnTypeTaskNotification = TaskNotification;
 
 export function groupActiveTasks(tasks: AssistantTask[]) {
   return {
@@ -124,9 +123,9 @@ export function deriveTasks(document: RentalDocument, now = new Date()): Assista
   }
 
   if (hasTaxRulesForYear(document.settings.taxYear)) {
-    const savedTaxPeriods = (document.taxSettlementSnapshots ?? []).filter((snapshot) => snapshot.rulesYear === document.settings.taxYear);
+    const savedTaxPeriods = document.taxSettlementSnapshots.filter((snapshot) => snapshot.rulesYear === document.settings.taxYear);
     const calculatedSettlements = calculateSettlements({ entries: document.incomeEntries, payments: document.taxPayments,
-      taxYear: document.settings.taxYear, mode: document.settings.settlementMode,
+      taxYear: document.settings.taxYear,
       jointSpouseThreshold: document.settings.jointSpouseThreshold,
       openingTaxableRevenueGrosz: document.settings.openingTaxableRevenue ? moneyToGrosz(document.settings.openingTaxableRevenue) : 0,
       openingTaxPaidGrosz: document.settings.openingTaxPaid ? moneyToGrosz(document.settings.openingTaxPaid) : 0,
@@ -260,5 +259,5 @@ function paymentDay(month: string, day: number) { const [y, m] = month.split("-"
 function localDate(value: string) { const [y, m, d] = value.split("-").map(Number); return new Date(y!, m! - 1, d!, 9); }
 function addDays(date: Date, days: number) { const next = new Date(date); next.setDate(next.getDate() + days); return next; }
 function monthLabel(month: string) { return formatPolishMonth(month); }
-function periodLabel(period: string) { const quarter = period.match(/^\d{4}-Q([1-4])$/); return quarter ? `${quarter[1]}. kwartał ${period.slice(0, 4)}` : monthLabel(period); }
+function periodLabel(period: string) { return monthLabel(period); }
 function formatDate(value: string) { return formatPolishDate(value, "long"); }
