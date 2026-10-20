@@ -103,7 +103,7 @@ Use the regular Ustawienia → Mieszkania editor after onboarding; this verifies
 4. If an advanced/disclosure control is collapsed, expand and collapse it once before saving.
 5. Exercise one validation path:
    - enter an invalid non-HTTPS URL or malformed date;
-   - verify save is blocked/feedback appears;
+   - verify save is blocked and visible feedback appears;
    - restore the valid value.
 6. Save and reopen the apartment; verify all values persist.
 7. If archive/pause lifecycle controls are present, inspect them but do not archive the sole QA apartment before completing income/tax cases.
@@ -119,7 +119,7 @@ Use the current rental month. Do not move the emulator date.
 4. Verify the apartment is confirmed and no shortfall remains. Confirm historical Income remains grouped by month and does not need to list current-month activity.
 5. Open Opłaty. Verify known charges total 500 zł from the apartment's tenant-paid terms; use the confirmation action. There must be no add-extra-charge form. Verify the charge changes from pending to confirmed without a duplicate.
 6. Verify tax confirmation becomes available once all apartments' rents are confirmed. Record separately whether Opłaty is still pending; it is not a substitute for rent confirmation.
-7. Add `QA-Lipowa` with a synthetic tenant, 2,000 zł owner rent, no Opłaty, owner-rent tax basis, and a start date in the current month. Verify QA-Parkowa's receipt and seeded history are unchanged, QA-Lipowa's current month starts pending, and dashboard expected/confirmed and taxable totals include its saved terms. Confirm QA-Lipowa rent; verify aggregate status says confirmed only when every apartment is confirmed.
+7. Add `QA-Lipowa` with a synthetic tenant, 2,000 zł owner rent, no Opłaty, and owner-rent tax basis. In **Więcej ustawień**, explicitly set **Najem rozpoczął się** to the first day of the current month (for example, `01 paź 2026`); do not leave it blank and do not confuse it with **Zastosuj zmiany od miesiąca**. Before saving, verify the start date is visible in the editor. Reopen after saving and verify it persisted. QA-Parkowa's receipt and seeded history must remain unchanged; QA-Lipowa's current month starts pending and has no pre-start history; dashboard expected/confirmed and taxable totals include its saved terms. Confirm QA-Lipowa rent; verify aggregate status says confirmed only when every apartment is confirmed.
 8. If a bulk confirmation action is offered, inspect it and close without creating a duplicate; otherwise mark N/A with reason.
 9. Capture pending/gated, rent confirmed, Opłaty confirmation, second-apartment impact and final aggregate states.
 
@@ -148,11 +148,12 @@ Exercise every current Settings section at least once. The expected POC sections
 
 Removed bills/custom-reminder sections must **not** reappear.
 
-1. Tax settings:
+1. Tax settings are opened from the **Podatek** tab via **Ustawienia podatku**, not from the general Settings list:
    - open spouse-threshold explanation;
    - leave the 200k option disabled for the fixture;
    - inspect tax year/settlement controls;
-   - enter opening balances only if doing so will not invalidate the current fixture; otherwise verify controls and document why they are not modified.
+   - enter opening balances only if doing so will not invalidate the current fixture; otherwise verify controls and document why they are not modified;
+   - return to Podatek and verify the selected period is preserved.
 2. Transfer settings: verify the micro-account guidance and empty state. If checking validation, use synthetic data, verify rejection, then remove it.
 3. Notifications:
    - verify permission state;
@@ -214,7 +215,7 @@ In `results.md`, include a checklist showing whether each user-facing action was
 - Pulpit: rent and Opłaty confirmation, tax navigation, applicable period controls, aggregate status and second-apartment recalculation.
 - Przychód: verify current month is handled by current-period flow and historical receipts remain available. Edit/delete/partial actions are only required if exposed by current UI.
 - Podatek: rent gate, taxable basis, calculation disclosure, transfer details, full payment and history. Mark removed partial/overpayment/edit/delete paths N/A unless present.
-- Settings: each current section, disclosures, notification category switches and delays, local-data/privacy wording, backup/create/restore.
+- Settings: Mieszkania, Dane do przelewu, Powiadomienia, Dane lokalne; tax settings from Podatek; disclosures, notification category switches and delays, local-data/privacy wording, backup/create/restore.
 - Diagnostic notification: Test za 5 min.
 - App lifecycle: force-stop/relaunch.
 
