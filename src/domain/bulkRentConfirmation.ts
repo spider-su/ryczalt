@@ -27,8 +27,8 @@ export function bulkRentItems(properties: Property[], entries: IncomeEntry[], mo
     if ((property.lifecycle ?? "ACTIVE") !== "ACTIVE") return [];
     if (property.paymentDay && dueDateFor(month, property.paymentDay) > localDate(now)) return [];
     const amounts = rentMonthAmounts(property, entries, month, now, monthsFromCurrent(month, now));
-    if (amounts.expectedGrosz === null || amounts.confirmedGrosz > 0 || amounts.expectedGrosz <= 0) return [];
-    return [{ propertyId: property.id, address: property.address, tenantName: property.tenantName, amountGrosz: amounts.expectedGrosz }];
+    if (amounts.expectedGrosz === null || amounts.remainingGrosz === null || amounts.remainingGrosz <= 0) return [];
+    return [{ propertyId: property.id, address: property.address, tenantName: property.tenantName, amountGrosz: amounts.remainingGrosz! }];
   });
 }
 

@@ -1,4 +1,4 @@
-import type { IncomeEntry, Property, RentalDocument, TaxPayment } from "../model/rental";
+import { APARTMENT_MEDIA_BILL_ID, type IncomeEntry, type Property, type RentalDocument, type TaxPayment } from "../model/rental";
 import { createIncomeEntry } from "./rentalOperations";
 import { ownerRentForMonth } from "./rentAllocation";
 import { isRentalMonth } from "./rentalValidation";
@@ -127,7 +127,29 @@ export function bootstrapHistoricalRentPayments(args: {
   const nextDocument = taxPayments.length
     ? { ...rentDocument, taxPayments: [...rentDocument.taxPayments.filter((payment) => !replacedPeriods.has(payment.period) || payment.source !== "INITIAL_IMPORT"), ...taxPayments] }
     : rentDocument;
-  return { document: nextDocument, created, skippedMonths };
+  // Apartment media are a single monthly dashboard confirmation shared by all apartments.
+  // Recalculate only our generated confirmations; never rewrite manual bill payments.
+  const billPayments = [...nextDocument.billPayments];
+  for (const month of months) {
+    if (property.rentalStartDate && month < property.rentalStartDate.slice(0, 7)) continue;
+    if (property.leaseEndDate && month > property.leaseEndDate.slice(0, 7)) continue;
+    const manual = billPayments.some((payment) => payment.billId === APARTMENT_MEDIA_BILL_ID
+      && payment.period === month && payment.id !== `initial-media-${month}`);
+    if (manual) continue;
+    const totalGrosz = properties.reduce((sum, apartment) => {
+      if (apartment.rentalStartDate && month < apartment.rentalStartDate.slice(0, 7)) return sum;
+      if (apartment.leaseEndDate && month > apartment.leaseEndDate.slice(0, 7)) return sum;
+      const terms = apartmentTermsForMonth(apartment, month);
+      return sum + (terms?.mediaPaidByTenant ? terms.mediaAmountGrosz : 0);
+    }, 0);
+    if (totalGrosz <= 0) continue;
+    const id = `initial-media-${month}`;
+    const existingIndex = billPayments.findIndex((payment) => payment.id === id && payment.billId === APARTMENT_MEDIA_BILL_ID);
+    const confirmation = { id, billId: APARTMENT_MEDIA_BILL_ID, period: month, paidAt: `${month}-${String(Math.min(property.paymentDay ?? 5, daysInMonth(month))).padStart(2, "0")}`, amount: decimalFromGrosz(totalGrosz) };
+    if (existingIndex < 0) billPayments.push(confirmation);
+    else billPayments[existingIndex] = { ...confirmation, paidAt: billPayments[existingIndex]!.paidAt };
+  }
+  return { document: { ...nextDocument, billPayments }, created, skippedMonths };
 }
 
 function shiftMonth(month: string, delta: number) {
