@@ -15,7 +15,6 @@ import {
 import { createRentalBackup, parseRentalBackup } from "../data/localRentalStore";
 import { pickRentalBackupContents, saveRentalBackupFile } from "../data/rentalBackupFile";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { PeriodSelector } from "../components/PeriodSelector";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
@@ -23,7 +22,6 @@ import { APARTMENT_MEDIA_BILL_ID, type Property, type RentalDocument } from "../
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidTaxMicroAccount } from "../domain/rentalValidation";
-import { hasTaxRulesForYear } from "../domain/ryczaltTax";
 import { useReminders } from "../notifications/ReminderProvider";
 import { deriveTasks } from "../domain/tasks";
 import type { SetupAction } from "../domain/setupProgress";
@@ -39,7 +37,7 @@ import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLi
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
 import { apartmentTermsForMonth, termsChangeMustStartNextMonth } from "../domain/apartmentTerms";
-import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderGroups, settingsReminderGroupsHasMore, settingsReminderGroupTitle } from "../domain/settingsPresentation";
+import { SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderGroups, settingsReminderGroupsHasMore, settingsReminderGroupTitle } from "../domain/settingsPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
   address: string; leaseEndDate: string; administrationName: string; administrationUrl: string;
@@ -85,8 +83,6 @@ export function SettingsScreen() {
   const [setupFocus, setSetupFocus] = useState<SetupAction | null>(null);
   const [showAdvancedProperty, setShowAdvancedProperty] = useState(false);
   const [showArchivedProperties, setShowArchivedProperties] = useState(false);
-  const [taxEligibilityOpen, setTaxEligibilityOpen] = useState(SETTINGS_TAX_LEGAL_DEFAULT_OPEN);
-  const [taxAdvancedOpen, setTaxAdvancedOpen] = useState(false);
   const [dataInfoOpen, setDataInfoOpen] = useState(false);
   const [showAllReminders, setShowAllReminders] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -98,19 +94,14 @@ export function SettingsScreen() {
   const [testNotificationBusy, setTestNotificationBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]["id"] | null>(null);
   const [taxAccount, setTaxAccount] = useState("");
-  const [openingRevenueDraft, setOpeningRevenueDraft] = useState("");
-  const [openingTaxPaidDraft, setOpeningTaxPaidDraft] = useState("");
   const reminderPlan = useMemo(() => document ? deriveTasks(document).filter((task) => task.status === "upcoming" || task.status === "needs-attention" || task.status === "snoozed") : [], [document]);
   const showNotificationTest = isDemoMode || __DEV__;
-  const hasAnyTaxSnapshots = Boolean(document?.taxSettlementSnapshots?.length);
 
   useEffect(() => navigation.addListener("blur", () => setActiveSection(null)), [navigation]);
 
   useEffect(() => {
     if (!document) return;
     setTaxAccount((document.settings.taxMicroAccount ?? "").replace(/^PL/i, "").replace(/\D/g, ""));
-    setOpeningRevenueDraft(document.settings.openingTaxableRevenue ?? "");
-    setOpeningTaxPaidDraft(document.settings.openingTaxPaid ?? "");
     const params = route.params as { propertyId?: string; setupAction?: SetupAction; onboarding?: boolean; settingsSection?: (typeof settingsSections)[number]["id"]; billId?: string; period?: string } | undefined;
     if (params?.billId) navigation.navigate("Pulpit", { screen: "Przegląd", params: { billId: params.billId, period: params.period } });
     const property = params?.propertyId ? document.properties.find((item) => item.id === params.propertyId) : undefined;
@@ -436,17 +427,6 @@ export function SettingsScreen() {
       settings: change(current.settings),
     })).catch(() => undefined);
   };
-  const saveOpeningBalances = () => {
-    if (document?.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)) {
-      Alert.alert("Rok ma zamknięte okresy", "Stan początkowy jest częścią zapisanych rozliczeń. Nie można go zmienić po zamknięciu miesiąca."); return;
-    }
-    const revenue = openingRevenueDraft.trim().replace(",", ".");
-    const paid = openingTaxPaidDraft.trim().replace(",", ".");
-    if ((revenue && !isNonnegativeMoney(revenue)) || (paid && !isNonnegativeMoney(paid))) {
-      Alert.alert("Nieprawidłowa kwota", "Wpisz kwoty równe lub większe od zera."); return;
-    }
-    updateTaxSettings((settings) => ({ ...settings, openingTaxableRevenue: revenue || undefined, openingTaxPaid: paid || undefined }));
-  };
   const saveTaxPaymentSettings = async () => {
     const account = taxAccount.replace(/\D/g, "");
     if (!isValidTaxMicroAccount(account)) {
@@ -489,8 +469,7 @@ export function SettingsScreen() {
         {activeSection === null ? <>
         <Text style={ui.pageTitle}>Ustawienia</Text>
         {settingsSections.filter((section) => section.id !== 'properties').map((section) => {
-          const summary = section.id === "tax" ? `Ryczałt · miesięcznie · próg stawki 12,5%: ${document.settings.jointSpouseThreshold ? "200 000" : "100 000"} zł`
-              : section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
+          const summary = section.id === "payment" ? (document.settings.taxRecipientName && document.settings.taxMicroAccount ? "Dane zapisane" : "Dane wymagają uzupełnienia")
                 : section.id === "notifications" ? `${formatPolishCount(["rent", "agreements", "tax", "bills"].filter((category) => document.settings.reminderCategories[category as "rent" | "agreements" | "tax" | "bills"]).length, ["kategoria", "kategorie", "kategorii"])}${permission === "granted" ? " · lokalne ON" : ""}`
                 : "Dane lokalne na tym urządzeniu";
           return <Pressable key={section.id} accessibilityRole="button" accessibilityLabel={`${section.label}. ${summary}`} accessibilityHint="Otwiera ustawienia tej kategorii" onPress={() => setActiveSection(section.id)} style={ui.settingsRow}>
@@ -500,35 +479,6 @@ export function SettingsScreen() {
         </> : <>
         <Pressable accessibilityRole="button" onPress={() => setActiveSection(null)} style={settingsBack}><Text style={action}>‹ Ustawienia</Text></Pressable>
         <Text style={ui.pageTitle}>{settingsSections.find((section) => section.id === activeSection)?.label}</Text>
-        {activeSection === "tax" ? <>
-        <PeriodSelector value={String(document.settings.taxYear)} valueLabel={`Rok podatkowy ${document.settings.taxYear}`} previousLabel="Poprzedni rok podatkowy" nextLabel="Następny rok podatkowy"
-          previousDisabled={document.settings.taxYear <= 2025} nextDisabled={document.settings.taxYear >= new Date().getFullYear()}
-          onPrevious={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear - 1 }))}
-          onNext={() => updateTaxSettings((settings) => ({ ...settings, taxYear: settings.taxYear + 1 }))} />
-        {!hasTaxRulesForYear(document.settings.taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.warning, marginTop: 8 }}>Możesz wybrać ten rok kalendarzowy, ale reguły podatkowe nie są jeszcze zweryfikowane i wyliczenie pozostanie niedostępne.</Text> : null}
-        <Text style={sectionTitle}>Próg podatkowy</Text>
-        <View style={notificationRow}><Text style={{ ...rowTitle, flex: 1 }}>Limit 200 000 zł dla małżonków</Text><Switch disabled={hasAnyTaxSnapshots} value={document.settings.jointSpouseThreshold} onValueChange={(enabled) => {
-          if (!enabled) { updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: false })); return; }
-          Alert.alert("Limit dla małżonków", "Wyższy limit 200 000 zł stosuj wyłącznie, jeśli spełniasz warunki wspólności majątkowej i opodatkowania całości przychodów przez jednego małżonka.", [
-            { text: "Anuluj", style: "cancel" }, { text: "Potwierdzam", onPress: () => updateTaxSettings((settings) => ({ ...settings, jointSpouseThreshold: true })) },
-          ]);
-        }} trackColor={{ false: theme.colors.borderSubtle, true: theme.colors.selectedNavigation }} thumbColor={theme.colors.surface} accessibilityLabel="Limit 200 000 zł dla małżonków" accessibilityState={{ checked: document.settings.jointSpouseThreshold, disabled: hasAnyTaxSnapshots }} /></View>
-        {hasAnyTaxSnapshots ? <Text style={muted}>Limit progu jest zablokowany po zapisaniu rozliczeń, aby nie zmienić pozostałych okresów roku.</Text> : null}
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxEligibilityOpen }} onPress={() => setTaxEligibilityOpen((open) => !open)} style={disclosureRow}><Text style={disclosureTitle}>ⓘ Kiedy mogę użyć tego limitu? {taxEligibilityOpen ? "⌃" : "›"}</Text></Pressable>
-        {taxEligibilityOpen ? <Text style={legalText}>Wyższy limit 200 000 zł stosuj wyłącznie przy wspólności majątkowej i wyborze opodatkowania całości przychodów z najmu przez jednego małżonka, po złożeniu wymaganego oświadczenia w terminie.</Text> : null}
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: taxAdvancedOpen }} onPress={() => setTaxAdvancedOpen((open) => !open)} style={[disclosureRow, { marginTop: 18 }]}>
-          <View style={{ flex: 1 }}><Text style={disclosureTitle}>Dane początkowe</Text><Text style={muted}>Tylko jeśli zaczynasz śledzenie w trakcie roku.</Text></View>
-          <MaterialIcons name={taxAdvancedOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} />
-        </Pressable>
-        {taxAdvancedOpen ? <View style={[ui.compactCard, { marginTop: 4 }]}>
-          <Text style={muted}>Wpisz łączny przychód i podatek sprzed rozpoczęcia śledzenia w {document.settings.taxYear}. Kwoty wpływają na roczny próg bez przypisywania różnicy do nieznanego miesiąca.</Text>
-          <Text style={fieldLabel}>Przychód otrzymany wcześniej w tym roku</Text>
-          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Przychód otrzymany wcześniej w tym roku" keyboardType="decimal-pad" value={openingRevenueDraft} onChangeText={setOpeningRevenueDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-          <Text style={fieldLabel}>Podatek zapłacony wcześniej w tym roku</Text>
-          <TextInput editable={!document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} accessibilityLabel="Podatek zapłacony wcześniej w tym roku" keyboardType="decimal-pad" value={openingTaxPaidDraft} onChangeText={setOpeningTaxPaidDraft} placeholder="np. 0" placeholderTextColor={theme.colors.textMuted} style={inputStyle} />
-          <Pressable accessibilityRole="button" disabled={document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear)} onPress={saveOpeningBalances} style={[secondaryButton, document.taxSettlementSnapshots?.some((snapshot) => snapshot.rulesYear === document.settings.taxYear) && disabledControl]}><Text style={modeText}>Zapisz dane początkowe</Text></Pressable>
-        </View> : null}
-        </> : null}
         {activeSection === "notifications" ? <>
         {settingsNotificationsUnavailable(permission)
           ? <View accessibilityRole="summary" style={neutralBanner}><Text style={muted}>Powiadomienia lokalne są dostępne w aplikacji mobilnej.</Text></View>

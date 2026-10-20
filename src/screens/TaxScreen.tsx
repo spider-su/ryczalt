@@ -20,6 +20,7 @@ import { annualRentalIncome, annualRentalThreshold, dashboardProgress } from "..
 import { currentTaxPeriod, remainingTaxThresholdGrosz, shiftTaxPeriodWithinRange, TAX_CALCULATION_EXPLANATION, TAX_TRANSFER_HINT, taxPaymentDisplay, taxPeriodLabel, taxRateLabel } from "../domain/taxPresentation";
 import { ProgressBar } from "../components/ProgressBar";
 import { PeriodSelector } from "../components/PeriodSelector";
+import { TaxCalculationSettings } from "../components/TaxCalculationSettings";
 import { earliestDashboardMonth } from "../domain/dashboardPeriods";
 import { decimalFromGrosz } from "../domain/apartmentPayments";
 import { refreshSavedTaxSettlementsAfterPayment, taxSettlementFromSnapshot } from "../domain/periodSnapshots";
@@ -51,6 +52,7 @@ export function TaxScreen() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [annualOpen, setAnnualOpen] = useState(false);
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
+  const [taxSettingsOpen, setTaxSettingsOpen] = useState(false);
   const [historyReviewOpen, setHistoryReviewOpen] = useState(false);
   const openPayments = () => navigation.navigate("Pulpit", { screen: "Wpłaty" });
   const navigateReturn = (tab: string) => tab === "Pulpit"
@@ -230,7 +232,18 @@ export function TaxScreen() {
   };
 
   return <View style={ui.page}>
-    <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
+    <ScrollView key={taxSettingsOpen ? "tax-settings" : "tax-calculation"} contentContainerStyle={{ ...ui.content, paddingBottom: 36 }}>
+      {taxSettingsOpen ? <>
+        <Pressable accessibilityRole="button" accessibilityLabel="Wróć do podatku" onPress={() => setTaxSettingsOpen(false)} style={{ minHeight: 44, justifyContent: "center" }}>
+          <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>‹ Podatek · ${taxPeriodLabel(selectedPeriod)}</Text>
+        </Pressable>
+        <Text style={ui.pageTitle}>Ustawienia podatku</Text>
+        <TaxCalculationSettings />
+      </> : <>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ustawienia podatku" onPress={() => setTaxSettingsOpen(true)} style={{ alignSelf: "flex-end", minHeight: 44, flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <MaterialIcons name="settings" size={19} color={theme.colors.primary} />
+        <Text style={{ color: theme.colors.primary, fontWeight: "600" }}>Ustawienia podatku</Text>
+      </Pressable>
       <PeriodSelector value={taxPeriodLabel(selectedPeriod)} valueLabel={`Okres ${taxPeriodLabel(selectedPeriod)}`} previousLabel="Poprzedni okres" nextLabel="Następny okres"
         previousDisabled={selectedPeriod <= earliestPeriod} nextDisabled={selectedPeriod >= currentTaxPeriod(now)}
         onPrevious={() => setSelectedPeriod((period) => shiftTaxPeriodWithinRange(period, -1, now, earliestPeriod))}
@@ -288,6 +301,7 @@ export function TaxScreen() {
       {!settlement && !hasTaxRulesForYear(taxYear) ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 18 }}>Brak zweryfikowanych reguł podatkowych dla roku {taxYear}. Możesz przeglądać okres, ale wyliczenie będzie dostępne po weryfikacji reguł.</Text> : null}
       <View style={taxDetails}><Pressable accessibilityRole="button" accessibilityLabel="Jak liczymy podatek?" accessibilityState={{ expanded: infoOpen }} onPress={() => setInfoOpen((open) => !open)} style={infoRow}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={[infoTitle, infoOpen && { marginBottom: 5 }]}>ⓘ Jak liczymy podatek?</Text><MaterialIcons name={infoOpen ? "expand-less" : "expand-more"} size={22} color={theme.colors.textSecondary} /></View></Pressable>{infoOpen ? <Text style={infoBody}>{TAX_CALCULATION_EXPLANATION}</Text> : null}</View>
       {error ? <Text accessibilityRole="alert" style={{ color: theme.colors.danger, marginTop: 8 }}>{error}</Text> : null}
+      </>}
     </ScrollView>
     <Modal visible={paymentHistoryOpen} animationType="slide" onRequestClose={() => setPaymentHistoryOpen(false)}>
       <SafeAreaView edges={modalSafeAreaEdges} style={{ flex: 1, backgroundColor: theme.colors.background }}>
