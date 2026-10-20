@@ -31,9 +31,10 @@ export function termsChangeMustStartNextMonth(
   month: string,
   effectiveFrom: string,
   next: ApartmentTermsInput,
+  mediaConfirmed = false,
 ): boolean {
   return effectiveFrom <= month
-    && hasConfirmedRentForMonth(property.id, entries, month)
+    && (hasConfirmedRentForMonth(property.id, entries, month) || mediaConfirmed)
     && apartmentTermsChangedForMonth(property, month, next);
 }
 
