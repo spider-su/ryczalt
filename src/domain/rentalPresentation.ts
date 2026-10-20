@@ -175,7 +175,6 @@ export function historicalTasks(tasks: AssistantTask[]): AssistantTask[] {
 
 export const settingsSections = [
   { id: "properties", label: "Mieszkania" },
-  { id: "tax", label: "Podatek i rozliczenia" },
   { id: "payment", label: "Dane do przelewu" },
   { id: "notifications", label: "Powiadomienia" },
   { id: "data", label: "Dane lokalne" },
