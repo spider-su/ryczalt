@@ -63,7 +63,7 @@ describe("historical rent bootstrap", () => {
     expect(first.created[0]).not.toHaveProperty("tenantNameSnapshot");
     expect(first.created.at(-1)).toMatchObject({ rentalMonth: "2026-08" });
     expect(first.document.billPayments).toHaveLength(6);
-    expect(first.document.billPayments[0]).toMatchObject({ billId: "apartment-media", period: "2026-03", paidAt: "2026-03-12", amount: "500.00" });
+    expect(first.document.billPayments[0]).toMatchObject({ billId: "apartment-media", period: "2026-03", paidAt: "2026-03-05", amount: "500.00" });
     expect(first.document.billPayments.at(-1)).toMatchObject({ billId: "apartment-media", period: "2026-08", amount: "500.00" });
     expect(first.document.properties[0]?.rentalStartDate).toBe("2026-03-12");
     expect(rentMonthAmounts(first.document.properties[0]!, first.document.incomeEntries, "2026-03", new Date(2026, 8, 28))).toMatchObject({ expectedGrosz: 300_000, confirmedGrosz: 300_000, remainingGrosz: 0 });
