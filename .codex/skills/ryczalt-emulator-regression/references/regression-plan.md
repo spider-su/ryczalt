@@ -35,15 +35,15 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 
 ## Required cases
 
-### A. Fresh launch, safe areas, demo isolation and notification smoke test
+### A. Fresh launch, current navigation, demo isolation and notification smoke test
 
 1. Launch from empty storage and capture `01-fresh-pulpit`.
 2. Verify:
    - Pulpit renders below the status bar;
-   - the three primary tabs (Pulpit, Podatek, Ustawienia) are visible above system navigation;
+   - current header navigation exposes Pulpit, Podatek, Mieszkania and Ustawienia without overlap with system bars;
    - no blank screen/crash/clipped title;
    - empty Pulpit offers **Rozpocznij · 3 kroki** and **Zobacz demo**.
-3. Visit the three primary tabs once before creating data and capture one screenshot per tab. Confirm `Historia wpłat` is reachable from Pulpit rather than shown as a fourth tab.
+3. Visit Podatek, Mieszkania and Ustawienia once before creating data and capture each. Confirm `Historia wpłat` is reached from Pulpit, not treated as primary navigation.
 4. Tap **Zobacz demo**.
 5. Verify the demo banner appears and explicitly says demo changes are not persisted.
 6. In demo mode open Ustawienia → Powiadomienia.
@@ -56,7 +56,7 @@ adb -s <serial> pull /sdcard/window.xml <run-dir>/<case>.xml
 13. Tap **Wyjdź z demo** and verify the real document is still empty.
 14. Capture `02-demo-notification` and `03-demo-exit-empty`.
 
-Failure criteria: demo changes persist into real data, the test is unavailable in demo, multiple diagnostic notifications arrive from one tap, or scheduling requires changing rental facts.
+Failure criteria: demo changes persist into real data, the test is unavailable in demo, multiple diagnostic notifications arrive from one tap, scheduling requires changing rental facts, or delivery is more than two minutes after its scheduled due time. Record actual schedule/delivery timestamps even when within tolerance.
 
 ### B. Guided onboarding — all wizard controls
 
@@ -81,7 +81,7 @@ Failure criteria: demo changes persist into real data, the test is unavailable i
    - select **Czynsz i opłaty dodatkowe**, then switch to **Tylko czynsz dla właściciela** to exercise both;
    - verify the summary shows address, tenant, 3000 rent, 500 media and day 10.
 8. Tap **Zapisz mieszkanie**.
-9. Verify Pulpit now shows the apartment and no receipt/tax payment was manufactured automatically.
+9. Verify the apartment is saved. For a start date before the current month, verify every rental period from the start month through the previous month is preconfirmed for rent, Opłaty and tax. Verify the current month starts pending for all three and no current-month payment was inferred from apartment creation.
 10. Capture `04-onboarding-step1`, `05-onboarding-step2`, `06-onboarding-summary`, `07-onboarding-saved`.
 
 ### C. Normal apartment editor and advanced fields
@@ -109,51 +109,32 @@ Use the regular Ustawienia → Mieszkania editor after onboarding; this verifies
 7. If archive/pause lifecycle controls are present, inspect them but do not archive the sole QA apartment before completing income/tax cases.
 8. Capture `08-apartment-advanced`.
 
-### D. Rent confirmation, edit, partial payment, excess and deletion
+### D. Current-month confirmation: rent, Opłaty and second-apartment effects
 
 Use the current rental month. Do not move the emulator date.
 
-1. From Pulpit tap the `QA-Parkowa` apartment card to open the individual quick-add flow.
-2. Confirm a first receipt:
-   - amount `3000`;
-   - payment date is implicit and saved as today (there is no editable payment-date field);
-   - rental month = current month;
-   - taxable amount should default according to `OWNER_RENT`.
-3. Verify:
-   - Pulpit shows the rent satisfied;
-   - Przychód contains one confirmed receipt;
-   - remaining expected owner rent is 0.
-4. Open the saved receipt and edit it to `1500`.
-5. Verify the apartment becomes partial and `1500` remains to confirm.
-6. Add a second receipt for `2000` for the same property/month.
-7. Verify total gross receipts = 3500, contractual owner rent is satisfied, and the extra 500 is shown as excess/unallocated rather than silently moved.
-8. Verify under `OWNER_RENT` the default taxable total remains capped at 3000.
-9. Exercise receipt correction controls:
-   - open the second receipt;
-   - change a harmless editable field and save;
-   - use **Usuń** and cancel once;
-   - invoke **Usuń** again and confirm deletion;
-   - verify the apartment returns to partial;
-   - add the 2000 receipt again so later tax steps use the intended fixture.
-10. If the current date is on/after the payment due date and bulk confirmation is offered, open the bulk sheet, inspect selection/date controls and close without creating a duplicate receipt. Before due date, record the bulk flow as legitimately unavailable.
-11. Capture `09-rent-full`, `10-rent-partial`, `11-rent-excess`.
+1. Use the current rental month. Never move emulator time.
+2. Before confirming rent, open Podatek and verify payment confirmation is unavailable while any apartment rent remains pending.
+3. From Pulpit tap the `QA-Parkowa` apartment rent action and confirm the full current-month amount. For this fixture the receipt total is 3,500 zł (3,000 rent plus 500 tenant-paid media); the taxable amount remains 3,000 zł under `OWNER_RENT`. Receipt date is today and is not editable; period is the current month.
+4. Verify the apartment is confirmed and no shortfall remains. Confirm historical Income remains grouped by month and does not need to list current-month activity.
+5. Open Opłaty. Verify known charges total 500 zł from the apartment's tenant-paid terms; use the confirmation action. There must be no add-extra-charge form. Verify the charge changes from pending to confirmed without a duplicate.
+6. Verify tax confirmation becomes available once all apartments' rents are confirmed. Record separately whether Opłaty is still pending; it is not a substitute for rent confirmation.
+7. Add `QA-Lipowa` with a synthetic tenant, 2,000 zł owner rent, no Opłaty, owner-rent tax basis, and a start date in the current month. Verify QA-Parkowa's receipt and seeded history are unchanged, QA-Lipowa's current month starts pending, and dashboard expected/confirmed and taxable totals include its saved terms. Confirm QA-Lipowa rent; verify aggregate status says confirmed only when every apartment is confirmed.
+8. If a bulk confirmation action is offered, inspect it and close without creating a duplicate; otherwise mark N/A with reason.
+9. Capture pending/gated, rent confirmed, Opłaty confirmation, second-apartment impact and final aggregate states.
 
-### E. Tax calculation and tax-payment form cycle
+### E. Tax calculation, rent gate and full payment confirmation
 
-1. Open Podatek for the current period.
-2. Verify the saved taxable revenue is 3000 zł under the default `OWNER_RENT` fixture despite 3500 zł gross receipts.
+1. First verify the tax payment action is gated while any apartment's current-month rent is pending. Complete D, then open Podatek.
+2. Verify taxable revenue is 3,000 zł under `OWNER_RENT` (media excluded from the taxable base).
 3. Verify the obligation is 255 zł (8.5% of 3000, rounded according to the domain rules).
 4. Expand **Rok <year>**, verify annual taxable income / threshold / remaining-threshold details, then collapse it.
-5. Expand and collapse **Jak liczymy podatek?**.
-6. While tax is outstanding, open **Dane do przelewu**; exercise copy actions for any populated transfer details and close.
-7. Tap **Potwierdź wykonaną wpłatę**.
-8. If the first-payment history-review modal appears, inspect its values, close it once, reopen, then continue.
-9. Enter the actual tax payment amount/date and save.
-10. Verify the hero becomes **Opłacone**, remaining tax is 0, and the transfer-details row is no longer promoted in the paid state.
-11. Expand **Historia płatności (1)** and verify the saved payment date/amount.
-12. Use **Usuń** and cancel once; invoke **Usuń** again and confirm; verify tax becomes outstanding again; re-add the intended payment so persistence checks finish in a paid state.
-13. If overpayment can be entered in the current form, record one amount above the obligation, verify the displayed overpayment/carry-forward state, then restore the intended fixture or clearly record the resulting state used for F–H.
-14. Capture `12-tax-before-payment`, `13-tax-payment-form`, `14-tax-paid`.
+5. Expand/collapse **Jak liczymy podatek?** and annual threshold details.
+6. While tax is outstanding, open **Dane do przelewu**; test copy only for populated synthetic details, then close.
+7. Tap **Potwierdź wykonaną wpłatę** and verify the full remaining amount is prefilled. Confirm the tax payment.
+8. Verify status **Opłacone**, zero remaining, and updated history count/date/amount. Transfer details must no longer be promoted as an outstanding action.
+9. Exercise edit/delete/cancel only if exposed by the current UI. Do not invent partial tax or overpayment paths if only full confirmation is supported; record N/A with evidence.
+10. Capture `12-tax-before-payment`, `13-tax-payment-form`, `14-tax-paid`.
 
 ### F. Settings coverage
 
@@ -163,7 +144,7 @@ Exercise every current Settings section at least once. The expected POC sections
 - Podatek i rozliczenia;
 - Dane do przelewu;
 - Powiadomienia;
-- Dane i kopia zapasowa.
+- Dane lokalne / backup.
 
 Removed bills/custom-reminder sections must **not** reappear.
 
@@ -172,23 +153,19 @@ Removed bills/custom-reminder sections must **not** reappear.
    - leave the 200k option disabled for the fixture;
    - inspect tax year/settlement controls;
    - enter opening balances only if doing so will not invalidate the current fixture; otherwise verify controls and document why they are not modified.
-2. Transfer settings:
-   - enter an invalid micro-account and verify validation;
-   - leave the field empty afterward unless a synthetic valid fixture is deliberately supplied.
+2. Transfer settings: verify the micro-account guidance and empty state. If checking validation, use synthetic data, verify rejection, then remove it.
 3. Notifications:
    - verify permission state;
    - exercise rent-delay choices and return to the intended value;
-   - toggle each rent/agreement/tax category off and back on;
+   - toggle each currently shown rent/Opłaty/agreement/tax category off and back on;
    - verify upcoming reminder list remains coherent;
    - if the build is dev/demo-enabled at this point, the **Test za 5 min** control may be smoke-tested again, but do not require a second five-minute wait.
-4. Data:
-   - open backup/recovery information;
-   - verify plaintext-backup/privacy wording is visible;
+4. Data: open backup/recovery information and verify local-storage/privacy wording. Do not claim a portable backup is encrypted unless the UI or implementation establishes that.
    - do not reset data before the backup case.
 5. Return to Pulpit and verify no removed personal-reminder/bill UI is present.
 6. Capture `15-settings-tax`, `16-settings-notifications`, `17-settings-data`.
 
-### G. JSON backup → clear data → restore round trip
+### G. Backup → clear app data → restore round trip
 
 This case is destructive but safe on the verified disposable emulator and runs only after A–F evidence is complete.
 
@@ -205,8 +182,8 @@ This case is destructive but safe on the verified disposable emulator and runs o
    - tenant name/phone/email;
    - owner rent/media/media responsibility/payment day;
    - advanced apartment fields;
-   - both rent receipts;
-   - tax payment;
+   - bootstrapped historical confirmations and current-month rent/Opłaty confirmations;
+   - current tax calculation and payment;
    - reminder settings;
    - calculated current tax/rent status.
 10. If the platform file picker cannot be driven reliably in the emulator environment, mark **G SKIPPED — picker automation unavailable** with evidence. Do not silently count this as pass.
@@ -219,7 +196,8 @@ This case is destructive but safe on the verified disposable emulator and runs o
 3. Verify the restored/current dataset remains consistent:
    - QA-Parkowa exists;
    - tenant/contact and terms persist;
-   - receipt total/status matches the final D fixture;
+   - each apartment's rent state and aggregate total match the final D fixture;
+   - Opłaty state and total match the final D fixture;
    - tax paid/outstanding state matches the final E fixture;
    - no duplicate reminders/tasks appear;
    - no removed bills/custom reminders reappear.
@@ -233,10 +211,10 @@ In `results.md`, include a checklist showing whether each user-facing action was
 - Fresh Pulpit: Rozpocznij · 3 kroki, Zobacz demo.
 - Demo banner: Wyjdź z demo.
 - Wizard: Dalej, Wstecz, Pomiń na razie, Zamknij if encountered, both tax radio choices, media switch, Zapisz mieszkanie.
-- Pulpit: apartment quick-add, tax summary navigation, applicable period controls, any available bulk confirmation open/close.
-- Przychód: add, edit/save, delete-cancel, delete-confirm.
-- Podatek: info disclosure, transfer details, payment create, edit, delete-cancel, delete-confirm, history-review close/continue when applicable.
-- Settings: each current section, disclosures, relevant toggles/radio controls, notification category switches, rent-delay choices, backup/create/restore when G is runnable.
+- Pulpit: rent and Opłaty confirmation, tax navigation, applicable period controls, aggregate status and second-apartment recalculation.
+- Przychód: verify current month is handled by current-period flow and historical receipts remain available. Edit/delete/partial actions are only required if exposed by current UI.
+- Podatek: rent gate, taxable basis, calculation disclosure, transfer details, full payment and history. Mark removed partial/overpayment/edit/delete paths N/A unless present.
+- Settings: each current section, disclosures, notification category switches and delays, local-data/privacy wording, backup/create/restore.
 - Diagnostic notification: Test za 5 min.
 - App lifecycle: force-stop/relaunch.
 
@@ -244,7 +222,7 @@ If a control is conditional and cannot appear with the fixed current-date fixtur
 
 ## Pass criteria and reporting
 
-A–F and H must pass. G must pass unless blocked specifically by system-picker automation; that exception must be explicit. The diagnostic notification in A must schedule and deliver once on the emulator, but this is only an emulator smoke check.
+A–F and H must pass. G must pass unless blocked specifically by system-picker automation; that exception must be explicit. D must include Opłaty confirmation and adding a second apartment after the first is confirmed. The diagnostic notification must deliver once near the five-minute target; record actual delay without changing emulator time. This remains an emulator smoke check only.
 
 `results.md` must include:
 
