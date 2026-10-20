@@ -17,6 +17,13 @@ describe("rental presentation helpers", () => {
     expect(dashboardProgress(12_000_000, 10_000_000).fraction).toBe(1);
   });
 
+  it("requires recorded current-month rent even when an aggregate balance appears zero", () => {
+    expect(rentDisplayState(300_000, 0, false)).toEqual({ kind: "unpaid", remainingGrosz: 300_000 });
+    expect(rentDisplayState(300_000, 0, true)).toEqual({ kind: "paid", expectedGrosz: 300_000 });
+    expect(rentDisplayState(300_000, 120_000, true)).toEqual({ kind: "unpaid", remainingGrosz: 120_000 });
+    expect(rentDisplayState(null, null, false)).toEqual({ kind: "unknown" });
+  });
+
   it("labels a passed rent check date without asserting tenant arrears", () => {
     expect(daysOverdue("2026-09", 28, new Date(2026, 8, 28, 23, 59))).toBe(0);
     expect(daysOverdue("2026-09", 28, new Date(2026, 8, 29, 8))).toBe(1);
