@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { appSafeAreaEdges, BASE_TAB_BAR_HEIGHT, fallbackSafeAreaEdges, modalSafeAreaEdges, TAB_BAR_MIN_BOTTOM_PADDING, tabBarSafeAreaStyle } from "./safeAreaLayout";
 
 describe("global safe-area layout", () => {
-  it("lets the app own the top inset while standalone and modal screens own both", () => {
-    expect(appSafeAreaEdges).toEqual(["top"]);
+  it("lets the app own both insets when tab navigation is hidden", () => {
+    expect(appSafeAreaEdges).toEqual(["top", "bottom"]);
     expect(fallbackSafeAreaEdges).toEqual(["top", "bottom"]);
     expect(modalSafeAreaEdges).toEqual(["top", "bottom"]);
   });
