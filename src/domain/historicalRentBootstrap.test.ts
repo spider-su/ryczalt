@@ -48,9 +48,9 @@ describe("historical rent bootstrap", () => {
     expect(next.document.billPayments.filter((item) => item.period === "2026-04")).toHaveLength(1);
   });
 
-  it("defaults to the rental start month through the current month", () => {
-    expect(historicalBootstrapDefaultRange("2026-09-28", property.rentalStartDate)).toEqual({ startMonth: "2026-03", endMonth: "2026-09" });
-    expect(historicalBootstrapDefaultRange("2026-01-02", property.rentalStartDate).endMonth).toBe("2026-01");
+  it("defaults to the rental start month through the previous month", () => {
+    expect(historicalBootstrapDefaultRange("2026-09-28", property.rentalStartDate)).toEqual({ startMonth: "2026-03", endMonth: "2026-08" });
+    expect(historicalBootstrapDefaultRange("2026-01-02", property.rentalStartDate).endMonth).toBeNull();
     expect(historicalBootstrapDefaultRange("2026-09-28", "2025-01-01").startMonth).toBe("2025-01");
   });
 
@@ -58,19 +58,19 @@ describe("historical rent bootstrap", () => {
     const initial = doc();
     initial.properties = [property];
     const first = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-01", endMonth: "2026-09", today: "2026-09-28" });
-    expect(first.created).toHaveLength(7);
+    expect(first.created).toHaveLength(6);
     expect(first.created[0]).toMatchObject({ rentalMonth: "2026-03", receivedAt: "2026-03-12", amount: "3000.00", taxableAmount: "2500.00", source: "INITIAL_IMPORT" });
     expect(first.created[0]).not.toHaveProperty("tenantNameSnapshot");
-    expect(first.created.at(-1)).toMatchObject({ rentalMonth: "2026-09", receivedAt: "2026-09-28" });
-    expect(first.document.billPayments).toHaveLength(7);
+    expect(first.created.at(-1)).toMatchObject({ rentalMonth: "2026-08" });
+    expect(first.document.billPayments).toHaveLength(6);
     expect(first.document.billPayments[0]).toMatchObject({ billId: "apartment-media", period: "2026-03", paidAt: "2026-03-12", amount: "500.00" });
-    expect(first.document.billPayments.at(-1)).toMatchObject({ billId: "apartment-media", period: "2026-09", paidAt: "2026-09-28", amount: "500.00" });
+    expect(first.document.billPayments.at(-1)).toMatchObject({ billId: "apartment-media", period: "2026-08", amount: "500.00" });
     expect(first.document.properties[0]?.rentalStartDate).toBe("2026-03-12");
     expect(rentMonthAmounts(first.document.properties[0]!, first.document.incomeEntries, "2026-03", new Date(2026, 8, 28))).toMatchObject({ expectedGrosz: 300_000, confirmedGrosz: 300_000, remainingGrosz: 0 });
     expect(first.skippedMonths).toEqual(["2026-01", "2026-02"]);
     const again = bootstrapHistoricalRentPayments({ document: first.document, property, startMonth: "2026-01", endMonth: "2026-09", today: "2026-09-28" });
     expect(again.created).toHaveLength(0);
-    expect(again.document.incomeEntries).toHaveLength(7);
+    expect(again.document.incomeEntries).toHaveLength(6);
     const settlements = calculateSettlements({ entries: first.created, payments: [], taxYear: 2026, today: "2026-09-28" });
     expect(settlements.find(({ period }) => period === "2026-03")?.revenueGrosz).toBe(250_000);
     expect(settlements.find(({ period }) => period === "2026-02")?.revenueGrosz).toBe(0);
@@ -102,15 +102,15 @@ describe("historical rent bootstrap", () => {
     expect(calculateSettlements({ entries: result.document.incomeEntries, payments: result.document.taxPayments, taxYear: 2026, today: "2026-09-28" }).find(({ period }) => period === "2026-03")?.status).toBe("paid");
   });
 
-  it("confirms the effective full Opłaty total through the current month", () => {
+  it("preconfirms previous-month Opłaty while preserving manual confirmations", () => {
     const initial = doc();
     const secondApartment = { ...property, id: "second", address: "Druga 2", mediaAmount: "200.00", rentSchedule: [{ ...property.rentSchedule[0]!, mediaAmount: "200.00" }] };
     initial.properties = [property, secondApartment];
     initial.billPayments = [{ id: "existing-media", billId: "apartment-media", period: "2026-03", paidAt: "2026-03-20", amount: "500.00" }];
     const result = bootstrapHistoricalRentPayments({ document: initial, property: secondApartment, startMonth: "2026-03", endMonth: "2026-09", today: "2026-09-28" });
-    expect(result.document.billPayments).toHaveLength(7);
-    expect(result.document.billPayments.find(({ period }) => period === "2026-03")).toEqual({ id: "existing-media", billId: "apartment-media", period: "2026-03", paidAt: "2026-03-20", amount: "700.00" });
-    expect(result.document.billPayments.find(({ period }) => period === "2026-09")).toMatchObject({ amount: "700.00", paidAt: "2026-09-28" });
+    expect(result.document.billPayments).toHaveLength(6);
+    expect(result.document.billPayments.find(({ period }) => period === "2026-03")).toEqual({ id: "existing-media", billId: "apartment-media", period: "2026-03", paidAt: "2026-03-20", amount: "500.00" });
+    expect(result.document.billPayments.find(({ period }) => period === "2026-09")).toBeUndefined();
   });
 
   it("does not create Opłaty confirmations when no media is paid by the tenant", () => {
@@ -131,7 +131,7 @@ describe("historical rent bootstrap", () => {
     expect(historicalTaxPaymentsForImportedRent(second.document, second.created)).toEqual([{ ...firstTax[0], amount: "425.00" }]);
   });
 
-  it("adds an assumed tax top-up when a new apartment increases a manually settled month", () => {
+  it("preserves manual tax confirmation when another apartment is imported", () => {
     const initial = doc();
     const firstProperty = { ...property, rentalStartDate: "2026-03-01" };
     const secondProperty = { ...property, id: "second", address: "Druga 2", rentalStartDate: "2026-03-01" };
@@ -140,20 +140,20 @@ describe("historical rent bootstrap", () => {
     const firstSettlement = calculateSettlements({ entries: first.document.incomeEntries, payments: [], taxYear: 2026 }).find(({ period }) => period === "2026-03")!;
     const manuallySettled = { ...first.document, taxPayments: [{ id: "manual-tax", period: "2026-03", paidAt: "2026-04-20", amount: decimalFromGrosz(firstSettlement.obligationGrosz), source: "MANUAL" as const }] };
     const second = bootstrapHistoricalRentPayments({ document: manuallySettled, property: secondProperty, startMonth: "2026-03", endMonth: "2026-03", today: "2026-09-28" });
-    expect(second.document.taxPayments).toHaveLength(2);
+    expect(second.document.taxPayments).toHaveLength(1);
     expect(second.document.taxPayments.find(({ source }) => source === "MANUAL")).toEqual(manuallySettled.taxPayments[0]);
-    expect(calculateSettlements({ entries: second.document.incomeEntries, payments: second.document.taxPayments, taxYear: 2026 }).find(({ period }) => period === "2026-03")?.outstandingGrosz).toBe(0);
+    expect(calculateSettlements({ entries: second.document.incomeEntries, payments: second.document.taxPayments, taxYear: 2026 }).find(({ period }) => period === "2026-03")?.outstandingGrosz).toBeGreaterThan(0);
   });
 
-  it("skips pre-existing months and future months while including the current month", () => {
+  it("skips pre-existing months, current month, and future months", () => {
     const initial = doc();
     initial.properties = [property];
     initial.incomeEntries = [{ id: "existing", propertyId: property.id, receivedAt: "2026-04-10", rentalMonth: "2026-04", amount: "3000.00", taxableAmount: "2500.00" }];
     const result = bootstrapHistoricalRentPayments({ document: initial, property, startMonth: "2026-03", endMonth: "2026-12", today: "2026-09-28" });
-    expect(result.created.map(({ rentalMonth }) => rentalMonth)).toEqual(["2026-03", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
+    expect(result.created.map(({ rentalMonth }) => rentalMonth)).toEqual(["2026-03", "2026-05", "2026-06", "2026-07", "2026-08"]);
     expect(result.skippedMonths).toContain("2026-04");
     expect(result.created.some(({ rentalMonth }) => rentalMonth! > "2026-09")).toBe(false);
-    expect(result.document.taxPayments.find(({ period }) => period === "2026-09")?.paidAt).toBe("2026-09-28");
+    expect(result.document.taxPayments.find(({ period }) => period === "2026-09")).toBeUndefined();
   });
 
   it("backdates the initial rent rate to the selected start when the rental start was not entered", () => {
