@@ -75,7 +75,7 @@ export function IncomeScreen() {
     ? draft.rentalMonth
     : currentMonth;
   const confirmationProperties = useMemo(() => properties.filter((property) =>
-    rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).confirmedGrosz === 0,
+    rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).remainingGrosz! > 0,
   ), [properties, document?.incomeEntries, confirmationRentalMonth]);
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [historicalRangeExpanded, setHistoricalRangeExpanded] = useState(false);
@@ -118,9 +118,9 @@ export function IncomeScreen() {
     if (params?.quickAdd) {
       setReturnToTab(params.returnTo ?? null);
       const period = params.rentalMonth ?? todayIsoDate().slice(0, 7);
-      const eligibleProperties = properties.filter((item) => rentMonthAmounts(item, document?.incomeEntries ?? [], period).confirmedGrosz === 0);
+      const eligibleProperties = properties.filter((item) => rentMonthAmounts(item, document?.incomeEntries ?? [], period).remainingGrosz! > 0);
       const selected = property && eligibleProperties.some((item) => item.id === property.id) ? property : eligibleProperties[0];
-      const amount = selected ? decimalFromGrosz(rentMonthAmounts(selected, document?.incomeEntries ?? [], period).expectedGrosz ?? 0) : "";
+      const amount = selected ? decimalFromGrosz(rentMonthAmounts(selected, document?.incomeEntries ?? [], period).remainingGrosz ?? 0) : "";
       setTaxableExpanded(false);
       const taxable = selected && (apartmentTermsForMonth(selected, period)?.taxableTreatment ?? selected.taxableTreatment) && amount ? decimalFromGrosz(defaultTaxableAmountGrosz({ property: selected, amountGrosz: moneyToGrosz(amount), rentalMonth: period, priorEntries: document?.incomeEntries ?? [] })) : "";
       setDraft({ ...blankDraft(), propertyId: selected?.id ?? "", amount,
@@ -130,11 +130,11 @@ export function IncomeScreen() {
       return;
     }
     if (!property || !params?.rentalMonth) return;
-    const eligibleProperty = rentMonthAmounts(property, document?.incomeEntries ?? [], params.rentalMonth).confirmedGrosz === 0 ? property : undefined;
-    const selected = eligibleProperty ?? properties.find((item) => rentMonthAmounts(item, document?.incomeEntries ?? [], params.rentalMonth!).confirmedGrosz === 0);
+    const eligibleProperty = rentMonthAmounts(property, document?.incomeEntries ?? [], params.rentalMonth).remainingGrosz! > 0 ? property : undefined;
+    const selected = eligibleProperty ?? properties.find((item) => rentMonthAmounts(item, document?.incomeEntries ?? [], params.rentalMonth!).remainingGrosz! > 0);
     if (!selected) return;
     setTaxableExpanded(false);
-    const amount = decimalFromGrosz(rentMonthAmounts(selected, document?.incomeEntries ?? [], params.rentalMonth).expectedGrosz ?? 0);
+    const amount = decimalFromGrosz(rentMonthAmounts(selected, document?.incomeEntries ?? [], params.rentalMonth).remainingGrosz ?? 0);
     const terms = apartmentTermsForMonth(selected, params.rentalMonth);
     setDraft({ ...blankDraft(), propertyId: selected.id, amount, taxableAmount: terms ? decimalFromGrosz(terms.ownerRentGrosz) : selected.ownerRent ?? "", rentalMonth: params.rentalMonth });
     setModalOpen(true);
@@ -151,7 +151,7 @@ export function IncomeScreen() {
         : current);
       return;
     }
-    const amount = decimalFromGrosz(rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).expectedGrosz ?? 0);
+    const amount = decimalFromGrosz(rentMonthAmounts(property, document?.incomeEntries ?? [], confirmationRentalMonth).remainingGrosz ?? 0);
     const terms = apartmentTermsForMonth(property, confirmationRentalMonth);
     const taxableAmount = (terms?.taxableTreatment ?? property.taxableTreatment) && amount
       ? decimalFromGrosz(defaultTaxableAmountGrosz({ property, amountGrosz: moneyToGrosz(amount), rentalMonth: confirmationRentalMonth, priorEntries: document?.incomeEntries ?? [] }))
@@ -177,10 +177,10 @@ export function IncomeScreen() {
   ]);
   const chooseProperty = (propertyId: string) => {
     const property = properties.find((item) => item.id === propertyId);
-    if (!property || rentMonthAmounts(property, document.incomeEntries, confirmationRentalMonth).confirmedGrosz > 0) return;
+    if (!property || rentMonthAmounts(property, document.incomeEntries, confirmationRentalMonth).remainingGrosz! <= 0) return;
     setDraft((current) => {
       const rentalMonth = current.rentalMonth || currentMonth;
-      const amount = decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).expectedGrosz ?? 0);
+      const amount = decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).remainingGrosz ?? 0);
       const terms = apartmentTermsForMonth(property, rentalMonth);
       const taxableAmount = (terms?.taxableTreatment ?? property.taxableTreatment) && amount
         ? decimalFromGrosz(defaultTaxableAmountGrosz({
@@ -210,7 +210,7 @@ export function IncomeScreen() {
     const property = properties.find((item) => item.id === draft.propertyId)!;
     const rentStatus = rentMonthAmounts(property, document.incomeEntries, rentalPeriod);
     const expected = rentStatus.expectedGrosz;
-    if (rentStatus.confirmedGrosz > 0 || expected === null || !isFullPaymentAmount(amount, expected)) {
+    if (expected === null || rentStatus.remainingGrosz === null || rentStatus.remainingGrosz <= 0 || !isFullPaymentAmount(amount, rentStatus.remainingGrosz)) {
       Alert.alert("Potwierdź pełną wpłatę", "Można potwierdzić tylko całą pozostałą kwotę czynszu.");
       return;
     }
@@ -350,7 +350,7 @@ export function IncomeScreen() {
             const property = properties.find((item) => item.id === current.propertyId);
             const rentalMonth = nextDraft.rentalMonth || currentMonth;
             return property && isRentalMonth(rentalMonth)
-              ? { ...nextDraft, amount: decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).expectedGrosz ?? 0) }
+              ? { ...nextDraft, amount: decimalFromGrosz(rentMonthAmounts(property, document.incomeEntries, rentalMonth).remainingGrosz ?? 0) }
               : nextDraft;
           }
           return { ...current, [key]: value };
