@@ -165,7 +165,7 @@ describe("rental presentation helpers", () => {
   });
 
   it("keeps settings capability reachable by category", () => {
-    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Podatek i rozliczenia", "Dane do przelewu", "Powiadomienia", "Dane lokalne"]);
+    expect(settingsSections.map(({ label }) => label)).toEqual(["Mieszkania", "Dane do przelewu", "Powiadomienia", "Dane lokalne"]);
     expect(settingsSections.map(({ label }) => label).join(" ")).not.toMatch(/kopia zapasowa|backup|restore/i);
   });
 
