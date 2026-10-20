@@ -13,7 +13,7 @@
 3. **Payment deadlines and status:** show the obligation, due date and remaining amount; a confirmation records the full outstanding tax.
 4. **Year-end readiness:** make annual income/tax figures clear and verifiable before the user compares or enters them in official tax services. Annual/PIT-28 verification is upcoming work; electronic filing is out of scope.
 
-For first-apartment setup, the rent start date defaults to January 1 of the current year and remains editable. New apartments default to tenant-paid media enabled. The landlord can confirm completed initial rent periods; that action records the full calculated tax obligation for each selected period as paid too, based on the landlord confirming the historical rent and tax were actually received and paid.
+For apartment setup, the rent start date defaults to January 1 of the current year and remains editable. New apartments default to tenant-paid media enabled. On save, the app assumes rent, applicable tenant-paid media, and the full calculated tax were paid for every month from the rent start through the current month, including the current month. The generated initial records can be reviewed and corrected later.
 
 ## Priority levels
 

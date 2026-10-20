@@ -1,4 +1,4 @@
-import type { Property, RentRate } from "../model/rental";
+import type { IncomeEntry, Property, RentRate } from "../model/rental";
 import { moneyToGrosz } from "./ryczaltTax";
 
 export type EffectiveApartmentTerms = {
@@ -9,6 +9,33 @@ export type EffectiveApartmentTerms = {
   paymentDay?: number;
   hasCompleteSnapshot: boolean;
 };
+
+export type ApartmentTermsInput = Pick<RentRate, "amount" | "mediaAmount" | "mediaPaidByTenant" | "taxableTreatment" | "paymentDay">;
+
+export function hasConfirmedRentForMonth(propertyId: string, entries: IncomeEntry[], month: string): boolean {
+  return entries.some((entry) => entry.propertyId === propertyId && (entry.rentalMonth ?? entry.receivedAt.slice(0, 7)) === month);
+}
+
+export function apartmentTermsChangedForMonth(property: Property, month: string, next: ApartmentTermsInput): boolean {
+  const current = apartmentTermsForMonth(property, month);
+  return moneyToGrosz(next.amount) !== (current?.ownerRentGrosz ?? moneyToGrosz(property.ownerRent ?? "0"))
+    || moneyToGrosz(next.mediaAmount ?? "0") !== (current?.mediaAmountGrosz ?? moneyToGrosz(property.mediaAmount ?? "0"))
+    || (next.mediaPaidByTenant ?? false) !== (current?.mediaPaidByTenant ?? property.mediaPaidByTenant ?? false)
+    || next.taxableTreatment !== (current?.taxableTreatment ?? property.taxableTreatment)
+    || (next.paymentDay ?? 5) !== (current?.paymentDay ?? property.paymentDay ?? 5);
+}
+
+export function termsChangeMustStartNextMonth(
+  property: Property,
+  entries: IncomeEntry[],
+  month: string,
+  effectiveFrom: string,
+  next: ApartmentTermsInput,
+): boolean {
+  return effectiveFrom <= month
+    && hasConfirmedRentForMonth(property.id, entries, month)
+    && apartmentTermsChangedForMonth(property, month, next);
+}
 
 export function apartmentTermsForMonth(property: Property, month: string): EffectiveApartmentTerms | undefined {
   const applicable = [...(property.rentSchedule ?? [])]
