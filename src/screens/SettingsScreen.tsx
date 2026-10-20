@@ -19,7 +19,7 @@ import { PeriodSelector } from "../components/PeriodSelector";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { modalSafeAreaEdges } from "../navigation/safeAreaLayout";
 import { createId, todayIsoDate, useRentalData } from "../data/RentalDataProvider";
-import type { Property, RentalDocument } from "../model/rental";
+import { APARTMENT_MEDIA_BILL_ID, type Property, type RentalDocument } from "../model/rental";
 import { theme } from "../theme/theme";
 import { ui } from "../theme/ui";
 import { isNonnegativeMoney, isPositiveMoney, isValidCalendarDate, isValidHttpsUrl, isValidTaxMicroAccount } from "../domain/rentalValidation";
@@ -38,7 +38,7 @@ import { defaultFirstApartmentDraftValues } from "../domain/firstApartmentOnboar
 import { effectiveLifecycle, setApartmentLifecycle } from "../domain/apartmentLifecycle";
 import { bootstrapHistoricalRentPayments, historicalBootstrapDefaultRange } from "../domain/historicalRentBootstrap";
 import { tenantMonthlyTotalGrosz, decimalFromGrosz } from "../domain/apartmentPayments";
-import { apartmentTermsForMonth } from "../domain/apartmentTerms";
+import { apartmentTermsForMonth, termsChangeMustStartNextMonth } from "../domain/apartmentTerms";
 import { SETTINGS_TAX_LEGAL_DEFAULT_OPEN, SETTINGS_TAX_RECIPIENT, settingsArchiveLabel, settingsBackupStatus, settingsNotificationSwitchValue, settingsNotificationsUnavailable, settingsReminderGroups, settingsReminderGroupsHasMore, settingsReminderGroupTitle } from "../domain/settingsPresentation";
 
 type PropertyDraft = Omit<Property, "id" | "ownerRent" | "mediaAmount" | "paymentDay" | "address" | "leaseEndDate" | "administrationName" | "administrationUrl" | "electricityProvider" | "electricityUrl" | "tenantName" | "tenantPhone" | "tenantEmail" | "notes"> & {
@@ -321,12 +321,22 @@ export function SettingsScreen() {
       Alert.alert("Nieprawidłowy adres", "Adres dostawcy prądu musi używać HTTPS.");
       return;
     }
-    const rentSchedule = ownerRent ? updatedRentSchedule(editing, {
-      effectiveFrom: !editing && startDate ? startDate.slice(0, 7) : effectiveFrom,
+    const proposedTerms = {
       amount: ownerRent, mediaAmount, mediaPaidByTenant: draft.mediaPaidByTenant,
       taxableTreatment: draft.taxableTreatment, paymentDay: paymentDay ?? 5,
+    };
+    const currentMediaConfirmed = document.billPayments.some(
+      (payment) => payment.billId === APARTMENT_MEDIA_BILL_ID && payment.period === currentMonth,
+    );
+    const deferApprovedMonth = editing && ownerRent && termsChangeMustStartNextMonth(
+      editing, document.incomeEntries, currentMonth, effectiveFrom, proposedTerms, currentMediaConfirmed,
+    );
+    const actualEffectiveFrom = deferApprovedMonth ? shiftMonthValue(currentMonth, 1) : effectiveFrom;
+    const rentSchedule = ownerRent ? updatedRentSchedule(editing, {
+      effectiveFrom: !editing && startDate ? startDate.slice(0, 7) : actualEffectiveFrom,
+      ...proposedTerms,
     }) : editing?.rentSchedule;
-    const effectiveNow = effectiveFrom <= currentMonth;
+    const effectiveNow = actualEffectiveFrom <= currentMonth;
     const property: Property = {
       id: editing?.id ?? createId("property"),
       address,
@@ -769,6 +779,12 @@ export function SettingsScreen() {
 function updatedRentSchedule(property: Property | null, rate: NonNullable<Property["rentSchedule"]>[number]) {
   const existing = property?.rentSchedule ?? [];
   return [...existing.filter((item) => item.effectiveFrom !== rate.effectiveFrom), rate].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+}
+
+function shiftMonthValue(month: string, delta: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(year!, monthNumber! - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function tenantDraftTotal(draft: PropertyDraft) {
