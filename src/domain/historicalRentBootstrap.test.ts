@@ -18,7 +18,7 @@ describe("historical rent bootstrap", () => {
     expect(rentMonthAmounts(octoberProperty, result.document.incomeEntries, "2026-09", new Date(2026, 9, 19)).remainingGrosz).toBe(0);
     expect(rentMonthAmounts(octoberProperty, result.document.incomeEntries, "2026-10", new Date(2026, 9, 19))).toMatchObject({ confirmedGrosz: 0, remainingGrosz: 300000 });
     expect(result.document.taxPayments.some((payment) => payment.period === "2026-10")).toBe(false);
-    expect(bootstrapHistoricalRentPayments({ document: result.document, property: octoberProperty, ...range, today: "2026-10-19" }).created).toHaveLength(0);
+    expect(bootstrapHistoricalRentPayments({ document: result.document, property: octoberProperty, startMonth: range.startMonth, endMonth: range.endMonth!, today: "2026-10-19" }).created).toHaveLength(0);
   });
 
   it("defaults to the rental start month through the last completed month", () => {
