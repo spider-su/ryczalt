@@ -485,7 +485,7 @@ export function SettingsScreen() {
 
   return (
       <View style={ui.page}>
-      <ScrollView contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
+      <ScrollView key={activeSection ?? "settings-home"} contentContainerStyle={{ ...ui.content, paddingBottom: 40 }}>
         {activeSection === null ? <>
         <Text style={ui.pageTitle}>Ustawienia</Text>
         {settingsSections.filter((section) => section.id !== 'properties').map((section) => {
