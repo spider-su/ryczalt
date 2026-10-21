@@ -15,7 +15,7 @@ import type {
 import {
   RentalValidationError,
   isValidCalendarDate,
-  isDecimalString: isValidatedDecimalString,
+  isDecimalString as isValidatedDecimalString,
   isValidHttpsUrl,
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
