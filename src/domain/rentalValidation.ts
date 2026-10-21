@@ -1,3 +1,4 @@
+import { todayInPoland } from "./ryczaltTax";
 import { APARTMENT_MEDIA_BILL_ID, type IncomeEntry, type Property, type RentalDocument } from "../model/rental";
 
 export const RENTAL_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -137,7 +138,7 @@ export function validateRentalDocumentShape(
     throw new RentalValidationError(
       "Unsupported rental document schema version.",
     );
-  if (document.settings.taxYear < 2025 || document.settings.taxYear > new Date().getFullYear())
+  if (document.settings.taxYear < 2025 || document.settings.taxYear > Number(todayInPoland().slice(0, 4)))
     throw new RentalValidationError("Tax year is outside the available calendar range.");
   if (!Number.isInteger(document.settings.rentReminderDelayDays) || document.settings.rentReminderDelayDays < 0 || document.settings.rentReminderDelayDays > 30)
     throw new RentalValidationError("Rent reminder delay is invalid.");

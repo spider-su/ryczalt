@@ -14,7 +14,7 @@ The user confirms actual rent receipts, confirms payment of the known media char
 4. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; dismissing an OS notification does not erase a task. Empty state is useful.
 5. **Configure the rental context:** apartment address, editable rent start date (default January 1 of the current year), owner rent and separate media amount/responsibility, due day, current tenant/contact, optional lease end, administration and electricity-provider URLs. New apartments default to tenant-paid media enabled. Rent reminders are grouped by due date; they are derived from apartments rather than configured individually.
 6. **Support the core with reminders:** local reminders for rent checks, apartment media charges, tax and lease end. No user-created personal reminders. Keep this a support function, not a generic task manager.
-7. **Protect local records:** validated JSON export/import is available and the clear/reinstall/restore round-trip is a release gate. Android system backup is best-effort and device/settings dependent.
+7. **Protect local records:** validated JSON export/import is available and the clear/reinstall/restore round-trip is a release gate. Android system backup is deliberately disabled because the native encryption key is device-bound. Export a JSON backup before uninstalling or replacing the device.
 8. **Use relevant services:** user-supplied administrator and utility links open externally without credentials, scraping or implied completion.
 9. **Show a light overview:** confirmed income, amount to check, tax remaining and attention count; six-month trend and apartment split. No ROI or valuation.
 

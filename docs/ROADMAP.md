@@ -23,8 +23,8 @@ These items are lower priority than the active POC release gate in the root [ROA
 
 - Investory integration; cloud sync or backup.
 - Spouse/shared access, bank feeds, OCR, tenant communication, deposits, documents/e-signatures, maintenance workflows, property valuation/ROI and full expense accounting.
-- Encrypted storage and a formal security program (`SECURITY.md`); current local-storage/privacy limitations are recorded in [RELEASES](RELEASES.md).
-- User-controlled JSON export/import, restore and cloud backup/sync (the app's rolling local recovery snapshot is not a user-facing backup/export).
+- Formal security program (`SECURITY.md`); encrypted native storage is implemented and its limitations are recorded in [RELEASES](RELEASES.md).
+- Cloud backup/sync (user-controlled JSON export/import is already implemented; the rolling local recovery snapshot is not a user-facing backup).
 - Full PIT-28 annual calculation or electronic submission; per-record tax-year attribution; a multi-year historical rules engine; and automatic retrieval of next-year tax rules.
 - Advanced annual reconciliation and broader import/restore URL-scheme handling.
 - Full tenancy history, tenant-change workflows and per-month historical rent editing; bootstrap intentionally assumes a regular completed-month amount and skips months already recorded.

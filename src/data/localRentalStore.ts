@@ -15,6 +15,7 @@ import type {
 import {
   RentalValidationError,
   isValidCalendarDate,
+  isDecimalString as isValidatedDecimalString,
   isValidHttpsUrl,
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
@@ -255,9 +256,9 @@ function validateRentalDocument(data: unknown): RentalDocument {
 
 function validateProperty(value: unknown): Property {
   if (!isRecord(value) || !isStableId(value.id)) throw corrupted("Property entry is invalid.");
-  if (!isNonEmptyString(value.address) || !["ACTIVE", "PAUSED", "ARCHIVED"].includes(value.lifecycle as string) || !isDecimalString(value.mediaAmount) || typeof value.mediaPaidByTenant !== "boolean") throw corrupted("Property entry is invalid.");
+  if (!isNonEmptyString(value.address) || ![undefined, "ACTIVE", "PAUSED", "ARCHIVED"].includes(value.lifecycle as string) || !isDecimalString(value.mediaAmount) || typeof value.mediaPaidByTenant !== "boolean") throw corrupted("Property entry is invalid.");
   const address = value.address;
-  const lifecycle = value.lifecycle;
+  const lifecycle = value.lifecycle ?? "ACTIVE";
   const rentalStartDate = optionalString(value.rentalStartDate) ? value.rentalStartDate : undefined;
   const ownerRent = optionalDecimal(value.ownerRent, "ownerRent") ? value.ownerRent : undefined;
   const mediaAmount = optionalDecimal(value.mediaAmount, "mediaAmount") ? value.mediaAmount : undefined;
@@ -460,7 +461,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isDecimalString(value: unknown): value is string {
-  return typeof value === "string" && /^(0|[1-9]\d*)(\.\d{1,2})?$/.test(value);
+  return typeof value === "string" && isValidatedDecimalString(value);
 }
 
 function corrupted(message: string): RentalStoreError {

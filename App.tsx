@@ -82,16 +82,7 @@ function RentalApp() {
         {([{ icon: 'calculator-outline', label: 'Podatek', route: 'Podatek' }, { icon: 'business-outline', label: 'Mieszkania', route: 'Ustawienia', params: { settingsSection: 'properties' } }, { icon: 'settings-outline', label: 'Ustawienia', route: 'Ustawienia' }] as const).map((item) => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} hitSlop={4} onPress={() => navigationRef.isReady() && (navigationRef as any).navigate(item.route, 'params' in item ? item.params : undefined)} style={{ width: 46, height: 48, alignItems: 'center', justifyContent: 'center' }}><Ionicons name={item.icon} size={22} color={theme.colors.textPrimary} /></Pressable>)}
       </View>
     </View>
-    <Tabs.Navigator screenOptions={({ route }) => ({
-      headerShown: false,
-      headerStyle: { backgroundColor: theme.colors.background },
-      headerTintColor: theme.colors.textPrimary,
-      tabBarActiveTintColor: theme.colors.selectedNavigation,
-      tabBarInactiveTintColor: theme.colors.inactiveNavigation,
-      tabBarStyle: { display: 'none' },
-      tabBarLabel: ({ focused, color }) => <Text style={{ color, fontSize: 11, fontWeight: focused ? '700' : '500', marginTop: 1 }}>{route.name}</Text>,
-      tabBarIcon: ({ color, size }) => <Ionicons name={route.name === 'Pulpit' ? 'home-outline' : route.name === 'Podatek' ? 'calculator-outline' : 'settings-outline'} size={size} color={color} />
-    })}>
+    <Tabs.Navigator screenOptions={{ headerShown: false, tabBarStyle: { display: "none" } }}>
       <Tabs.Screen name="Pulpit" component={PulpitFlowScreen} />
       <Tabs.Screen name="Podatek" component={TaxScreen} />
       <Tabs.Screen name="Ustawienia" component={SettingsScreen} />

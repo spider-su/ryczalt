@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RentalDocument } from "../model/rental";
 import { deriveTasks, expectedRentForMonth, taskNotificationPlan } from "./tasks";
+import { notificationDataToIntent } from "../navigation/notificationIntent";
 
 function document(): RentalDocument {
   return {
@@ -15,6 +16,28 @@ function document(): RentalDocument {
 }
 
 describe("personal assistant tasks", () => {
+  it("every generated reminder opens an actionable rent, tax, bill or agreement destination", () => {
+    const doc = document();
+    doc.properties[0] = { ...doc.properties[0]!, mediaAmount: "500.00", mediaPaidByTenant: true,
+      rentSchedule: doc.properties[0]!.rentSchedule?.map((term) => ({ ...term, mediaAmount: "500.00", mediaPaidByTenant: true })) };
+    doc.recurringBills.push({ id: "admin", propertyId: "p1", name: "Czynsz administracyjny",
+      reminderEnabled: true, expectedAmount: "350.00", dueDay: 12 });
+    const plan = taskNotificationPlan(doc, new Date(2026, 8, 1, 12));
+    expect(plan.length).toBeGreaterThan(0);
+    for (const reminder of plan) {
+      const intent = notificationDataToIntent(reminder.data);
+      expect(intent, `Reminder ${reminder.key} must have a valid destination`).not.toBeNull();
+      if (reminder.data.category === "bill") {
+        expect(intent?.screen).toBe("Pulpit");
+        expect(intent?.params).toMatchObject({ screen: "Przegląd" });
+      }
+      if (reminder.data.category === "agreement") {
+        expect(intent).toMatchObject({ screen: "Ustawienia", params: { settingsSection: "properties" } });
+      }
+    }
+  });
+
+
   it("does not create a lease-end task without a recorded contractual date", () => {
     const withoutEnd = document();
     withoutEnd.properties = [{ id: "p-no-end", address: "Parkowa 2", paymentDay: 10 }];

@@ -14,7 +14,19 @@ A useful feature test is: **does this remove something the landlord otherwise ha
 
 This file is the release gate/status source for the lightweight private-rental POC. Product scope is apartment/current tenant and contact, owner income and media, manual rent/bill/tax payment confirmation, rent/bill/tax/lease reminders, local-first storage, and JSON backup/restore. User-created personal reminders remain out of scope. No backend, bank integration, cloud sync, or electronic filing.
 
-**Status: NOT READY.** Do not tag or publish until every box is supported by candidate-specific evidence.
+**Status: NOT READY for public store release.** A private alpha may proceed after the separate alpha gate below, without claiming the full public release gates are met.
+
+### Private Android alpha gate (separate from public store release)
+
+- [ ] CI green for the exact candidate commit (typecheck, lint, unit tests, Android prebuild).
+- [ ] Signed installable alpha APK built from the exact candidate SHA; record artifact, certificate identity and SHA-256. A debug-signed APK must not be misrepresented as a Play AAB.
+- [ ] Emulator happy path: apartment setup, monthly rent / media / tax confirmation, future-effective terms, cold restart, and JSON export → clean test install → import round-trip.
+- [ ] Physical-device checks: rent, utilities, tax and lease-end notification delivery **and tap destination**; note any Android delay/permission limitations.
+- [ ] Known limitations and evidence recorded in `docs/RELEASES.md` and the alpha test release notes.
+- [ ] Revalidate any changed notification routing on the candidate APK; do not mark this gate passed from unit tests alone.
+
+The alpha gate does not waive public privacy and store data declarations, signed production AAB validation, broader recovery testing or production publication review. Do not tag or publish a candidate before the relevant gate has evidence.
+
 
 The public [web tax calculator](https://ryczalt.smart-box.workers.dev/) is a separate informational companion hosted as static Cloudflare Worker assets. It is not an app release gate, app Web build, shared tax engine, or backend. Its purpose, current calculation limits, technology and independent maintenance/deployment checks are documented in [WEB_CALCULATOR](docs/WEB_CALCULATOR.md).
 

@@ -10,7 +10,7 @@ The current Opłaty flow derives a monthly total from effective-dated apartment 
 
 Initial historical rent import records one full rent receipt per selected completed month. It also records the calculated full tax obligation for each imported receipt month as an `INITIAL_IMPORT` tax payment. This represents the landlord's confirmation in the initial-rent flow; ordinary rent expectations do not create income or tax-payment records.
 
-Tax snapshots retain `rulesYear` as the tax year and may also carry `appliedRulesYear` to identify the actual verified rules used for a provisional future-year calculation. Older exact-year snapshots may omit `appliedRulesYear`.
+Tax snapshots require both `rulesYear` (settlement tax year) and `appliedRulesYear` (ruleset actually used). Schema-1 validation rejects malformed or missing applied-rules metadata; no older-format fallback is promised.
 
 ## Storage and backup
 
