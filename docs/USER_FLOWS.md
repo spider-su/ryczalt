@@ -2,15 +2,15 @@
 
 ## Guided setup
 
-No apartments → Pulpit offers **“Rozpocznij · 3 kroki”** or **“Zobacz demo”**. The first action opens the same Settings apartment editor in a focused onboarding mode:
+No apartments → Pulpit offers **“Rozpocznij · 3 kroki”** or **“Zobacz demo”**. The first action opens the focused apartment onboarding editor; apartments can subsequently be reached from the Mieszkania header action:
 
 1. **Mieszkanie:** address (required), editable rent start date (default January 1 of the current year), and tenant name (optional).
 2. **Płatności:** owner rent, separate media amount, tenant-paid media switch (on by default for new apartments), and payment day.
 3. **Podatek i gotowe:** explicitly choose the taxable treatment according to the agreement, review the summary, and save.
 
-The existing apartment save function is authoritative: it applies all normal validations, duplicate-address checks and rent schedules and persists exactly once. The wizard itself writes nothing between steps. Cancelling does not write partial data. After saving, the initial-rent step offers completed months from the selected start date. Confirming that import records the full estimated rent receipts and calculated tax obligations as paid for those periods; the landlord should confirm only periods where both rent arrived and tax was paid. A high-amount warning is retained.
+The existing apartment save function is authoritative: it applies all normal validations, duplicate-address checks and rent schedules and persists exactly once. The wizard itself writes nothing between steps. Cancelling does not write partial data. After saving, the app initializes completed historical rent, associated tax confirmations and applicable apartment media confirmations through the preceding month. The current month remains pending. This bootstrap represents the landlord's assumed opening state; incorrect historical assumptions require user review.
 
-Existing installations with apartments do not enter the wizard. Manual apartment creation/editing and advanced tenant/contact, agreement-end, administrator/utility links and historical-income bootstrap remain accessible in Settings. Demo stays isolated from real stored data.
+Existing installations with apartments do not enter the wizard. Apartment creation/editing and advanced tenant/contact, agreement-end and administrator/utility links remain accessible from the Mieszkania header action. Calculation settings are under Podatek → Ustawienia podatku, while Dane do przelewu remains in general Settings. Demo stays isolated from real stored data.
 
 ## Confirm rent
 
@@ -34,12 +34,12 @@ Pulpit flow: confirm rent → confirm apartment media charges → confirm tax. T
 
 ## JSON backup and restore
 
-Settings exports a validated JSON document for the user to store outside the app. After reinstall/device change, select that file; import validates it before replacing local data. Invalid backup leaves the current document unchanged. The release checklist requires clear/uninstall → reinstall → import and comparison of apartment, tenant/contact, income, tax payments, reminder settings, schema and calculated tax results. Android system backup may also restore AsyncStorage but is device/settings dependent and not guaranteed. No cloud backup exists.
+Settings exports a validated JSON document for the user to store outside the app. After reinstall/device change, select that file; import validates it before replacing local data. Invalid backup leaves the current document unchanged. The release checklist requires clear/uninstall → reinstall → import and comparison of apartment, tenant/contact, income, tax payments, reminder settings, schema and calculated tax results. Android system backup is disabled because the native encrypted document depends on a device-bound key. Export a JSON backup before uninstalling or changing devices. No cloud backup exists.
 
 ## Cross-cutting behavior
 
 - Native Android/iOS rental records and tenant/contact data remain local and encrypted at rest; Web storage is browser-managed and not app-encrypted. There is no backend or bank integration. User-created JSON backups are plaintext and remain under the user's control.
 - Snooze changes reminder time only, never payment amount or legal deadline.
 - Denied notification permission does not remove in-app tasks; native delivery/tap behavior requires physical-device verification.
-- Existing documents containing custom-reminder fields remain loadable, but those fields do not create UI, tasks or notifications.
+- Unknown legacy custom-reminder keys are not part of the current schema-1 model and are discarded during normalization; they do not create UI, tasks or notifications. Existing supported fields remain validated.
 - Electronic PIT-28 filing and annual filing submission are out of scope; displayed calculations are for information and verification.
