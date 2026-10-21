@@ -84,6 +84,12 @@ describe("localRentalStore", () => {
     await expect(loadRentalDocumentWithStatus()).resolves.toMatchObject({ document: emptyDocument() });
   });
 
+  it("normalizes a legacy apartment without optional lifecycle to ACTIVE", () => {
+    const legacy = { ...validDocument, properties: [{ ...validDocument.properties[0]!, lifecycle: undefined }] };
+    const restored = parseRentalBackup(createRentalBackup(legacy as RentalDocument));
+    expect(restored.properties[0]?.lifecycle).toBe("ACTIVE");
+  });
+
   it("loads a valid document without changing decimal-string amounts", async () => {
     storage.getItem.mockResolvedValueOnce(JSON.stringify(validDocument));
 
