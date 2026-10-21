@@ -1,9 +1,10 @@
+import { APARTMENT_MEDIA_BILL_ID } from "../model/rental";
 import { isRentalMonth } from "../domain/rentalValidation";
 
 export type NotificationIntent =
   | { screen: "Pulpit"; params: { screen: "Wpłaty"; params: { quickAdd: true; returnTo: "Przegląd"; propertyId: string; rentalMonth: string; expectedAmount?: string } } }
   | { screen: "Podatek"; params: { period: string } }
-  | { screen: "Ustawienia"; params: { propertyId?: string; billId?: string; period?: string } }
+  | { screen: "Ustawienia"; params: { propertyId?: string; settingsSection?: "properties" } }
   | { screen: "Pulpit"; params: { screen: "Przegląd"; params: { taskId?: string; billId?: string; period?: string } } };
 
 const nonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
@@ -21,11 +22,10 @@ export function notificationDataToIntent(data: Record<string, unknown>): Notific
   if (data.category === "tax" && taxPeriod(data.period))
     return { screen: "Podatek", params: { period: data.period } };
   if (data.category === "bill" && nonEmptyString(data.billId)) {
-    if (data.period === undefined) return { screen: "Ustawienia", params: { billId: data.billId } };
-    if (!rentalMonth(data.period)) return null;
-    return { screen: "Ustawienia", params: { billId: data.billId, period: data.period } };
+    if (data.period !== undefined && !rentalMonth(data.period)) return null;
+    return { screen: "Pulpit", params: { screen: "Przegląd", params: { billId: data.billId, ...(data.period ? { period: data.period } : {}) } } };
   }
   if (data.category === "agreement" && nonEmptyString(data.propertyId))
-    return { screen: "Ustawienia", params: { propertyId: data.propertyId } };
+    return { screen: "Ustawienia", params: { propertyId: data.propertyId, settingsSection: "properties" } };
   return null;
 }
