@@ -1,4 +1,3 @@
-import { APARTMENT_MEDIA_BILL_ID } from "../model/rental";
 import { isRentalMonth } from "../domain/rentalValidation";
 
 export type NotificationIntent =
