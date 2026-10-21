@@ -15,6 +15,7 @@ import type {
 import {
   RentalValidationError,
   isValidCalendarDate,
+  isDecimalString: isValidatedDecimalString,
   isValidHttpsUrl,
   validateRentalDocumentShape,
 } from "../domain/rentalValidation";
@@ -460,7 +461,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isDecimalString(value: unknown): value is string {
-  return typeof value === "string" && /^(0|[1-9]\d*)(\.\d{1,2})?$/.test(value);
+  return typeof value === "string" && isValidatedDecimalString(value);
 }
 
 function corrupted(message: string): RentalStoreError {
