@@ -256,9 +256,9 @@ function validateRentalDocument(data: unknown): RentalDocument {
 
 function validateProperty(value: unknown): Property {
   if (!isRecord(value) || !isStableId(value.id)) throw corrupted("Property entry is invalid.");
-  if (!isNonEmptyString(value.address) || !["ACTIVE", "PAUSED", "ARCHIVED"].includes(value.lifecycle as string) || !isDecimalString(value.mediaAmount) || typeof value.mediaPaidByTenant !== "boolean") throw corrupted("Property entry is invalid.");
+  if (!isNonEmptyString(value.address) || ![undefined, "ACTIVE", "PAUSED", "ARCHIVED"].includes(value.lifecycle as string) || !isDecimalString(value.mediaAmount) || typeof value.mediaPaidByTenant !== "boolean") throw corrupted("Property entry is invalid.");
   const address = value.address;
-  const lifecycle = value.lifecycle;
+  const lifecycle = value.lifecycle ?? "ACTIVE";
   const rentalStartDate = optionalString(value.rentalStartDate) ? value.rentalStartDate : undefined;
   const ownerRent = optionalDecimal(value.ownerRent, "ownerRent") ? value.ownerRent : undefined;
   const mediaAmount = optionalDecimal(value.mediaAmount, "mediaAmount") ? value.mediaAmount : undefined;
