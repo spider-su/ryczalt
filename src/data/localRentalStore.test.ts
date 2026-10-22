@@ -86,7 +86,13 @@ describe("localRentalStore", () => {
 
   it("normalizes a legacy apartment without optional lifecycle to ACTIVE", () => {
     const legacy = { ...validDocument, properties: [{ ...validDocument.properties[0]!, lifecycle: undefined }] };
-    const restored = parseRentalBackup(createRentalBackup(legacy as RentalDocument));
+    const raw = JSON.stringify({
+      format: "pl.ryczalt.rental.backup",
+      backupVersion: 1,
+      exportedAt: "2026-09-29T10:00:00.000Z",
+      document: legacy,
+    });
+    const restored = parseRentalBackup(raw);
     expect(restored.properties[0]?.lifecycle).toBe("ACTIVE");
   });
 
