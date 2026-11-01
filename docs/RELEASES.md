@@ -29,3 +29,11 @@ An Android API 35 emulator was previously used for app launch, core local flows,
 3. Run the full emulator landlord path and backup round-trip, then physical-device notification checks in [PRIVATE_BETA_ANDROID_CHECKLIST](PRIVATE_BETA_ANDROID_CHECKLIST.md).
 4. Confirm version consistency across `package.json` and `app.json`; bump to a POC RC only once all gates pass.
 5. Create the RC tag only after green CI/EAS and accepted manual evidence; record SHA, artifact, tests and limitations. Never imply a hosted/deployed/mobile result from unit tests or config inspection alone.
+
+## Owner-confirmed historical physical Android smoke test (2026-11-01 report)
+
+The owner confirms that an earlier Android build was successfully installed on a physical Android device and its primary end-to-end rental/tax flow was completed. **Historical physical-device install and main-flow smoke: PASS (owner report).** Exact tested build SHA, APK hash, phone, OS and execution date were not supplied. This supersedes statements implying the application has *never* run on hardware, but does **not** pass the current release-candidate physical-device, notification, signing, update, restore or tax-regression gates. Preserve the existing release evidence requirements and repeat on the exact candidate. This application is `spider-su/ryczalt`, not `ryczalt_it`.
+
+## Documentation and legal handoff
+
+Reuse [the existing privacy policy draft](PRIVACY_POLICY.md) and [privacy evidence checklist](PRIVACY_RELEASE_EVIDENCE.md); complete the publisher/contact/effective-date fields and verify actual release SDK/network behavior before hosting the approved policy. The source is already MIT licensed; retain existing copyright and third-party notices. Before store publication, decide whether a separate user-facing EULA/terms is necessary for this offline, informational tool; do not treat the repository MIT license as a consumer privacy notice or tax accuracy warranty. Verify the tax disclaimer, support route, content rating, Play Data safety and current distribution requirements. Do not duplicate these documents.

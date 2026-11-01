@@ -38,3 +38,7 @@ Do not mark complete until evidence is tied to an exact release SHA and Android/
 ## Storage security behavior
 
 Native Android/iOS local document and recovery copy use AES-256-GCM with a random per-install key held in SecureStore/Keychain/Keystore. Existing valid plaintext documents are encrypted on first successful load. Invalid or unsupported data is not overwritten. The JSON export intentionally remains portable plaintext. Android system backup is disabled because a restored ciphertext without its device-bound key is not recoverable. Web storage remains browser-managed and unencrypted. Key loss or invalid ciphertext requires restore from the user's JSON export; there is no server recovery.
+
+## Publication handoff (2026-11-01)
+
+The existing [Polish privacy policy draft](PRIVACY_POLICY.md) is the **single policy source** for the rental app; do not create a second privacy policy. Resolve its bracketed legal-identity, postal/contact, URL and effective-date fields using verified publisher details. Confirm the actual candidate's dependencies, native manifests and data flows before completing Play Data safety. Review whether public support/contact, informational tax disclaimer and user-facing terms are appropriate. Already present: MIT code license; preserve dependency copyright and third-party notices. Owner-reported historical Android installation/E2E passes the initial smoke milestone, **not** these privacy/store gates.
