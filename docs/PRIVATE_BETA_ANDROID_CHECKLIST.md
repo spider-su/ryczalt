@@ -69,3 +69,7 @@ Run on a clean candidate APK on a physical Android device and record the APK SHA
 8. Tap each delivered alert and confirm navigation. Record pending-list snapshots and delivery observations separately in the table above; leave device-only checks marked not run until observed on hardware.
 
 Do not use real tenant or financial records in screenshots, logs or shared beta evidence.
+
+## Owner-reported earlier Android acceptance (historical; reported 2026-11-01)
+
+**PASS — historical physical-device installation and primary end-to-end flow.** Owner reports successful install and execution of the main Ryczałt rental/tax workflow. Build SHA, APK hash, phone, OS and original execution date were not recorded. Previous wording that no *physical device was ever tested* should be read as **no traceable physical-device evidence for the current candidate**. Every unchecked scenario above remains unchecked; particularly notification delivery/taps, backup and restore, update-over-install and exact-candidate regression.
