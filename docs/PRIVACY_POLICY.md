@@ -1,3 +1,8 @@
+---
+title: "Polityka prywatności Ryczałt"
+permalink: /privacy/
+---
+
 # Polityka prywatności Ryczałt — projekt do publikacji
 
 **Status: nie publikować przed uzupełnieniem pól w nawiasach i sprawdzeniem zgodności z wydaniem.** Ta wersja opisuje obecną aplikację mobilną; zmiana SDK, analityki, backendu lub sposobu przechowywania wymaga ponownego przeglądu.
