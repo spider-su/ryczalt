@@ -1,4 +1,5 @@
 ---
+layout: default
 title: "Polityka prywatności Ryczałt"
 permalink: /privacy/
 ---
