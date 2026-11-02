@@ -12,7 +12,7 @@ A useful feature test is: **does this remove something the landlord otherwise ha
 
 ## POC release candidate — single source of truth
 
-This file is the release gate/status source for the lightweight private-rental POC. Product scope is apartment/current tenant and contact, owner income and media, manual rent/bill/tax payment confirmation, rent/bill/tax/lease reminders, local-first storage, and JSON backup/restore. User-created personal reminders remain out of scope. No backend, bank integration, cloud sync, or electronic filing.
+This file is the release gate/status source for the lightweight private-rental POC. Product scope is apartment/current tenant and contact, owner income and apartment media, manual rent/media-charge/tax payment confirmation, rent/tax/lease reminders, local-first storage, and JSON backup/restore. Arbitrary recurring-bill creation and user-created personal reminders are out of scope; saved legacy bill records remain readable and may retain legacy task behavior. No backend, bank integration, cloud sync, or electronic filing.
 
 **Status: NOT READY for public store release.** A private alpha may proceed after the separate alpha gate below, without claiming the full public release gates are met.
 
@@ -37,12 +37,22 @@ The public [web tax calculator](https://ryczalt.smart-box.workers.dev/) is a sep
 - [ ] Export → clear app data/uninstall → reinstall → import round-trip verified, including tax and reminder results.
 - [ ] Physical Android rent, bill and tax notification permission, channel, delivery, tap routing, restart/reboot, revoke/regrant and duplicate checks pass.
 - [ ] Tax calculation, overpayment carry-forward, exact-year selection, provisional fallback warning and deadline tests pass.
-- [x] PR #38 removed bills and custom reminders; recurring-bill payment tracking and due reminders are now restored by the current product request. Custom reminders remain out of scope.
 - [ ] Product, notification, data, tax and public-calculator documentation agrees on the POC scope, calculation boundaries and limitations.
 - [ ] Privacy policy is completed and publicly hosted; Google Play Data safety and Apple App Privacy declarations are reviewed against exact release builds; candidate-specific evidence is recorded in [privacy release evidence](docs/PRIVACY_RELEASE_EVIDENCE.md).
 - [ ] Native local-data encryption, recovery, export/import and Android backup policy are validated on release builds; browser storage limitation is disclosed.
 
 Only after all gates pass: set one consistent POC RC version in package/app metadata, create the release tag, and record SHA, artifact/build ID, test evidence, and known limitations. Do not create a release tag while any CI or acceptance gate is red or unverified.
+
+### Implementation snapshot
+
+- New-apartment save seeds assumed full rent receipts, applicable apartment-media confirmations and calculated tax payments only for completed months from the rental start through the previous month. The current and future months remain pending for manual confirmation. A second apartment starting in the current month creates no pre-start history and does not invalidate an already-confirmed apartment.
+- Opłaty is derived from effective apartment media terms and confirmed as one full monthly amount. No UI adds arbitrary Opłaty. Saved legacy recurring-bill records remain readable/actionable; personal reminders are not exposed or scheduled.
+- The Tax tab shows the selected period's calculation and year-to-date taxable revenue/threshold progress. A consolidated annual due/paid/difference and PIT-28 verification summary is still planned; electronic filing is out of scope.
+- Local AES-GCM encryption, recovery snapshots, and user-controlled JSON export/import are implemented. JSON backup/restore round-trip on the release candidate is still a gate; JSON exports are plaintext and Android system backup is disabled.
+
+### Latest recorded emulator evidence
+
+The latest available focused recheck is [2026-10-20](artifacts/emulator-e2e/20261020-1430-7f4bdd4-recheck/results.md). It passed the second-apartment current-month start-date and advanced-field save/restore checks, but reports a failure because an invalid administrator URL did not produce visible feedback. That run used app source commit `6e8f3d3`; subsequent commits include app-source changes, so neither that run nor the full run validates current source or the candidate artifact. Re-run against the candidate and resolve or explicitly retest the validation-feedback case before treating the emulator gate as passed.
 
 ## Next after POC validation
 
@@ -86,4 +96,4 @@ Local-first data remains intentional. Native Android/iOS data is encrypted at re
 Removed from the product scope before POC freeze:
 - user-created personal/custom reminders.
 
-Recurring bills are back in scope as a focused payment flow: apartment-linked monthly bill, due-day reminder, and full manual payment confirmation. No transfer is initiated or inferred. Other notifications remain domain-native: rent, tax and rental-agreement dates.
+Apartment media charges remain a focused payment flow derived from effective apartment terms, with full manual confirmation. No arbitrary bill creation or transfer is offered or inferred. Notifications remain domain-native: rent, tax and rental-agreement dates.

@@ -13,7 +13,7 @@
 3. **Payment deadlines and status:** show the obligation, due date and remaining amount; a confirmation records the full outstanding tax.
 4. **Year-end readiness:** make annual income/tax figures clear and verifiable before the user compares or enters them in official tax services. Annual/PIT-28 verification is upcoming work; electronic filing is out of scope.
 
-For apartment setup, the rent start date defaults to January 1 of the current year and remains editable. New apartments default to tenant-paid media enabled. On save, the app assumes rent, applicable tenant-paid media, and the full calculated tax were paid for every month from the rent start through the current month, including the current month. The generated initial records can be reviewed and corrected later.
+For apartment setup, the rent start date defaults to January 1 of the current year and remains editable. New apartments default to tenant-paid media enabled and owner-rent-only tax treatment. On save, the app creates assumed full rent, applicable tenant-paid media and calculated tax confirmations for completed months from the rent start through the previous month. The current month and future months remain pending and require normal confirmation. These initial records are marked as imports and can be reviewed and corrected later.
 
 ## Priority levels
 
@@ -35,7 +35,6 @@ Patterns we intentionally adopt and adapt:
 - full-amount confirmation for rent and tax;
 - contract/agreement end reminders;
 - recurring reminders associated with a property;
-- a dashboard that combines attention items with a small financial summary;
 - guided setup/checklist;
 - a dashboard that combines attention items with a small financial summary.
 
@@ -66,11 +65,11 @@ The independently hosted [public calculator](https://ryczalt.smart-box.workers.d
 
 ## Status
 
-- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, guided setup, rent history, recurring-bill setup/payment confirmation, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent/tax/lease notifications and compact statistics. User-created personal reminders remain out of scope.
-- **Implemented:** validated local JSON export/import and last-good local recovery. AsyncStorage is not encrypted by the app.
+- **Implemented:** four-tab app, local tax engine/payment records, persistent derived tasks, three-step first-apartment wizard, historical bootstrap for completed months, full rent/Opłaty/tax confirmation, agreement reminders, owner-rent/media property setup, administration/electricity links, grouped rent/tax/lease notifications, and a year-to-date taxable-revenue/threshold summary. Saved legacy recurring-bill records remain actionable; there is no UI for adding arbitrary Opłaty or personal reminders.
+- **Implemented:** validated local JSON export/import and last-good local recovery. Native AsyncStorage values are encrypted by the app's AES-GCM storage wrapper; Web storage remains browser-managed and is not app-encrypted.
 - **Partial:** notification delivery/deep-link behavior needs physical-device verification; release setup, privacy review and accessibility validation remain incomplete.
 - **POC release gate:** see the root [ROADMAP](../ROADMAP.md). Readiness remains unverified until candidate-specific CI, artifact, emulator, backup and physical-device evidence is recorded.
-- **Upcoming:** year-to-date/annual tax summaries and annual/PIT-28 verification readiness; see [ROADMAP](ROADMAP.md). These are not implemented yet.
+- **Partial:** the Tax tab shows year-to-date taxable revenue and threshold progress. A consolidated annual tax due/paid/difference and PIT-28 verification summary remain upcoming; electronic filing is out of scope.
 - **Later/optional:** Investory integration and P3 features without demonstrated user demand.
 
 See [MVP](MVP.md) for current acceptance scope and [ROADMAP](ROADMAP.md) for delivery state. Milestones are not published releases.
