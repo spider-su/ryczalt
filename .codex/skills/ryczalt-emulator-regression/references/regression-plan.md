@@ -81,7 +81,7 @@ Failure criteria: demo changes persist into real data, the test is unavailable i
    - select **Czynsz i opłaty dodatkowe**, then switch to **Tylko czynsz dla właściciela** to exercise both;
    - verify the summary shows address, tenant, 3000 rent, 500 media and day 10.
 8. Tap **Zapisz mieszkanie**.
-9. Verify the apartment is saved. For a start date before the current month, verify every rental period from the start month through the previous month is preconfirmed for rent, Opłaty and tax. Verify the current month starts pending for all three and no current-month payment was inferred from apartment creation.
+9. Verify the apartment is saved. For a start date before the current month, verify every eligible completed rental period from the start month through the previous month is preconfirmed for rent, Opłaty where tenant-paid media applies, and tax. Verify the current month starts pending for all three and no current-month payment was inferred from apartment creation.
 10. Capture `04-onboarding-step1`, `05-onboarding-step2`, `06-onboarding-summary`, `07-onboarding-saved`.
 
 ### C. Normal apartment editor and advanced fields
@@ -119,7 +119,7 @@ Use the current rental month. Do not move the emulator date.
 4. Verify the apartment is confirmed and no shortfall remains. Confirm historical Income remains grouped by month and does not need to list current-month activity.
 5. Open Opłaty. Verify known charges total 500 zł from the apartment's tenant-paid terms; use the confirmation action. There must be no add-extra-charge form. Verify the charge changes from pending to confirmed without a duplicate.
 6. Verify tax confirmation becomes available once all apartments' rents are confirmed. Record separately whether Opłaty is still pending; it is not a substitute for rent confirmation.
-7. Add `QA-Lipowa` with a synthetic tenant, 2,000 zł owner rent, no Opłaty, and owner-rent tax basis. In **Więcej ustawień**, explicitly set **Najem rozpoczął się** to the first day of the current month (for example, `01 paź 2026`); do not leave it blank and do not confuse it with **Zastosuj zmiany od miesiąca**. Before saving, verify the start date is visible in the editor. Reopen after saving and verify it persisted. QA-Parkowa's receipt and seeded history must remain unchanged; QA-Lipowa's current month starts pending and has no pre-start history; dashboard expected/confirmed and taxable totals include its saved terms. Confirm QA-Lipowa rent; verify aggregate status says confirmed only when every apartment is confirmed.
+7. Add `QA-Lipowa` with a synthetic tenant, 2,000 zł owner rent, no Opłaty, and owner-rent tax basis. In **Więcej ustawień**, explicitly set **Najem rozpoczął się** to the first day of the actual current month; do not leave it blank and do not confuse it with **Zastosuj zmiany od miesiąca**. Before saving, verify the start date is visible in the editor. Reopen after saving and verify it persisted. QA-Parkowa's receipt and seeded history must remain unchanged; QA-Lipowa's current month starts pending and has no pre-start history; dashboard expected/confirmed and taxable totals include its saved terms. Confirm QA-Lipowa rent; verify aggregate status says confirmed only when every apartment is confirmed.
 8. If a bulk confirmation action is offered, inspect it and close without creating a duplicate; otherwise mark N/A with reason.
 9. Capture pending/gated, rent confirmed, Opłaty confirmation, second-apartment impact and final aggregate states.
 

@@ -4,13 +4,13 @@ Run this checklist on each candidate beta build. Record build commit, APK/EAS bu
 
 ## Latest candidate evidence
 
-Candidate commit/artifact: pending. The emulator and code checks in this working session are not a released candidate or evidence of the full landlord happy path. Physical Android device: unavailable in the current environment (ADB exposes only an emulator), so notification delivery/tap/reboot/permission-cycle gates remain open.
+No release candidate has passed all gates. The latest full Android emulator run and focused recheck below exercised app source commit `6e8f3d3`; subsequent commits include app-source changes, and those reports do not validate current source or the candidate artifact. The focused recheck passed the second-apartment current-month start-date and verified advanced-field save/restore cases, but failed visible feedback for an invalid administrator URL. Re-run on an artifact built from the exact candidate SHA. Physical-device notification delivery/tap/reboot/permission-cycle gates remain open.
 
 POC data boundary: rental, tenant/contact, income, tax payments and reminder settings are stored in an AES-256-GCM encrypted local document; its key is held in Android Keystore via SecureStore. Android backup is disabled because the device-bound key is not restored. User-controlled JSON export/import is implemented and exports plaintext; the required clear-data/reinstall round-trip remains a release gate.
 
-## Historical device run
+## Historical device runs
 
-Latest recorded emulator: Android Studio AVD `ryczalt-api35`, model `sdk_gphone64_arm64`, Android API 35, AArch64, package `pl.ryczalt.rental`. On 2026-09-27, a local debug APK was installed and launched with Metro; all tabs and core local flows were manually exercised. This emulator evidence predates the current POC hardening changes and is not evidence for their runtime behavior. No physical Android device has been verified for this candidate.
+Earlier emulator run: Android Studio AVD `ryczalt-api35`, model `sdk_gphone64_arm64`, Android API 35, AArch64, package `pl.ryczalt.rental`. On 2026-09-27, a local debug APK was installed and launched with Metro; all tabs and core local flows were manually exercised. This emulator evidence predates the current POC hardening changes and is not evidence for their runtime behavior. No physical Android device has been verified for this candidate.
 
 Hardening build smoke check: on 2026-09-27, rebuilt/installed the debug APK with JDK 17 and launched it on the same API 35 emulator. The app reached Pulpit with no fresh fatal/React Native errors. After clearing only this app's local data and denying `POST_NOTIFICATIONS`, app startup created the `reminders` notification channel. This verifies startup channel creation on an emulator only; it does not verify delivery or physical-device behavior.
 
@@ -39,6 +39,12 @@ The same emulator run injected malformed AsyncStorage JSON into the rental docum
 | Verify exact-year rules and visibly provisional future-year fallback | Focused automated tests; candidate UI verification pending |
 | JSON backup export → clear/uninstall → reinstall → import | Automated format validation only; device round-trip not run |
 | Restored apartments, tenant/contact, income, tax payments, reminders, schema and tax results | Not run |
+
+## Latest recorded Android regression
+
+- [Full emulator run, 2026-10-20](../artifacts/emulator-e2e/20261020-1344-6e8f3d3/results.md): overall **FAIL** because the second-apartment rental-start scenario was missed and advanced-field save/restore was not verified during that run. Completed-month bootstrap passed; current-month rent and tax began pending, then rent and Opłaty were manually confirmed.
+- [Focused recheck, 2026-10-20](../artifacts/emulator-e2e/20261020-1430-7f4bdd4-recheck/results.md): the second-apartment start date and verified advanced fields passed. Invalid administrator URL feedback remained **FAIL**; input autocomplete made the exact administration name unclear, and provider URL/notes were not verified after restore.
+- Both reports use source `6e8f3d3`; subsequent commits include app-source changes, so neither is current-source regression evidence.
 
 ## POC happy-path checklist
 

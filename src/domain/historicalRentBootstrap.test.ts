@@ -22,6 +22,54 @@ describe("historical rent bootstrap", () => {
     expect(bootstrapHistoricalRentPayments({ document: result.document, property: octoberProperty, startMonth: range.startMonth, endMonth: range.endMonth!, today: "2026-10-19" }).created).toHaveLength(0);
   });
 
+  it("keeps a new current-month apartment pending without changing the confirmed apartment or pre-start history", () => {
+    const firstApartment = {
+      ...property,
+      rentalStartDate: "2026-01-01",
+      ownerRent: "3000.00",
+      mediaAmount: "500.00",
+      rentSchedule: [{ ...property.rentSchedule[0]!, effectiveFrom: "2026-01", amount: "3000.00", mediaAmount: "500.00" }],
+    };
+    const secondApartment = {
+      ...property,
+      id: "second",
+      address: "Lipowa 2",
+      rentalStartDate: "2026-10-01",
+      ownerRent: "2000.00",
+      mediaAmount: "0.00",
+      mediaPaidByTenant: false,
+      rentSchedule: [{ ...property.rentSchedule[0]!, effectiveFrom: "2026-10", amount: "2000.00", mediaAmount: "0.00", mediaPaidByTenant: false }],
+    };
+    const confirmedReceipt = {
+      id: "october-first-apartment",
+      propertyId: firstApartment.id,
+      receivedAt: "2026-10-10",
+      rentalMonth: "2026-10",
+      amount: "3500.00",
+      taxableAmount: "3000.00",
+    };
+    const initial = { ...doc(), properties: [firstApartment, secondApartment], incomeEntries: [confirmedReceipt] };
+
+    const result = bootstrapHistoricalRentPayments({
+      document: initial,
+      property: secondApartment,
+      startMonth: "2026-10",
+      endMonth: "2026-10",
+      today: "2026-10-19",
+    });
+
+    expect(result.created).toEqual([]);
+    expect(result.skippedMonths).toEqual([]);
+    expect(result.document.incomeEntries).toEqual([confirmedReceipt]);
+    expect(result.document.billPayments).toEqual([]);
+    expect(result.document.taxPayments).toEqual([]);
+    expect(rentMonthAmounts(firstApartment, result.document.incomeEntries, "2026-10", new Date(2026, 9, 19)))
+      .toMatchObject({ expectedGrosz: 350_000, confirmedGrosz: 350_000, remainingGrosz: 0 });
+    expect(rentMonthAmounts(secondApartment, result.document.incomeEntries, "2026-10", new Date(2026, 9, 19)))
+      .toMatchObject({ expectedGrosz: 200_000, confirmedGrosz: 0, remainingGrosz: 200_000 });
+    expect(result.document.incomeEntries.some((entry) => entry.propertyId === secondApartment.id && entry.rentalMonth! < "2026-10")).toBe(false);
+  });
+
   it("preconfirms historical apartment media but never current-month media", () => {
     const initial = doc();
     initial.properties = [property];

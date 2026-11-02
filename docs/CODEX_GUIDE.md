@@ -4,7 +4,8 @@ Use this document as the default context for implementation tasks in this reposi
 
 ## Current POC capability snapshot
 
-- **Implemented:** private-rental Pulpit and supporting tabs; validated schema-1 local persistence; full-amount rent, bill and tax confirmation; effective-month owner rent and separate media; explicit taxable treatment; apartment lifecycle/current tenant/contact; historical rent bootstrap; shared tax engine; rent, bill, tax and lease reminders; user-controlled JSON backup/restore; guided setup. Legacy custom-reminder fields remain readable but are not surfaced or scheduled.
+- **Implemented:** private-rental Pulpit and supporting tabs; validated schema-1 local persistence; full-amount rent, apartment-media and tax confirmation; effective-month owner rent and separate media; explicit taxable treatment; apartment lifecycle/current tenant/contact; completed-month historical bootstrap; shared tax engine; rent, apartment-media, legacy saved-bill, tax and lease reminders; user-controlled JSON backup/restore; three-step first-apartment wizard. The Tax tab shows year-to-date taxable revenue and threshold progress. Legacy custom-reminder fields remain readable but are not surfaced or scheduled.
+- **Still upcoming:** consolidated annual tax due/paid/difference and PIT-28 verification summary. Electronic filing is out of scope.
 - **Partial/requires verification:** native notification delivery, permissions, deep-link behavior and DST/timezone/restart behavior need physical-device checks.
 - **POC release readiness:** see the root [ROADMAP](../ROADMAP.md); emulator happy path, JSON restore round-trip and physical notification verification are evidence gates. Tax rules are versioned; a future unverified year uses a visible provisional fallback. Investory integration remains later/optional.
 
@@ -83,17 +84,17 @@ Most tasks are **projections**, not manually stored financial obligations.
 Core task categories:
 - tenant payment check;
 - tax payment;
-- apartment media-charge confirmation (plus legacy recurring-bill tasks);
-- agreement end;
-- minimal personal reminder.
+- apartment media-charge confirmation (plus tasks for saved legacy recurring-bill records);
+- agreement end.
 
 Stable identity must include source + relevant period/event so restart/reconciliation does not duplicate tasks.
 
 Persist only what cannot be safely derived:
 - snooze-until;
 - dismissal;
-- custom reminder configuration;
 - any explicit nonfinancial completion that has no source record.
+
+Legacy custom-reminder configuration may exist in schema-1 documents, but the current app does not expose or schedule it.
 
 Financial completion should be derived from confirmed financial records.
 
@@ -131,18 +132,11 @@ Do not turn this into full contract lifecycle management.
 
 ### Guided setup (implemented)
 
-A lightweight checklist can guide the initial configuration:
-1. apartment address;
-2. owner rent;
-3. payment day;
-4. optional tenant;
-5. optional agreement and administration details.
-
-Required vs optional fields must be clear. Completed setup should disappear from the everyday dashboard.
+The first-apartment setup is a three-step wizard: apartment/date/optional tenant; owner rent/media/payment day; taxable treatment and summary. Rent start defaults to January 1 of the current year, tenant-paid media defaults on, and owner-rent-only tax treatment is preselected. Normal apartment validation and the existing save mutation remain authoritative. Saving the apartment bootstraps completed months through the previous month; current and future periods stay pending for all payment types.
 
 ## 8. Opłaty
 
-The Opłaty card totals tenant-paid media charges from active apartments for the selected month. The landlord can manually confirm one full monthly total after paying; the confirmation is recorded locally and the card then shows **Potwierdzone**. Do not add a separate arbitrary-bill form. Existing recurring bill records must remain readable, but they do not define the current Opłaty amount.
+The Opłaty card totals tenant-paid media charges from active apartments for the selected month. The landlord can manually confirm one full monthly total after paying; the confirmation is recorded locally and the card then shows **Potwierdzone**. Do not add a separate arbitrary-bill form. Saved legacy recurring-bill records still load and can produce their legacy tasks, but they do not define the current Opłaty amount and have no current creation UI.
 
 ## 9. UI priorities
 
@@ -171,8 +165,7 @@ No competitor screen should be copied. Adapt only interaction patterns documente
 Product priority is confirmed rent → apartment media-charge confirmation → ryczałt calculation and tax confirmation. Apartment setup, expected rent, rent/media/tax/lease reminders, tax payment details and local backup/restore support that job. Custom/personal reminders are outside the POC scope. Do not let supporting workflows displace the core.
 
 Do not implement upcoming features unless they are explicitly in scope for the task:
-- year-to-date/annual tax summary and PIT-28 verification readiness (upcoming 0.6/0.7; not electronic filing);
-- local JSON backup/import/restore (upcoming 0.7; not cloud backup).
+- consolidated annual tax due/paid/difference and PIT-28 verification summary (tax tab currently shows year-to-date taxable revenue and threshold progress; electronic filing remains out of scope).
 
 Do not expand generic reminders or task management unless explicitly requested and supported by user demand. Keep these lower-priority ideas parked:
 - Investory integration;
@@ -215,7 +208,8 @@ At minimum consider:
 - receipt month != rental month;
 - tax threshold/period correction;
 - full tax confirmation and rejection of underpayment/overpayment;
-- bill fixed vs variable;
+- apartment creation historical bootstrap, current-month pending state, and a second apartment starting in the current month without pre-start history;
+- apartment-media confirmation from effective apartment terms; legacy recurring-bill behavior only when a saved record is present;
 - agreement end changed/removed;
 - snooze/dismiss/reopen;
 - app restart/reconciliation;

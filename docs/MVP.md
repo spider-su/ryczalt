@@ -8,7 +8,7 @@ The user confirms actual rent receipts, confirms payment of the known media char
 
 ## User outcomes and acceptance
 
-1. **Confirm rental income:** record actual receipt date and confirm the full rent in one action; keep expected rent separate. Initial historical rent is added only after the landlord confirms the selected period in the setup flow.
+1. **Confirm rental income:** record actual receipt date and confirm the full rent in one action; keep expected rent separate. Saving a new apartment automatically seeds assumed rent, Opłaty where applicable, and tax confirmations for completed months from its start through the previous month. The current month stays pending for all three and is handled through the normal confirmation flows.
 2. **Confirm apartment media charges:** aggregate known monthly media amounts for active apartments, show the total on Pulpit, and let the landlord manually confirm the full amount after paying. Do not offer adding separate arbitrary Opłaty. Local reminders use the apartments' configured payment days.
 3. **Calculate and pay tax:** calculate from confirmed taxable receipts; show applicable settlement period, obligation, due date, and confirm the full outstanding tax amount. Corrections update calculations and tasks.
 4. **See what needs attention:** Pulpit lists actionable, upcoming and snoozed tasks; dismissing an OS notification does not erase a task. Empty state is useful.
@@ -28,7 +28,7 @@ Annual PIT-28 filing submission remains out of scope. The tax screen is informat
 
 A current apartment default rent must not rewrite previous months. The implemented effective-month rent schedule preserves older expectations when rent changes; regression tests cover period-specific expected rent.
 
-When confirming the initial historical-rent import, the selected completed rent periods are added as initial rent receipts and their calculated full monthly tax obligations are recorded as paid. This records the landlord's confirmation for both rent and tax. The start date defaults to January 1 of the current year and can be changed in the first-apartment wizard.
+When a new apartment is saved, completed months from its start month through the previous month are added as assumed initial rent receipts; corresponding tenant-paid media totals and calculated tax obligations are also recorded as paid where applicable. These are historical bootstrap records, not evidence of a live payment. The current month and future months are excluded, so rent, Opłaty and tax stay pending until confirmed through their normal flows. A newly added apartment that starts in the current month does not create pre-start history or change already-confirmed apartments. The start date defaults to January 1 of the current year and can be changed in the first-apartment wizard.
 
 ## Quality and scope constraints
 

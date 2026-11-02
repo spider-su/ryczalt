@@ -8,7 +8,7 @@ No apartments → Pulpit offers **“Rozpocznij · 3 kroki”** or **“Zobacz d
 2. **Płatności:** owner rent, separate media amount, tenant-paid media switch (on by default for new apartments), and payment day.
 3. **Podatek i gotowe:** explicitly choose the taxable treatment according to the agreement, review the summary, and save.
 
-The existing apartment save function is authoritative: it applies all normal validations, duplicate-address checks and rent schedules and persists exactly once. The wizard itself writes nothing between steps. Cancelling does not write partial data. After saving, the app initializes completed historical rent, associated tax confirmations and applicable apartment media confirmations through the preceding month. The current month remains pending. This bootstrap represents the landlord's assumed opening state; incorrect historical assumptions require user review.
+The existing apartment save function is authoritative: it applies all normal validations, duplicate-address checks and rent schedules and persists exactly once. The wizard itself writes nothing between steps. Cancelling does not write partial data. Saving a new apartment automatically bootstraps completed months from its start date through the previous month: assumed full rent receipts, applicable tenant-paid media confirmations and calculated tax obligations are marked as initial imports. These are assumptions for setting up an existing tenancy, not proof of payment. The current month and future months remain pending for rent, Opłaty and tax and use the normal manual confirmation flows. A newly added apartment starting in the current month creates no earlier history. A high-amount warning is retained where applicable.
 
 Existing installations with apartments do not enter the wizard. Apartment creation/editing and advanced tenant/contact, agreement-end and administrator/utility links remain accessible from the Mieszkania header action. Calculation settings are under Podatek → Ustawienia podatku, while Dane do przelewu remains in general Settings. Demo stays isolated from real stored data.
 
@@ -34,7 +34,7 @@ Pulpit flow: confirm rent → confirm apartment media charges → confirm tax. T
 
 ## JSON backup and restore
 
-Settings exports a validated JSON document for the user to store outside the app. After reinstall/device change, select that file; import validates it before replacing local data. Invalid backup leaves the current document unchanged. The release checklist requires clear/uninstall → reinstall → import and comparison of apartment, tenant/contact, income, tax payments, reminder settings, schema and calculated tax results. Android system backup is disabled because the native encrypted document depends on a device-bound key. Export a JSON backup before uninstalling or changing devices. No cloud backup exists.
+Settings exports a validated, plaintext JSON document for the user to store outside the app. After reinstall/device change, select that file; import validates it before replacing local data. Invalid backup leaves the current document unchanged. The release checklist requires clear/uninstall → reinstall → import and comparison of apartment, tenant/contact, income, tax payments, reminder settings, schema and calculated tax results. Android system backup is disabled because the native encrypted document depends on a device-bound key. Export a JSON backup before uninstalling or changing devices. No cloud backup exists.
 
 ## Cross-cutting behavior
 
