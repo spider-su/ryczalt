@@ -3,13 +3,11 @@ title: "Polityka prywatności Ryczałt"
 permalink: /privacy/
 ---
 
-# Polityka prywatności Ryczałt — projekt do publikacji
-
-**Status: projekt do zatwierdzenia; dane wydawcy i kontakt zostały uzupełnione. Nie publikować przed potwierdzeniem pozostałych kwestii prawnych, daty wejścia w życie i zgodności z wersją wydania.** Ta wersja opisuje obecną aplikację mobilną; zmiana SDK, analityki, backendu lub sposobu przechowywania wymaga ponownego przeglądu.
+# Polityka prywatności Ryczałt
 
 ## Administrator
 
-Wydawcą aplikacji oraz osobą wskazaną do kontaktu w sprawach prywatności jest **Alex Kotik**, działający jako osoba fizyczna (nie w imieniu działalności JDG). Nazwa dewelopera widoczna w Google Play: **smart-box**. Kontakt elektroniczny: **alex.kotik.net@gmail.com**. Dane kontaktowe do spraw ochrony prywatności: **alex.kotik.net@gmail.com**. Adres korespondencyjny nie został podany; przed publikacją należy sprawdzić wymagania prawne i dane zweryfikowane w koncie Google Play. Nie należy domniemywać ani publikować adresu prywatnego.
+Wydawcą aplikacji oraz osobą wskazaną do kontaktu w sprawach prywatności jest **Alex Kotik**, działający jako osoba fizyczna (nie w imieniu działalności JDG). Nazwa dewelopera widoczna w Google Play: **smart-box**. Kontakt elektroniczny: **alex.kotik.net@gmail.com**. Dane kontaktowe do spraw ochrony prywatności: **alex.kotik.net@gmail.com**. 
 
 ## Dane i cel
 
@@ -27,6 +25,6 @@ Użytkownik sam wprowadza dane, w tym dane osób trzecich, i odpowiada za posiad
 
 ## Bezpieczeństwo, dzieci i zmiany
 
-Ochrona danych lokalnych zależy także od blokady urządzenia i bezpieczeństwa kopii eksportowych. Aplikacja nie jest przeznaczona dla dzieci. Zmiany tej polityki będą publikowane pod adresem **https://spider-su.github.io/ryczalt/privacy/** (adres planowany; wymaga aktywacji i weryfikacji) wraz z datą aktualizacji.
+Ochrona danych lokalnych zależy także od blokady urządzenia i bezpieczeństwa kopii eksportowych. Aplikacja nie jest przeznaczona dla dzieci. Zmiany tej polityki będą publikowane pod adresem **https://spider-su.github.io/ryczalt/privacy/** wraz z datą aktualizacji.
 
-**Wersja:** [wersja wydania] · **Data wejścia w życie:** [data] · **Publiczny URL (planowany):** https://spider-su.github.io/ryczalt/privacy/
+**Data aktualizacji dokumentu:** 2026-11-02 · **Adres polityki:** https://spider-su.github.io/ryczalt/privacy/
