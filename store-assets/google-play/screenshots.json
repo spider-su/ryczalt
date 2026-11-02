@@ -1,0 +1,169 @@
+{
+  "screenshots": [
+    {
+      "file": "phone/phone-01.png",
+      "screen": "Pulpit: miesięczne podsumowanie czynszów, opłat i podatku w trybie demo",
+      "captured_at": "2026-11-02T17:58:14.599553+00:00",
+      "capture_method": "adb exec-out screencap -p",
+      "sha256": "10d93ce87cf83b52c50c1c7949bcca2ac375dfb63add0a94fce49b8b9f2af47b",
+      "raw_sha256": "9c274eaae606efea630db799ee3b240e5535a1d4a66518d91603f0d4e35877ae",
+      "crop": null,
+      "apk": {
+        "file": "ryczalt.apk",
+        "sha256": "51af5ecf03035f0e67caabd883f23940082a4864876e1b35127923cb520ee84f",
+        "package": "pl.ryczalt.rental",
+        "version_code": "1",
+        "version_name": "0.1.0",
+        "source_commit": "a8646bc69bbfebc77a8700f0843fe6658355d798",
+        "build_url": "Local build using .codex/skills/ryczalt-build-apk/scripts/build_apk.sh; source https://github.com/spider-su/ryczalt/commit/a8646bc69bbfebc77a8700f0843fe6658355d798"
+      },
+      "emulator": {
+        "avd": "play-store-assets-api35",
+        "serial": "emulator-5560",
+        "api": "35",
+        "android": "15",
+        "abi": "arm64-v8a",
+        "display": "Physical size: 1080x2400\nOverride size: 1080x1920",
+        "density": "Physical density: 420\nOverride density: 320",
+        "app_language": "pl-PL",
+        "system_locale": "pl-PL"
+      },
+      "foreground_verified": true,
+      "visual_review": "pass",
+      "test_data": "Existing isolated demo mode; built-in fictional tenants, addresses, income and tax records; demo banner retained; nothing imported from saved user data.",
+      "review_notes": "Inspected full screenshots/contact sheet. No real personal records, debug overlays, development panels or obsolete branding. Demo-only notification test panel deliberately omitted."
+    },
+    {
+      "file": "phone/phone-02.png",
+      "screen": "Mieszkania: dwa przykładowe lokale i fikcyjni najemcy w trybie demo",
+      "captured_at": "2026-11-02T17:58:30.065229+00:00",
+      "capture_method": "adb exec-out screencap -p",
+      "sha256": "abc40538fb2798af3f87009226f06912c0fb44571e85430946f8f4eb8a9094fb",
+      "raw_sha256": "2c9c85e1a1d1edb9e747898af3927e5cd969f393c82cef2ad41cf527cf3050e7",
+      "crop": null,
+      "apk": {
+        "file": "ryczalt.apk",
+        "sha256": "51af5ecf03035f0e67caabd883f23940082a4864876e1b35127923cb520ee84f",
+        "package": "pl.ryczalt.rental",
+        "version_code": "1",
+        "version_name": "0.1.0",
+        "source_commit": "a8646bc69bbfebc77a8700f0843fe6658355d798",
+        "build_url": "Local build using .codex/skills/ryczalt-build-apk/scripts/build_apk.sh; source https://github.com/spider-su/ryczalt/commit/a8646bc69bbfebc77a8700f0843fe6658355d798"
+      },
+      "emulator": {
+        "avd": "play-store-assets-api35",
+        "serial": "emulator-5560",
+        "api": "35",
+        "android": "15",
+        "abi": "arm64-v8a",
+        "display": "Physical size: 1080x2400\nOverride size: 1080x1920",
+        "density": "Physical density: 420\nOverride density: 320",
+        "app_language": "pl-PL",
+        "system_locale": "pl-PL"
+      },
+      "foreground_verified": true,
+      "visual_review": "pass",
+      "test_data": "Existing isolated demo mode; built-in fictional tenants, addresses, income and tax records; demo banner retained; nothing imported from saved user data.",
+      "review_notes": "Inspected full screenshots/contact sheet. No real personal records, debug overlays, development panels or obsolete branding. Demo-only notification test panel deliberately omitted."
+    },
+    {
+      "file": "phone/phone-03.png",
+      "screen": "Wpłaty: rozwinięta historia potwierdzonych czynszów z października, dane demo",
+      "captured_at": "2026-11-02T17:59:05.791252+00:00",
+      "capture_method": "adb exec-out screencap -p",
+      "sha256": "cbced26e9ec91603070fd3be2f1fc193a90cb9ec8de097cd0069d7f6be48ec5b",
+      "raw_sha256": "67976bdc63be299ee406942f235adde819ef86cc4d9c1cecdda45b2c00f82eed",
+      "crop": null,
+      "apk": {
+        "file": "ryczalt.apk",
+        "sha256": "51af5ecf03035f0e67caabd883f23940082a4864876e1b35127923cb520ee84f",
+        "package": "pl.ryczalt.rental",
+        "version_code": "1",
+        "version_name": "0.1.0",
+        "source_commit": "a8646bc69bbfebc77a8700f0843fe6658355d798",
+        "build_url": "Local build using .codex/skills/ryczalt-build-apk/scripts/build_apk.sh; source https://github.com/spider-su/ryczalt/commit/a8646bc69bbfebc77a8700f0843fe6658355d798"
+      },
+      "emulator": {
+        "avd": "play-store-assets-api35",
+        "serial": "emulator-5560",
+        "api": "35",
+        "android": "15",
+        "abi": "arm64-v8a",
+        "display": "Physical size: 1080x2400\nOverride size: 1080x1920",
+        "density": "Physical density: 420\nOverride density: 320",
+        "app_language": "pl-PL",
+        "system_locale": "pl-PL"
+      },
+      "foreground_verified": true,
+      "visual_review": "pass",
+      "test_data": "Existing isolated demo mode; built-in fictional tenants, addresses, income and tax records; demo banner retained; nothing imported from saved user data.",
+      "review_notes": "Inspected full screenshots/contact sheet. No real personal records, debug overlays, development panels or obsolete branding. Demo-only notification test panel deliberately omitted."
+    },
+    {
+      "file": "phone/phone-04.png",
+      "screen": "Podatek: obliczony ryczałt, termin, status wpłaty i wykorzystanie progu w demo",
+      "captured_at": "2026-11-02T17:59:21.256959+00:00",
+      "capture_method": "adb exec-out screencap -p",
+      "sha256": "bed9410c373af464997f7a782be22d6013f09be7e7331081a8829cc7c083d3cc",
+      "raw_sha256": "d20289ef7fd596ace7a53720b9dfdc93a18dcb239e897de7eeb75da6ffa3af7b",
+      "crop": null,
+      "apk": {
+        "file": "ryczalt.apk",
+        "sha256": "51af5ecf03035f0e67caabd883f23940082a4864876e1b35127923cb520ee84f",
+        "package": "pl.ryczalt.rental",
+        "version_code": "1",
+        "version_name": "0.1.0",
+        "source_commit": "a8646bc69bbfebc77a8700f0843fe6658355d798",
+        "build_url": "Local build using .codex/skills/ryczalt-build-apk/scripts/build_apk.sh; source https://github.com/spider-su/ryczalt/commit/a8646bc69bbfebc77a8700f0843fe6658355d798"
+      },
+      "emulator": {
+        "avd": "play-store-assets-api35",
+        "serial": "emulator-5560",
+        "api": "35",
+        "android": "15",
+        "abi": "arm64-v8a",
+        "display": "Physical size: 1080x2400\nOverride size: 1080x1920",
+        "density": "Physical density: 420\nOverride density: 320",
+        "app_language": "pl-PL",
+        "system_locale": "pl-PL"
+      },
+      "foreground_verified": true,
+      "visual_review": "pass",
+      "test_data": "Existing isolated demo mode; built-in fictional tenants, addresses, income and tax records; demo banner retained; nothing imported from saved user data.",
+      "review_notes": "Inspected full screenshots/contact sheet. No real personal records, debug overlays, development panels or obsolete branding. Demo-only notification test panel deliberately omitted."
+    },
+    {
+      "file": "phone/phone-05.png",
+      "screen": "Dane lokalne: informacje o bezpieczeństwie i niezaszyfrowanych kopiach JSON; demo nie eksportuje danych",
+      "captured_at": "2026-11-02T18:02:17.802676+00:00",
+      "capture_method": "adb exec-out screencap -p",
+      "sha256": "2030e7459e2831fa72c01399eee945b86f960a4f1f508267ccce1ee52b5bcebd",
+      "raw_sha256": "d6a6ba155d1edade979ae3b82a04215592260ae004018a9cb1614eea113a5814",
+      "crop": null,
+      "apk": {
+        "file": "ryczalt.apk",
+        "sha256": "51af5ecf03035f0e67caabd883f23940082a4864876e1b35127923cb520ee84f",
+        "package": "pl.ryczalt.rental",
+        "version_code": "1",
+        "version_name": "0.1.0",
+        "source_commit": "a8646bc69bbfebc77a8700f0843fe6658355d798",
+        "build_url": "Local build using .codex/skills/ryczalt-build-apk/scripts/build_apk.sh; source https://github.com/spider-su/ryczalt/commit/a8646bc69bbfebc77a8700f0843fe6658355d798"
+      },
+      "emulator": {
+        "avd": "play-store-assets-api35",
+        "serial": "emulator-5560",
+        "api": "35",
+        "android": "15",
+        "abi": "arm64-v8a",
+        "display": "Physical size: 1080x2400\nOverride size: 1080x1920",
+        "density": "Physical density: 420\nOverride density: 320",
+        "app_language": "pl-PL",
+        "system_locale": "pl-PL"
+      },
+      "foreground_verified": true,
+      "visual_review": "pass",
+      "test_data": "Existing isolated demo mode; built-in fictional tenants, addresses, income and tax records; demo banner retained; nothing imported from saved user data.",
+      "review_notes": "Inspected full screenshots/contact sheet. No real personal records, debug overlays, development panels or obsolete branding. Demo-only notification test panel deliberately omitted."
+    }
+  ]
+}
