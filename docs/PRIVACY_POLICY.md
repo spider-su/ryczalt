@@ -5,11 +5,11 @@ permalink: /privacy/
 
 # Polityka prywatności Ryczałt — projekt do publikacji
 
-**Status: nie publikować przed uzupełnieniem pól w nawiasach i sprawdzeniem zgodności z wydaniem.** Ta wersja opisuje obecną aplikację mobilną; zmiana SDK, analityki, backendu lub sposobu przechowywania wymaga ponownego przeglądu.
+**Status: projekt do zatwierdzenia; dane wydawcy i kontakt zostały uzupełnione. Nie publikować przed potwierdzeniem pozostałych kwestii prawnych, daty wejścia w życie i zgodności z wersją wydania.** Ta wersja opisuje obecną aplikację mobilną; zmiana SDK, analityki, backendu lub sposobu przechowywania wymaga ponownego przeglądu.
 
 ## Administrator
 
-Administratorem danych jest **[pełna nazwa / imię i nazwisko wydawcy]**, **[adres do korespondencji]**, kontakt: **[adres e-mail ds. prywatności]**. Dane inspektora ochrony danych, jeśli został wyznaczony: **[kontakt albo „nie wyznaczono”]**.
+Administratorem danych jest **Alex Kotik**, kontakt elektroniczny: **alex.kotik.net@gmail.com**. Dane kontaktowe do spraw ochrony prywatności: **alex.kotik.net@gmail.com**. Ewentualny adres korespondencyjny i obowiązek jego ujawnienia wymagają potwierdzenia przed publikacją.
 
 ## Dane i cel
 
@@ -23,10 +23,10 @@ Wersja webowa, jeśli jest używana, korzysta z pamięci przeglądarki i nie ma 
 
 ## Podstawa, okres i prawa
 
-Użytkownik sam wprowadza dane, w tym dane osób trzecich, i odpowiada za posiadanie podstawy do ich użycia. Wydawca nie otrzymuje tych wpisów. Dane pozostają na urządzeniu do czasu usunięcia ich w aplikacji lub usunięcia aplikacji/danych aplikacji; eksport pozostaje tam, gdzie zapisze go użytkownik. W sprawach dotyczących danych administratora można napisać na **[adres e-mail ds. prywatności]**. Użytkownik może mieć prawa wynikające z RODO, w tym dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu i skargi do właściwego organu nadzorczego; ich zastosowanie zależy od okoliczności i roli administratora.
+Użytkownik sam wprowadza dane, w tym dane osób trzecich, i odpowiada za posiadanie podstawy do ich użycia. Wydawca nie otrzymuje tych wpisów. Dane pozostają na urządzeniu do czasu usunięcia ich w aplikacji lub usunięcia aplikacji/danych aplikacji; eksport pozostaje tam, gdzie zapisze go użytkownik. W sprawach dotyczących danych administratora można napisać na **alex.kotik.net@gmail.com**. Użytkownik może mieć prawa wynikające z RODO, w tym dostępu, sprostowania, usunięcia, ograniczenia, sprzeciwu i skargi do właściwego organu nadzorczego; ich zastosowanie zależy od okoliczności i roli administratora.
 
 ## Bezpieczeństwo, dzieci i zmiany
 
-Ochrona danych lokalnych zależy także od blokady urządzenia i bezpieczeństwa kopii eksportowych. Aplikacja nie jest przeznaczona dla dzieci. Zmiany tej polityki będą publikowane pod adresem **[publiczny URL polityki]** wraz z datą aktualizacji.
+Ochrona danych lokalnych zależy także od blokady urządzenia i bezpieczeństwa kopii eksportowych. Aplikacja nie jest przeznaczona dla dzieci. Zmiany tej polityki będą publikowane pod adresem **https://spider-su.github.io/ryczalt/privacy/** (adres planowany; wymaga aktywacji i weryfikacji) wraz z datą aktualizacji.
 
-**Wersja:** [wersja wydania] · **Data wejścia w życie:** [data] · **Publiczny URL:** [URL]
+**Wersja:** [wersja wydania] · **Data wejścia w życie:** [data] · **Publiczny URL (planowany):** https://spider-su.github.io/ryczalt/privacy/
