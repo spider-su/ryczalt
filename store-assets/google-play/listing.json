@@ -1,0 +1,20 @@
+{
+  "name": "Ryczałt",
+  "package": "pl.ryczalt.rental",
+  "language": "pl-PL",
+  "title": "Ryczałt – podatek z najmu",
+  "short_description": "Potwierdzaj czynsz, obliczaj ryczałt i pilnuj terminów najmu prywatnego",
+  "icon": "assets/brand/app-icon.png",
+  "background": "#A91629",
+  "foreground": "#FFFFFF",
+  "accent": "#FFC6CC",
+  "graphic_title": [
+    "Ryczałt"
+  ],
+  "graphic_subtitle": [
+    "Najem prywatny",
+    "pod kontrolą"
+  ],
+  "graphic_footer": "CZYNSZ  /  PODATEK  /  TERMINY",
+  "full_description": "Ryczałt pomaga prowadzić prywatny najem mieszkań. Zapisuj warunki najmu, potwierdzaj otrzymany czynsz i sprawdzaj wyliczony podatek w jednym miejscu.\n\nPotwierdzone wpływy\nSamodzielnie potwierdzaj otrzymane płatności. Przeglądaj historię i sprawdzaj, które należności czekają na rozliczenie. Aplikacja nie łączy się z bankiem i nie rozpoznaje przelewów automatycznie.\n\nMieszkania i najem\nPrzechowuj informacje o mieszkaniach, bieżącym najmie i opłatach. Kontroluj wpływy właściciela oraz rozliczenia mediów zgodnie z zapisanymi warunkami.\n\nRyczałt i terminy\nSprawdzaj obliczenia oparte na potwierdzonych wpływach, przychód narastająco i status ręcznie potwierdzonych płatności podatku. Lista zadań pomaga pilnować terminów czynszu, podatku i najmu. Lokalne powiadomienia możesz włączyć dobrowolnie.\n\nDane na urządzeniu\nKorzystaj bez konta i bez własnego serwera aplikacji. Rejestr na Androidzie jest szyfrowany, a klucz korzysta z systemowego magazynu sekretów. Możesz wyeksportować i zaimportować kopię JSON; taki eksport nie jest szyfrowany i wymaga bezpiecznego przechowywania.\n\nTryb demo pozwala poznać aplikację na fikcyjnych danych, oddzielonych od zapisanego rejestru.\n\nObliczenia mają charakter informacyjny i wymagają sprawdzenia w odniesieniu do Twojej sytuacji. Aplikacja nie zastępuje porady podatkowej, nie wysyła PIT-28 i nie jest powiązana z polskimi organami podatkowymi."
+}
