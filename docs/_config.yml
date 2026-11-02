@@ -1,0 +1,6 @@
+title: "Ryczałt"
+description: "Privacy information for Ryczałt, published by Alex Kotik (smart-box)."
+theme: minima
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
