@@ -9,7 +9,7 @@ permalink: /privacy/
 
 ## Administrator
 
-Administratorem danych jest **Alex Kotik**, kontakt elektroniczny: **alex.kotik.net@gmail.com**. Dane kontaktowe do spraw ochrony prywatności: **alex.kotik.net@gmail.com**. Ewentualny adres korespondencyjny i obowiązek jego ujawnienia wymagają potwierdzenia przed publikacją.
+Wydawcą aplikacji oraz osobą wskazaną do kontaktu w sprawach prywatności jest **Alex Kotik**, działający jako osoba fizyczna (nie w imieniu działalności JDG). Nazwa dewelopera widoczna w Google Play: **smart-box**. Kontakt elektroniczny: **alex.kotik.net@gmail.com**. Dane kontaktowe do spraw ochrony prywatności: **alex.kotik.net@gmail.com**. Adres korespondencyjny nie został podany; przed publikacją należy sprawdzić wymagania prawne i dane zweryfikowane w koncie Google Play. Nie należy domniemywać ani publikować adresu prywatnego.
 
 ## Dane i cel
 
